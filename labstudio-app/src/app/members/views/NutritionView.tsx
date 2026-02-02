@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Card from '../components/Card';
 
 type NutritionState = {
@@ -55,6 +55,13 @@ export default function NutritionView() {
       setLoading(false);
     }
   };
+
+  // Safety: abort any in-flight food search if this component unmounts.
+  useEffect(() => {
+    return () => {
+      searchAbortRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     void load();
@@ -114,31 +121,59 @@ export default function NutritionView() {
     return null;
   }, [selected]);
 
+  // Keep results stable: cancel in-flight searches and ignore stale responses.
+  const [lastQuery, setLastQuery] = useState('');
+  const searchAbortRef = useRef<AbortController | null>(null);
+
   const searchFoods = async (q: string) => {
     const query = q.trim();
+    setLastQuery(query);
+
     if (query.length < 2) {
+      searchAbortRef.current?.abort();
       setSuggestions([]);
+      setSuggestBusy(false);
       return;
     }
 
+    // Cancel previous search
+    searchAbortRef.current?.abort();
+    const ac = new AbortController();
+    searchAbortRef.current = ac;
+
     setSuggestBusy(true);
     try {
-      const r = await fetch(`/api/lab/foods/search?q=${encodeURIComponent(query)}&limit=8`);
+      const r = await fetch(`/api/lab/foods/search?q=${encodeURIComponent(query)}&limit=8`, { signal: ac.signal });
       const j = await r.json();
+
+      // Ignore stale responses
+      if (ac.signal.aborted) return;
+      if ((j?.q || '').trim() !== query) return;
+
       if (j?.ok && Array.isArray(j.foods)) setSuggestions(j.foods as FoodSuggestion[]);
-    } catch {
-      // ignore
+      else setSuggestions([]);
+    } catch (e) {
+      // ignore abort errors and fetch errors
+      if ((e as any)?.name !== 'AbortError') setSuggestions([]);
     } finally {
-      setSuggestBusy(false);
+      if (!ac.signal.aborted) setSuggestBusy(false);
     }
   };
 
   useEffect(() => {
     if (!suggestOpen) return;
+
+    const query = form.name.trim();
+    // Clear suggestion list immediately when user changes input to avoid showing stale results.
+    if (query !== lastQuery) setSuggestions([]);
+
     const t = setTimeout(() => {
       void searchFoods(form.name);
     }, 250);
-    return () => clearTimeout(t);
+
+    return () => {
+      clearTimeout(t);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.name, suggestOpen]);
 
@@ -223,7 +258,12 @@ export default function NutritionView() {
               placeholder="Type to search (brand first)…"
               value={form.name}
               onFocus={() => setSuggestOpen(true)}
-              onBlur={() => setTimeout(() => setSuggestOpen(false), 120)}
+              onBlur={() => {
+                // Close dropdown; also abort any in-flight searches.
+                setTimeout(() => setSuggestOpen(false), 120);
+                searchAbortRef.current?.abort();
+                setSuggestBusy(false);
+              }}
               onChange={(e) => {
                 setSelected(null);
                 setAutoMacros(false);
