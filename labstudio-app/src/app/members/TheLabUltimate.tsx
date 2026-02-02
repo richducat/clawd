@@ -59,11 +59,25 @@ function NavBtn({
   );
 }
 
-export default function TheLabUltimate({ initialUser }: { initialUser: { display_name?: string; xp?: number; level?: number } | null }) {
+export default function TheLabUltimate({
+  initialUser,
+  initialProfile,
+}: {
+  initialUser: { display_name?: string; xp?: number; level?: number } | null;
+  initialProfile: {
+    first_name?: string | null;
+    last_name?: string | null;
+    goal?: string | null;
+  } | null;
+}) {
   const [tab, setTabState] = useState<Tab>('home');
   const xp = initialUser?.xp ?? 0;
   const level = initialUser?.level ?? 1;
-  const name = initialUser?.display_name ?? 'Athlete';
+  const name =
+    [initialProfile?.first_name, initialProfile?.last_name].filter(Boolean).join(' ') ||
+    initialUser?.display_name ||
+    'Athlete';
+  const goal = initialProfile?.goal ?? null;
 
   const setTab = (next: string) => setTabState(next as Tab);
 
@@ -102,8 +116,8 @@ export default function TheLabUltimate({ initialUser }: { initialUser: { display
           <HomeView
             xp={xp}
             level={level}
-            credits={1}
-            userProfile={{ name, goal: 'Hypertrophy', weight: 185, bf: 14 }}
+            credits={0}
+            userProfile={{ name, goal }}
             setTab={setTab}
           />
         )}

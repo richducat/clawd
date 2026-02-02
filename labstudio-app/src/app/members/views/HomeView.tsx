@@ -36,9 +36,7 @@ export default function HomeView({
   credits: number;
   userProfile: {
     name: string;
-    goal: string;
-    weight: number;
-    bf?: number | string;
+    goal: string | null;
   };
   setTab: (tab: string, meta?: Record<string, unknown>) => void;
 }) {
@@ -47,6 +45,7 @@ export default function HomeView({
 
   const [homeData, setHomeData] = useState<{
     nutrition: { calories: number; protein_g: number; carbs_g: number; fat_g: number };
+    latestStats: { weight_lbs: string | number | null; body_fat_pct: string | number | null } | null;
     nextBooking: { summary: string; start: string; end: string; location: string | null; description: string | null } | null;
   } | null>(null);
 
@@ -70,7 +69,11 @@ export default function HomeView({
   const todaysProtein = homeData?.nutrition?.protein_g ?? 0;
 
   const [showQuickLog, setShowQuickLog] = useState(false);
-  const [statsLog, setStatsLog] = useState({ weight: String(userProfile.weight), bodyFat: '', note: '' });
+  const [statsLog, setStatsLog] = useState({
+    weight: homeData?.latestStats?.weight_lbs != null ? String(homeData.latestStats.weight_lbs) : '',
+    bodyFat: homeData?.latestStats?.body_fat_pct != null ? String(homeData.latestStats.body_fat_pct) : '',
+    note: '',
+  });
 
   const defaultTilePrefs = useMemo(
     () => PROGRESS_TILES.map((tile, index) => ({ id: tile.id, visible: true, order: index })),
@@ -128,11 +131,11 @@ export default function HomeView({
   };
 
   const bfText = useMemo(() => {
-    const bf = userProfile.bf;
-    if (typeof bf === 'number' && Number.isFinite(bf)) return `${bf}% BF`;
-    if (typeof bf === 'string' && bf.trim()) return bf;
-    return `We’ll compute this later`;
-  }, [userProfile.bf]);
+    const bf = homeData?.latestStats?.body_fat_pct;
+    const n = bf == null ? NaN : Number(bf);
+    if (Number.isFinite(n)) return `${n}% BF`;
+    return '—';
+  }, [homeData?.latestStats?.body_fat_pct]);
 
   return (
     <div className="pb-20 lg:pb-10">
@@ -228,11 +231,15 @@ export default function HomeView({
                 </div>
                 <div>
                   <div className="font-black italic text-lg leading-none uppercase">{userProfile.name}</div>
-                  <div className="text-[10px] font-mono text-zinc-500">GOAL: {userProfile.goal.toUpperCase()}</div>
+                  <div className="text-[10px] font-mono text-zinc-500">
+                    GOAL: {(userProfile.goal ?? '—').toUpperCase()}
+                  </div>
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-xs font-bold text-violet-400">{userProfile.weight} lbs</div>
+                <div className="text-xs font-bold text-violet-400">
+                  {homeData?.latestStats?.weight_lbs != null ? `${homeData.latestStats.weight_lbs} lbs` : '—'}
+                </div>
                 <div className="text-[10px] text-zinc-500">{bfText}</div>
               </div>
             </div>
