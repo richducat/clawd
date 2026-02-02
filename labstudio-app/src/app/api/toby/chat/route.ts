@@ -1,7 +1,16 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { TOBY_SYSTEM_PROMPT } from '@/lib/toby-protocol';
+import {
+  currentEtDayKey,
+  getRateLimitCookieName,
+  makeSignedDailyCounterCookie,
+  parseAndVerifyDailyCounter,
+} from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
+
+const DAILY_LIMIT = 35;
 
 export async function POST(req: Request) {
   try {
@@ -15,6 +24,32 @@ export async function POST(req: Request) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return NextResponse.json({ error: 'OPENAI_API_KEY not configured' }, { status: 500 });
+    }
+
+    const secret = process.env.LABSTUDIO_SESSION_SECRET;
+    if (!secret) {
+      return NextResponse.json(
+        { error: 'LABSTUDIO_SESSION_SECRET not configured (required for rate limit)' },
+        { status: 500 },
+      );
+    }
+
+    // Daily cap (no DB): signed cookie counter, resets daily (ET).
+    const jar = await cookies();
+    const rlName = getRateLimitCookieName();
+    const currentDay = currentEtDayKey();
+    const parsed = parseAndVerifyDailyCounter(jar.get(rlName)?.value, secret);
+    const count = parsed.day === currentDay ? parsed.count : 0;
+
+    if (count >= DAILY_LIMIT) {
+      return NextResponse.json(
+        {
+          error: `Daily limit reached (${DAILY_LIMIT}/day). Try again tomorrow.`,
+          limit: DAILY_LIMIT,
+          day: currentDay,
+        },
+        { status: 429 },
+      );
     }
 
     // Default to a cost-effective model; override via TOBY_MODEL env.
@@ -57,7 +92,17 @@ export async function POST(req: Request) {
     }
     const reply = parts.join('\n').trim() || '(no response)';
 
-    return NextResponse.json({ reply });
+    // Increment counter only on successful OpenAI call.
+    const nextCount = count + 1;
+    jar.set(rlName, makeSignedDailyCounterCookie({ day: currentDay, count: nextCount }, secret), {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: true,
+      path: '/',
+      maxAge: 60 * 60 * 24 * 2,
+    });
+
+    return NextResponse.json({ reply, usage: { day: currentDay, count: nextCount, limit: DAILY_LIMIT } });
   } catch (err: unknown) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Server error' },
