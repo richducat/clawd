@@ -99,8 +99,17 @@ export default function HomeView({
     setTilePrefs((prev) => prev.map((tile) => (tile.id === id ? { ...tile, visible: !tile.visible } : tile)));
   };
 
-  const logDailyStats = () => {
+  const logDailyStats = async () => {
     logEvent('daily_stats_logged', statsLog);
+    try {
+      await fetch('/api/lab/daily-stats', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ weight: statsLog.weight, bodyFat: statsLog.bodyFat, note: statsLog.note }),
+      });
+    } catch {
+      // ignore (offline etc.)
+    }
     setShowQuickLog(false);
   };
 

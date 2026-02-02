@@ -11,6 +11,7 @@ import {
 
 import TobyCoachView from './TobyCoachView';
 import HomeView from './views/HomeView';
+import WorkoutView from './views/WorkoutView';
 
 type Tab =
   | 'home'
@@ -104,7 +105,16 @@ export default function TheLabUltimate({ initialUser }: { initialUser: { display
 
         {tab === 'coach' && <TobyCoachView />}
 
-        {tab !== 'home' && tab !== 'coach' && (
+        {tab === 'workout' && (
+          <WorkoutView
+            onSelect={(id) => {
+              // Stub: route back home for now (until we port the full workout session view)
+              console.info('selected program', id);
+            }}
+          />
+        )}
+
+        {tab !== 'home' && tab !== 'coach' && tab !== 'workout' && (
           <div className="rounded-2xl border border-white/5 bg-zinc-900/60 backdrop-blur-md p-4">
             <div className="font-bold uppercase tracking-wider text-xs text-zinc-400">{tab}</div>
             <div className="text-sm text-zinc-300 mt-2">Placeholder (port in next).</div>

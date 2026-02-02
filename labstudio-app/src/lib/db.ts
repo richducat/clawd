@@ -33,6 +33,38 @@ export async function ensureSchema() {
       level integer not null default 1
     );
   `;
+
+  await q`
+    create table if not exists lab_daily_stats (
+      id bigserial primary key,
+      user_id text not null references lab_users(id) on delete cascade,
+      created_at timestamptz not null default now(),
+      weight_lbs numeric,
+      body_fat_pct numeric,
+      note text
+    );
+  `;
+
+  await q`
+    create index if not exists lab_daily_stats_user_created_at_idx on lab_daily_stats(user_id, created_at desc);
+  `;
+
+  await q`
+    create table if not exists lab_nutrition_log (
+      id bigserial primary key,
+      user_id text not null references lab_users(id) on delete cascade,
+      created_at timestamptz not null default now(),
+      name text not null,
+      protein_g integer not null,
+      carbs_g integer not null,
+      fat_g integer not null,
+      time_label text
+    );
+  `;
+
+  await q`
+    create index if not exists lab_nutrition_log_user_created_at_idx on lab_nutrition_log(user_id, created_at desc);
+  `;
 }
 
 export async function getOrCreateUser(userId: string): Promise<LabUser> {
