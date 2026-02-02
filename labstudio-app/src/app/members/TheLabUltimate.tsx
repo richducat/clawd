@@ -1,17 +1,22 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  Activity,
-  Calendar,
-  MessageSquare,
-  Brain,
-  ShoppingBag,
-} from 'lucide-react';
+import { Activity, Calendar, MessageSquare, Brain, ShoppingBag } from 'lucide-react';
 
 import TobyCoachView from './TobyCoachView';
 import HomeView from './views/HomeView';
 import WorkoutView from './views/WorkoutView';
+import BookView from './views/BookView';
+import NutritionView from './views/NutritionView';
+import HabitsView from './views/HabitsView';
+import MessagesView from './views/MessagesView';
+import CommunityView from './views/CommunityView';
+import ChallengesView from './views/ChallengesView';
+import WearablesView from './views/WearablesView';
+import SocialView from './views/SocialView';
+import LibraryView from './views/LibraryView';
+import GamesView from './views/GamesView';
+import MarketView from './views/MarketView';
 
 type Tab =
   | 'home'
@@ -105,21 +110,19 @@ export default function TheLabUltimate({ initialUser }: { initialUser: { display
 
         {tab === 'coach' && <TobyCoachView />}
 
-        {tab === 'workout' && (
-          <WorkoutView
-            onSelect={(id) => {
-              // Stub: route back home for now (until we port the full workout session view)
-              console.info('selected program', id);
-            }}
-          />
-        )}
+        {tab === 'book' && <BookView />}
+        {tab === 'games' && <GamesView />}
+        {tab === 'market' && <MarketView />}
 
-        {tab !== 'home' && tab !== 'coach' && tab !== 'workout' && (
-          <div className="rounded-2xl border border-white/5 bg-zinc-900/60 backdrop-blur-md p-4">
-            <div className="font-bold uppercase tracking-wider text-xs text-zinc-400">{tab}</div>
-            <div className="text-sm text-zinc-300 mt-2">Placeholder (port in next).</div>
-          </div>
-        )}
+        {tab === 'workout' && <WorkoutView onSelect={() => {}} />}
+        {tab === 'nutrition' && <NutritionView />}
+        {tab === 'habits' && <HabitsView />}
+        {tab === 'messages' && <MessagesView />}
+        {tab === 'community' && <CommunityView />}
+        {tab === 'challenges' && <ChallengesView />}
+        {tab === 'wearables' && <WearablesView />}
+        {tab === 'social' && <SocialView />}
+        {tab === 'library' && <LibraryView />}
       </main>
 
       {/* Nav Bar */}
