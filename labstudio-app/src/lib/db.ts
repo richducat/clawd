@@ -39,13 +39,13 @@ export async function getOrCreateUser(userId: string): Promise<LabUser> {
   await ensureSchema();
   const q = sql();
 
-  const existing = await q<LabUser[]>`select * from lab_users where id = ${userId} limit 1;`;
+  const existing = (await q`select * from lab_users where id = ${userId} limit 1;`) as unknown as LabUser[];
   if (existing?.[0]) return existing[0];
 
-  const inserted = await q<LabUser[]>`
+  const inserted = (await q`
     insert into lab_users (id, display_name, xp, level)
     values (${userId}, 'YOU', 1250, 3)
     returning *;
-  `;
+  `) as unknown as LabUser[];
   return inserted[0];
 }

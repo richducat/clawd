@@ -12,7 +12,7 @@ export default async function MembersHome() {
   if (uid && dbConfigured()) {
     try {
       const u = await getOrCreateUser(uid);
-      initialUser = { display_name: u.display_name, xp: u.xp, level: u.level };
+      initialUser = { display_name: u.display_name ?? undefined, xp: u.xp, level: u.level };
     } catch {
       // fall back
       initialUser = null;
