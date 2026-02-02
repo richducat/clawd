@@ -18,6 +18,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { loadEnvLocal } from '../lib/load-env-local.mjs';
+import { ringcentralGetJson, ringcentralGetAccessToken } from '../lib/ringcentral.mjs';
 
 // Allow running standalone from the repo root.
 loadEnvLocal();
@@ -64,63 +65,7 @@ async function writeCache(obj) {
   await fs.writeFile(CACHE_PATH, JSON.stringify(obj, null, 2) + '\n', 'utf8');
 }
 
-async function oauthTokenRefresh() {
-  const url = `${RC_API_SERVER}/restapi/oauth/token`;
-  const body = new URLSearchParams({
-    grant_type: 'refresh_token',
-    refresh_token: REFRESH_TOKEN,
-  });
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Authorization': basicAuthHeader(CLIENT_ID, CLIENT_SECRET),
-    },
-    body,
-  });
-
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(`Token refresh failed (${res.status}): ${json?.error || ''} ${json?.error_description || JSON.stringify(json)}`);
-  }
-
-  // RingCentral may rotate refresh tokens.
-  const expiresAtMs = Date.now() + (json.expires_in * 1000);
-  return {
-    ...json,
-    expires_at_ms: expiresAtMs,
-    obtained_at_ms: Date.now(),
-  };
-}
-
-async function getAccessToken() {
-  const cache = await readCache();
-  if (cache?.access_token && cache?.expires_at_ms) {
-    // keep a 60s safety margin
-    if (cache.expires_at_ms - Date.now() > 60_000) return { token: cache.access_token, refreshTokenRotatedTo: null };
-  }
-
-  const refreshed = await oauthTokenRefresh();
-  await writeCache(refreshed);
-  const rotated = refreshed.refresh_token && refreshed.refresh_token !== REFRESH_TOKEN ? refreshed.refresh_token : null;
-  return { token: refreshed.access_token, refreshTokenRotatedTo: rotated };
-}
-
-async function rcGet(accessToken, pathAndQuery) {
-  const url = `${RC_API_SERVER}${pathAndQuery}`;
-  const res = await fetch(url, {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Accept': 'application/json',
-    },
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(`GET ${pathAndQuery} failed (${res.status}): ${json?.message || JSON.stringify(json)}`);
-  }
-  return json;
-}
+// Token handling + refresh token rotation is centralized in scripts/lib/ringcentral.mjs
 
 function iso(d) {
   return d.toISOString();
@@ -187,15 +132,13 @@ function titleLine() {
 }
 
 (async function main() {
-  const { token, refreshTokenRotatedTo } = await getAccessToken();
+  await ringcentralGetAccessToken();
 
-  const callLog = await rcGet(
-    token,
+  const callLog = await ringcentralGetJson(
     `/restapi/v1.0/account/~/extension/~/call-log?dateFrom=${encodeURIComponent(iso(from))}&dateTo=${encodeURIComponent(iso(now))}&perPage=1000`
   );
 
-  const msgs = await rcGet(
-    token,
+  const msgs = await ringcentralGetJson(
     `/restapi/v1.0/account/~/extension/~/message-store?dateFrom=${encodeURIComponent(iso(from))}&dateTo=${encodeURIComponent(iso(now))}&perPage=1000`
   );
 
