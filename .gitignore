@@ -1,0 +1,18 @@
+# Moltbot personal workspace files (do not commit)
+MEMORY.md
+USER.md
+SOUL.md
+IDENTITY.md
+TOOLS.md
+HEARTBEAT.md
+BOOTSTRAP.md
+AGENTS.md
+
+memory/
+canvas/
+
+# OS
+.DS_Store
+
+# Logs
+*.log
