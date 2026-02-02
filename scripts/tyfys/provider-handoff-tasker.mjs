@@ -17,7 +17,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { loadEnvLocal } from '../lib/load-env-local.mjs';
-import { getZohoAccessToken, zohoCrmCoql, zohoCrmPost } from '../lib/zoho.mjs';
+import { getZohoAccessToken, zohoCrmCoql, zohoCrmPost, zohoCrmGet } from '../lib/zoho.mjs';
 
 loadEnvLocal();
 process.stdout.on('error', () => {});
@@ -40,6 +40,45 @@ async function writeState(s) {
   if (dryRun) return;
   await fs.mkdir(path.dirname(STATE_PATH), { recursive: true });
   await fs.writeFile(STATE_PATH, JSON.stringify(s, null, 2) + '\n', 'utf8');
+}
+
+async function fetchAllRelated({ dealId, rel, perPage = 200, maxPages = 10 }) {
+  let page = 1;
+  let out = [];
+  for (;;) {
+    const qs = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+    const j = await zohoCrmGet({ accessToken: zohoToken, apiDomain, pathAndQuery: `/crm/v2/Deals/${dealId}/${rel}?${qs.toString()}` });
+    const data = j.data || [];
+    out = out.concat(data);
+    if (!j.info?.more_records) break;
+    page += 1;
+    if (page > maxPages) break;
+  }
+  return out;
+}
+
+function dealFileHealthSummary({ tasks, notes, attachments }) {
+  const openTasks = (tasks || []).filter(t => !['Completed', 'Closed'].includes(String(t.Status || '')));
+  const overdue = openTasks.filter(t => t.Due_Date && new Date(t.Due_Date).getTime() < Date.now());
+  const lastNote = (notes || []).map(n => n.Modified_Time || n.Created_Time).filter(Boolean).sort().slice(-1)[0] || '';
+  const lastAttach = (attachments || []).map(a => a.Modified_Time || a.Created_Time).filter(Boolean).sort().slice(-1)[0] || '';
+  return {
+    openTasksCount: openTasks.length,
+    overdueTasksCount: overdue.length,
+    notesCount: (notes || []).length,
+    attachmentsCount: (attachments || []).length,
+    lastNote,
+    lastAttach,
+  };
+}
+
+async function getDealFileHealth(dealId) {
+  const [tasks, notes, attachments] = await Promise.all([
+    fetchAllRelated({ dealId, rel: 'Tasks' }),
+    fetchAllRelated({ dealId, rel: 'Notes' }),
+    fetchAllRelated({ dealId, rel: 'Attachments' }),
+  ]);
+  return dealFileHealthSummary({ tasks, notes, attachments });
 }
 
 async function createTask({ subject, dueDate, whatId, description }) {
@@ -89,10 +128,34 @@ async function main() {
     const stage = String(d.Stage || '');
     const provider = providerString(d.Provider);
 
+    // If provider includes Alina (deprecated), create explicit reassignment task.
+    if (/\bAlina\b/i.test(provider)) {
+      const key = `${dealId}:${dayKey}:reassign-alina`;
+      if (!state.createdTasks[key]) {
+        const health = await getDealFileHealth(dealId);
+        const subj = 'REASSIGN PROVIDER (Alina deprecated)';
+        const desc = [
+          `Deal: ${d.Deal_Name}`,
+          `Stage: ${stage}`,
+          `Provider currently: ${provider}`,
+          '',
+          `Deal file health: open_tasks=${health.openTasksCount} (overdue=${health.overdueTasksCount}) | notes=${health.notesCount} (last=${health.lastNote || 'n/a'}) | attachments=${health.attachmentsCount} (last=${health.lastAttach || 'n/a'})`,
+          '',
+          'Do:',
+          '- Remove/replace Alina with an active provider (Neura/Rivers/Suntree/Other)',
+          '- Then proceed with normal handoff + follow-up tasks',
+        ].join('\n');
+        await createTask({ subject: subj, dueDate: dayKey, whatId: dealId, description: desc });
+        state.createdTasks[key] = { at: new Date().toISOString(), kind: 'reassign-alina' };
+        created += 1;
+      }
+    }
+
     // Tasks for Ready for Provider: assign provider + send packet
     if (stage === 'Ready for Provider') {
       const key = `${dealId}:${dayKey}:ready-pack`;
       if (!state.createdTasks[key]) {
+        const health = await getDealFileHealth(dealId);
         const subj = provider
           ? `Provider handoff: send packet to ${provider}`
           : `Provider handoff: assign Provider + send packet`;
@@ -100,6 +163,8 @@ async function main() {
           `Deal: ${d.Deal_Name}`,
           `Stage: ${stage}`,
           `Provider: ${provider || '(not set)'}`,
+          '',
+          `Deal file health: open_tasks=${health.openTasksCount} (overdue=${health.overdueTasksCount}) | notes=${health.notesCount} (last=${health.lastNote || 'n/a'}) | attachments=${health.attachmentsCount} (last=${health.lastAttach || 'n/a'})`,
           '',
           'Do:',
           '- Set Provider (field at top) if not set',
@@ -115,13 +180,13 @@ async function main() {
 
     // Tasks for Sent to Provider: follow up rhythm if stale
     if (stage === 'Sent to Provider') {
-      // If Last Time Contacted is empty OR Last_Activity_Time is older than 3 business days, create follow-up task.
-      // We don't have business-day logic yet; v1: 4 calendar days.
+      // If Last_Activity_Time is older than ~4 calendar days, create follow-up task.
       const lastActMs = d.Last_Activity_Time ? new Date(d.Last_Activity_Time).getTime() : 0;
       const stale = !lastActMs || (Date.now() - lastActMs > 4 * 24 * 3600 * 1000);
       if (stale) {
         const key = `${dealId}:${dayKey}:provider-followup`;
         if (!state.createdTasks[key]) {
+          const health = await getDealFileHealth(dealId);
           const subj = `Provider follow-up${provider ? ` (${provider})` : ''}: get ETA + update`;
           const desc = [
             `Deal: ${d.Deal_Name}`,
@@ -129,6 +194,8 @@ async function main() {
             `Provider: ${provider || '(not set)'}`,
             `Appointment Status: ${d.Appointment_Status || '(blank)'}`,
             `Last Activity: ${d.Last_Activity_Time || '(none)'}`,
+            '',
+            `Deal file health: open_tasks=${health.openTasksCount} (overdue=${health.overdueTasksCount}) | notes=${health.notesCount} (last=${health.lastNote || 'n/a'}) | attachments=${health.attachmentsCount} (last=${health.lastAttach || 'n/a'})`,
             '',
             'Do:',
             '- Follow up with provider for ETA / scheduling',
