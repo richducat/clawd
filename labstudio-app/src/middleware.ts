@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const COOKIE_NAME = 'labstudio_session';
+const SESSION_COOKIE = 'labstudio_session';
+const UID_COOKIE = 'labstudio_uid';
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -17,14 +18,35 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Protect /members and everything under it (v0).
-  if (pathname.startsWith('/members')) {
-    const token = req.cookies.get(COOKIE_NAME)?.value;
-    if (!token) {
+  const session = req.cookies.get(SESSION_COOKIE)?.value;
+
+  // Protect /members and server APIs used by members.
+  if (pathname.startsWith('/members') || pathname.startsWith('/api/lab')) {
+    if (!session) {
+      // For API calls, return 401. For page nav, redirect to login.
+      if (pathname.startsWith('/api/')) {
+        return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+      }
       const url = req.nextUrl.clone();
       url.pathname = '/login';
       url.searchParams.set('next', pathname);
       return NextResponse.redirect(url);
+    }
+
+    // Ensure stable user id cookie exists (some older sessions may only have labstudio_session).
+    const uid = req.cookies.get(UID_COOKIE)?.value;
+    if (!uid) {
+      const res = NextResponse.next();
+      res.cookies.set({
+        name: UID_COOKIE,
+        value: crypto.randomUUID(),
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: true,
+        path: '/',
+        maxAge: 60 * 60 * 24 * 365,
+      });
+      return res;
     }
   }
 
@@ -32,5 +54,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/members/:path*'],
+  matcher: ['/members/:path*', '/api/lab/:path*'],
 };
