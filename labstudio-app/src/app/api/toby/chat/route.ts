@@ -87,7 +87,14 @@ export async function POST(req: Request) {
         if (c?.type === 'output_text' && typeof c.text === 'string') parts.push(c.text);
       }
     }
-    const reply = parts.join('\n').trim() || '(no response)';
+    let reply = parts.join('\n').trim() || '(no response)';
+
+    // Hard guardrail: ensure the Stage 1 check-in contract is always present.
+    const contract = `Check in tomorrow with:\n- Joint pain: yes/no\n- Muscle soreness: 0–10\n- Energy: 0–10`;
+    const normalized = reply.toLowerCase();
+    if (!normalized.includes('check in tomorrow')) {
+      reply = `${reply}\n\n${contract}`.trim();
+    }
 
     // Increment counter only on successful OpenAI call.
     const nextCount = count + 1;
