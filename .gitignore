@@ -1,18 +1,10 @@
-# Moltbot personal workspace files (do not commit)
-MEMORY.md
-USER.md
-SOUL.md
-IDENTITY.md
-TOOLS.md
-HEARTBEAT.md
-BOOTSTRAP.md
-AGENTS.md
-
-memory/
-canvas/
+# Local env files
+.env
+.env.*
+!.env.example
 
 # OS
 .DS_Store
 
-# Logs
-*.log
+# Token caches
+memory/ringcentral-token.json
