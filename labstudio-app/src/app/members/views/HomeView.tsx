@@ -192,6 +192,57 @@ export default function HomeView({
     return '—';
   }, [homeData?.latestStats?.body_fat_pct]);
 
+  const [coach, setCoach] = useState<{
+    pinned: { id: number; text: string; pinned: boolean } | null;
+    history: Array<{ id: number; text: string; pinned: boolean }>;
+  } | null>(null);
+  const [coachBusy, setCoachBusy] = useState(false);
+
+  const loadCoach = async () => {
+    try {
+      const r = await fetch('/api/lab/coach-focus');
+      const j = await r.json();
+      if (j?.ok) setCoach({ pinned: j.pinned ?? null, history: j.history ?? [] });
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    void loadCoach();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const generateCoach = async () => {
+    setCoachBusy(true);
+    try {
+      const r = await fetch('/api/lab/coach-focus', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'generate' }),
+      });
+      const j = await r.json();
+      if (j?.ok) setCoach({ pinned: j.pinned ?? null, history: j.history ?? [] });
+    } finally {
+      setCoachBusy(false);
+    }
+  };
+
+  const pinCoach = async (id: number) => {
+    setCoachBusy(true);
+    try {
+      const r = await fetch('/api/lab/coach-focus', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'pin', id }),
+      });
+      const j = await r.json();
+      if (j?.ok) setCoach({ pinned: j.pinned ?? null, history: j.history ?? [] });
+    } finally {
+      setCoachBusy(false);
+    }
+  };
+
   return (
     <div className="pb-20 lg:pb-10">
       <div className="space-y-6 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-6">
@@ -279,6 +330,47 @@ export default function HomeView({
               ) : null}
             </Card>
           )}
+
+          <Card className="bg-zinc-900/80 p-4 border-zinc-800">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Coach plan</div>
+                <div className="text-lg font-black italic">Today’s Focus</div>
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void generateCoach();
+                }}
+                disabled={coachBusy}
+                className="text-xs font-bold text-white bg-violet-600 hover:bg-violet-500 px-3 py-1.5 rounded-full disabled:opacity-50"
+              >
+                {coachBusy ? '…' : 'Generate'}
+              </button>
+            </div>
+
+            {coach?.pinned?.text ? (
+              <div className="mt-3 whitespace-pre-wrap text-sm text-zinc-200 leading-relaxed">{coach.pinned.text}</div>
+            ) : coach?.history?.[0]?.text ? (
+              <>
+                <div className="mt-3 whitespace-pre-wrap text-sm text-zinc-200 leading-relaxed">{coach.history[0].text}</div>
+                <div className="mt-3 flex justify-end">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void pinCoach(coach.history[0].id);
+                    }}
+                    disabled={coachBusy}
+                    className="text-xs font-bold text-zinc-950 bg-yellow-400 hover:bg-yellow-300 px-3 py-1.5 rounded-full disabled:opacity-50"
+                  >
+                    Pin
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="mt-3 text-xs text-zinc-500">Generate a focus card and pin it to keep it stable across sessions.</div>
+            )}
+          </Card>
 
           <div className="bg-zinc-900 border border-white/10 p-4 rounded-2xl relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition">

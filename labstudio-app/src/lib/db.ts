@@ -147,6 +147,20 @@ export async function ensureSchema() {
     );
   `;
   await q`create index if not exists lab_strength_prs_user_created_at_idx on lab_strength_prs(user_id, created_at desc);`;
+
+  // Coach focus cards (pin + simple long-term memory)
+  await q`
+    create table if not exists lab_coach_focus (
+      id bigserial primary key,
+      user_id text not null references lab_users(id) on delete cascade,
+      created_at timestamptz not null default now(),
+      text text not null,
+      pinned boolean not null default false,
+      pinned_at timestamptz
+    );
+  `;
+  await q`create index if not exists lab_coach_focus_user_created_at_idx on lab_coach_focus(user_id, created_at desc);`;
+  await q`create index if not exists lab_coach_focus_user_pinned_idx on lab_coach_focus(user_id, pinned, pinned_at desc);`;
 }
 
 export async function getOrCreateUser(userId: string): Promise<LabUser> {
