@@ -17,7 +17,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'OPENAI_API_KEY not configured' }, { status: 500 });
     }
 
-    const model = process.env.TOBY_MODEL || 'gpt-4.1';
+    // Default to a cost-effective model; override via TOBY_MODEL env.
+    const model = process.env.TOBY_MODEL || 'gpt-4.1-mini';
 
     // Use OpenAI Responses API (recommended modern endpoint).
     const res = await fetch('https://api.openai.com/v1/responses', {
@@ -30,10 +31,10 @@ export async function POST(req: Request) {
         model,
         input: [
           { role: 'system', content: TOBY_SYSTEM_PROMPT },
-          { role: 'user', content: text },
+          { role: 'user', content: text.slice(0, 2000) },
         ],
-        // Keep it short for v1.
-        max_output_tokens: 350,
+        // Keep it short for cost control.
+        max_output_tokens: 220,
       }),
     });
 
