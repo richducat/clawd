@@ -44,6 +44,7 @@ export default function HomeView({
   const progress = Math.min((xp / nextLevel) * 100, 100);
 
   const [homeData, setHomeData] = useState<{
+    profile: { first_name?: string | null; last_name?: string | null; goal?: string | null } | null;
     nutrition: { calories: number; protein_g: number; carbs_g: number; fat_g: number };
     latestStats: { weight_lbs: string | number | null; body_fat_pct: string | number | null } | null;
     nextBooking: { summary: string; start: string; end: string; location: string | null; description: string | null } | null;
@@ -69,11 +70,17 @@ export default function HomeView({
   const todaysProtein = homeData?.nutrition?.protein_g ?? 0;
 
   const [showQuickLog, setShowQuickLog] = useState(false);
-  const [statsLog, setStatsLog] = useState({
-    weight: homeData?.latestStats?.weight_lbs != null ? String(homeData.latestStats.weight_lbs) : '',
-    bodyFat: homeData?.latestStats?.body_fat_pct != null ? String(homeData.latestStats.body_fat_pct) : '',
-    note: '',
-  });
+  const [statsLog, setStatsLog] = useState({ weight: '', bodyFat: '', note: '' });
+
+  useEffect(() => {
+    // When DB data arrives, prefill the quick log with the latest recorded values.
+    if (!homeData?.latestStats) return;
+    setStatsLog((prev) => ({
+      ...prev,
+      weight: homeData.latestStats?.weight_lbs != null ? String(homeData.latestStats.weight_lbs) : prev.weight,
+      bodyFat: homeData.latestStats?.body_fat_pct != null ? String(homeData.latestStats.body_fat_pct) : prev.bodyFat,
+    }));
+  }, [homeData?.latestStats]);
 
   const defaultTilePrefs = useMemo(
     () => PROGRESS_TILES.map((tile, index) => ({ id: tile.id, visible: true, order: index })),
@@ -232,7 +239,7 @@ export default function HomeView({
                 <div>
                   <div className="font-black italic text-lg leading-none uppercase">{userProfile.name}</div>
                   <div className="text-[10px] font-mono text-zinc-500">
-                    GOAL: {(userProfile.goal ?? '—').toUpperCase()}
+                    GOAL: {((homeData?.profile?.goal ?? userProfile.goal) ?? '—').toUpperCase()}
                   </div>
                 </div>
               </div>

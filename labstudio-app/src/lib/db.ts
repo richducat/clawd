@@ -197,3 +197,9 @@ export async function markOnboardingComplete(userId: string): Promise<void> {
   const q = sql();
   await q`update lab_users set onboarding_complete = true where id = ${userId};`;
 }
+
+export async function updateUserDisplayName(userId: string, displayName: string | null): Promise<void> {
+  await ensureSchema();
+  const q = sql();
+  await q`update lab_users set display_name = ${displayName} where id = ${userId};`;
+}

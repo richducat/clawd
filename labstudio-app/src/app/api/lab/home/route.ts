@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { dbConfigured, ensureSchema, getOrCreateUser } from '@/lib/db';
+import { dbConfigured, ensureSchema, getOrCreateUser, getUserProfile } from '@/lib/db';
 import { neon } from '@neondatabase/serverless';
 import { parseICS } from 'ical';
 
@@ -61,6 +61,7 @@ export async function GET() {
   await getOrCreateUser(uid);
 
   const q = sql();
+  const profile = await getUserProfile(uid);
 
   // Latest daily stats
   const stats = (await q`
@@ -90,6 +91,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     home: {
+      profile,
       nutrition: { protein_g: Number(n.protein_g), carbs_g: Number(n.carbs_g), fat_g: Number(n.fat_g), calories: cals },
       latestStats: stats?.[0] ?? null,
       nextBooking,

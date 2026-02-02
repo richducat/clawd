@@ -6,6 +6,7 @@ import {
   getOrCreateUser,
   getUserProfile,
   markOnboardingComplete,
+  updateUserDisplayName,
   upsertUserProfile,
 } from '@/lib/db';
 
@@ -92,6 +93,9 @@ export async function POST(req: Request) {
     injuries_json: normalizeInjuriesJson(b.injuries_json),
   });
 
+  // Make the UI feel like it "took" immediately.
+  const displayName = [profile.first_name, profile.last_name].filter(Boolean).join(' ') || null;
+  await updateUserDisplayName(uid, displayName);
   await markOnboardingComplete(uid);
 
   return NextResponse.json({ ok: true, profile, onboarding_complete: true });
