@@ -1,0 +1,3 @@
+# Source: https://docs.google.com/document/d/1g2hC0qzFcAPjkawu4ArAAjlgsq1Rg8_ue7L-mN8UA6w/edit
+# NOTE: This is a cached export used by scripts.
+# Updated by fetch from /export?format=txt when needed.

@@ -105,17 +105,20 @@ export async function ringcentralGetAccessToken() {
   return refreshed.access_token;
 }
 
-export async function ringcentralGetJson(pathAndQuery) {
+async function ringcentralRequestJson({ method, pathAndQuery, body }) {
   const apiServer = process.env.RINGCENTRAL_API_SERVER || 'https://platform.ringcentral.com';
 
   async function doFetch() {
     const token = await ringcentralGetAccessToken();
     const url = `${apiServer}${pathAndQuery}`;
     const res = await fetch(url, {
+      method,
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: 'application/json',
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
       },
+      body: body ? JSON.stringify(body) : undefined,
     });
     const json = await res.json().catch(() => ({}));
     return { res, json };
@@ -132,7 +135,28 @@ export async function ringcentralGetJson(pathAndQuery) {
   }
 
   if (!res.ok) {
-    throw new Error(`RingCentral GET ${pathAndQuery} failed (${res.status}): ${json?.message || JSON.stringify(json)}`);
+    throw new Error(`RingCentral ${method} ${pathAndQuery} failed (${res.status}): ${json?.message || JSON.stringify(json)}`);
   }
+
   return json;
+}
+
+export async function ringcentralGetJson(pathAndQuery) {
+  return ringcentralRequestJson({ method: 'GET', pathAndQuery });
+}
+
+export async function ringcentralPostJson(pathAndQuery, body) {
+  return ringcentralRequestJson({ method: 'POST', pathAndQuery, body });
+}
+
+export async function ringcentralSendSms({ fromNumber, toNumber, text }) {
+  if (!fromNumber) throw new Error('ringcentralSendSms: missing fromNumber');
+  if (!toNumber) throw new Error('ringcentralSendSms: missing toNumber');
+  if (!text) throw new Error('ringcentralSendSms: missing text');
+
+  return ringcentralPostJson('/restapi/v1.0/account/~/extension/~/sms', {
+    from: { phoneNumber: fromNumber },
+    to: [{ phoneNumber: toNumber }],
+    text,
+  });
 }
