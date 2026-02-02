@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 
 import TobyCoachView from './TobyCoachView';
+import HomeView from './views/HomeView';
 
 type Tab = 'home' | 'book' | 'coach' | 'games' | 'market';
 
@@ -75,16 +76,13 @@ export default function TheLabUltimate({ initialUser }: { initialUser: { display
       {/* Content */}
       <main className="max-w-md mx-auto p-4 relative z-10">
         {tab === 'home' && (
-          <div className="space-y-4">
-            <h1 className="text-3xl font-black italic uppercase">Dashboard</h1>
-            <div className="rounded-2xl border border-white/5 bg-zinc-900/60 backdrop-blur-md p-4">
-              <div className="text-sm text-zinc-300">Welcome, <span className="font-bold">{name}</span>.</div>
-              <div className="text-xs text-zinc-500 mt-2">LVL {level} • {xp} XP</div>
-              <div className="text-xs text-zinc-500 mt-3">
-                This tab is now backed by Vercel Postgres when configured; otherwise it falls back to demo values.
-              </div>
-            </div>
-          </div>
+          <HomeView
+            xp={xp}
+            level={level}
+            credits={1}
+            userProfile={{ name, goal: 'Hypertrophy', weight: 185, bf: 14 }}
+            onGoBook={() => setTab('book')}
+          />
         )}
 
         {tab === 'coach' && <TobyCoachView />}
