@@ -60,7 +60,11 @@ export async function POST(req: Request) {
     const model = process.env.TOBY_MODEL || 'gpt-4.1-mini';
 
     const TRIAGE_RE = /(sharp|pinch|pain|hurt|tweak|pop|numb|tingl|shooting|joint|injur|leg press|squat|deadlift|bench|machine|right now)/i;
-    const isTriage = TRIAGE_RE.test(effectiveText);
+    // Keep triage "sticky" across short back-and-forths.
+    // Example: user answers "left side" or "deep" next turn—still triage.
+    const triageInHistory = safeHistory.some((m) => TRIAGE_RE.test(String(m?.text || '')));
+    const menuInHistory = safeHistory.some((m) => m?.role === 'assistant' && /\bmenu\s*:/i.test(String(m?.text || '')));
+    const isTriage = TRIAGE_RE.test(effectiveText) || triageInHistory || menuInHistory;
 
     const mappedHistory = safeHistory
       .slice(-10)
@@ -113,6 +117,14 @@ export async function POST(req: Request) {
       if (!normalized.includes('check in tomorrow')) {
         reply = `${reply}\n\n${contract}`.trim();
       }
+    } else {
+      // If the model accidentally adds the daily tracking footer during triage, strip it.
+      // (We still want concise menus + stop criteria in triage.)
+      reply = reply
+        .replace(/\n\s*Next:[\s\S]*$/i, '')
+        .replace(/\n\s*Track:[\s\S]*$/i, '')
+        .replace(/\n\s*Check in tomorrow with:[\s\S]*$/i, '')
+        .trim();
     }
 
     // Increment counter only on successful OpenAI call.
