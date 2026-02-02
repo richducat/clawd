@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import TheLabUltimate from './TheLabUltimate';
-import { dbConfigured, getOrCreateUser } from '@/lib/db';
+import { dbConfigured, getOrCreateUser, getUserProfile } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +13,13 @@ export default async function MembersHome() {
   if (uid && dbConfigured()) {
     try {
       const u = await getOrCreateUser(uid);
+      const p = await getUserProfile(uid);
+
+      const onboarded = u.onboarding_complete || Boolean(p);
+      if (!onboarded) {
+        redirect('/onboarding');
+      }
+
       initialUser = { display_name: u.display_name ?? undefined, xp: u.xp, level: u.level };
     } catch {
       initialUser = null;

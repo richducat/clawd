@@ -1,11 +1,27 @@
 import { neon } from '@neondatabase/serverless';
 
-type LabUser = {
+export type LabUser = {
   id: string;
   created_at: string;
   display_name: string | null;
   xp: number;
   level: number;
+  onboarding_complete: boolean;
+};
+
+export type LabUserProfile = {
+  user_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  goal: string | null;
+  activity_level: string | null;
+  schedule_days: string[];
+  nutrition_rating: number | null;
+  injuries_json: unknown;
+  created_at: string;
+  updated_at: string;
 };
 
 function dbUrl() {
@@ -30,9 +46,32 @@ export async function ensureSchema() {
       created_at timestamptz not null default now(),
       display_name text,
       xp integer not null default 0,
-      level integer not null default 1
+      level integer not null default 1,
+      onboarding_complete boolean not null default false
     );
   `;
+
+  // Backfill/upgrade older schemas (safe no-ops on fresh DBs).
+  await q`alter table lab_users add column if not exists onboarding_complete boolean not null default false;`;
+
+  await q`
+    create table if not exists lab_user_profile (
+      user_id text primary key references lab_users(id) on delete cascade,
+      first_name text,
+      last_name text,
+      email text,
+      phone text,
+      goal text,
+      activity_level text,
+      schedule_days text[] not null default '{}',
+      nutrition_rating integer,
+      injuries_json jsonb not null default '[]'::jsonb,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+  `;
+
+  await q`create index if not exists lab_user_profile_email_idx on lab_user_profile(email);`;
 
   await q`
     create table if not exists lab_daily_stats (
@@ -80,4 +119,81 @@ export async function getOrCreateUser(userId: string): Promise<LabUser> {
     returning *;
   `) as unknown as LabUser[];
   return inserted[0];
+}
+
+export async function getUserProfile(userId: string): Promise<LabUserProfile | null> {
+  await ensureSchema();
+  const q = sql();
+  const rows = (await q`select * from lab_user_profile where user_id = ${userId} limit 1;`) as unknown as LabUserProfile[];
+  return rows?.[0] ?? null;
+}
+
+type UpsertUserProfileInput = {
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  goal?: string | null;
+  activity_level?: string | null;
+  schedule_days?: string[];
+  nutrition_rating?: number | null;
+  injuries_json?: unknown;
+};
+
+export async function upsertUserProfile(userId: string, input: UpsertUserProfileInput): Promise<LabUserProfile> {
+  await ensureSchema();
+  const q = sql();
+
+  const scheduleDays = Array.isArray(input.schedule_days) ? input.schedule_days : [];
+  const injuriesJson = input.injuries_json ?? [];
+
+  const rows = (await q`
+    insert into lab_user_profile (
+      user_id,
+      first_name,
+      last_name,
+      email,
+      phone,
+      goal,
+      activity_level,
+      schedule_days,
+      nutrition_rating,
+      injuries_json,
+      created_at,
+      updated_at
+    ) values (
+      ${userId},
+      ${input.first_name ?? null},
+      ${input.last_name ?? null},
+      ${input.email ?? null},
+      ${input.phone ?? null},
+      ${input.goal ?? null},
+      ${input.activity_level ?? null},
+      ${scheduleDays},
+      ${input.nutrition_rating ?? null},
+      ${JSON.stringify(injuriesJson)}::jsonb,
+      now(),
+      now()
+    )
+    on conflict (user_id) do update set
+      first_name = excluded.first_name,
+      last_name = excluded.last_name,
+      email = excluded.email,
+      phone = excluded.phone,
+      goal = excluded.goal,
+      activity_level = excluded.activity_level,
+      schedule_days = excluded.schedule_days,
+      nutrition_rating = excluded.nutrition_rating,
+      injuries_json = excluded.injuries_json,
+      updated_at = now()
+    returning *;
+  `) as unknown as LabUserProfile[];
+
+  return rows[0];
+}
+
+export async function markOnboardingComplete(userId: string): Promise<void> {
+  await ensureSchema();
+  const q = sql();
+  await q`update lab_users set onboarding_complete = true where id = ${userId};`;
 }

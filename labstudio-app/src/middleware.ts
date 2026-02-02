@@ -20,8 +20,8 @@ export function middleware(req: NextRequest) {
 
   const session = req.cookies.get(SESSION_COOKIE)?.value;
 
-  // Protect /members and server APIs used by members.
-  if (pathname.startsWith('/members') || pathname.startsWith('/api/lab')) {
+  // Protect /members, onboarding, and server APIs used by members.
+  if (pathname.startsWith('/members') || pathname.startsWith('/onboarding') || pathname.startsWith('/api/lab')) {
     if (!session) {
       // For API calls, return 401. For page nav, redirect to login.
       if (pathname.startsWith('/api/')) {
@@ -54,5 +54,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/members/:path*', '/api/lab/:path*'],
+  matcher: ['/members/:path*', '/onboarding/:path*', '/api/lab/:path*'],
 };
