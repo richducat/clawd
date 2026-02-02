@@ -27,21 +27,18 @@ export async function POST(req: Request) {
     }
 
     const secret = process.env.LABSTUDIO_SESSION_SECRET;
-    if (!secret) {
-      return NextResponse.json(
-        { error: 'LABSTUDIO_SESSION_SECRET not configured (required for rate limit)' },
-        { status: 500 },
-      );
-    }
 
     // Daily cap (no DB): signed cookie counter, resets daily (ET).
+    // If no secret is configured, we skip rate limiting instead of breaking chat.
     const jar = await cookies();
     const rlName = getRateLimitCookieName();
     const currentDay = currentEtDayKey();
-    const parsed = parseAndVerifyDailyCounter(jar.get(rlName)?.value, secret);
+    const parsed = secret
+      ? parseAndVerifyDailyCounter(jar.get(rlName)?.value, secret)
+      : { day: currentDay, count: 0, ok: false };
     const count = parsed.day === currentDay ? parsed.count : 0;
 
-    if (count >= DAILY_LIMIT) {
+    if (secret && count >= DAILY_LIMIT) {
       return NextResponse.json(
         {
           error: `Daily limit reached (${DAILY_LIMIT}/day). Try again tomorrow.`,
@@ -94,13 +91,15 @@ export async function POST(req: Request) {
 
     // Increment counter only on successful OpenAI call.
     const nextCount = count + 1;
-    jar.set(rlName, makeSignedDailyCounterCookie({ day: currentDay, count: nextCount }, secret), {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: true,
-      path: '/',
-      maxAge: 60 * 60 * 24 * 2,
-    });
+    if (secret) {
+      jar.set(rlName, makeSignedDailyCounterCookie({ day: currentDay, count: nextCount }, secret), {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: true,
+        path: '/',
+        maxAge: 60 * 60 * 24 * 2,
+      });
+    }
 
     return NextResponse.json({ reply, usage: { day: currentDay, count: nextCount, limit: DAILY_LIMIT } });
   } catch (err: unknown) {
