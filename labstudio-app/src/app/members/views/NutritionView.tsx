@@ -15,12 +15,27 @@ type NutritionState = {
   avg7: { calories: number; protein_g: number; carbs_g: number; fat_g: number };
 };
 
+type FoodSuggestion = {
+  id: string;
+  source: 'usda' | 'off';
+  label: string;
+  calories?: number | null;
+  protein_g?: number | null;
+  carbs_g?: number | null;
+  fat_g?: number | null;
+  basis?: 'per_serving' | 'per_100g' | 'unknown';
+};
+
 export default function NutritionView() {
   const [data, setData] = useState<NutritionState | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [form, setForm] = useState({ name: '', p: 0, c: 0, f: 0, time: '' });
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+  const [suggestions, setSuggestions] = useState<FoodSuggestion[]>([]);
+  const [suggestBusy, setSuggestBusy] = useState(false);
+  const [suggestOpen, setSuggestOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -59,6 +74,48 @@ export default function NutritionView() {
   };
 
   const maxCals = useMemo(() => Math.max(...(data?.last7?.map((d) => d.calories) ?? [0])), [data?.last7]);
+
+  const caloriesPreview = useMemo(() => (Number(form.p) || 0) * 4 + (Number(form.c) || 0) * 4 + (Number(form.f) || 0) * 9, [form.p, form.c, form.f]);
+
+  const searchFoods = async (q: string) => {
+    const query = q.trim();
+    if (query.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+
+    setSuggestBusy(true);
+    try {
+      const r = await fetch(`/api/lab/foods/search?q=${encodeURIComponent(query)}&limit=8`);
+      const j = await r.json();
+      if (j?.ok && Array.isArray(j.foods)) setSuggestions(j.foods as FoodSuggestion[]);
+    } catch {
+      // ignore
+    } finally {
+      setSuggestBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!suggestOpen) return;
+    const t = setTimeout(() => {
+      void searchFoods(form.name);
+    }, 250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.name, suggestOpen]);
+
+  const applySuggestion = (s: FoodSuggestion) => {
+    const basisTag = s.basis === 'per_100g' ? ' (per 100g)' : s.source === 'off' ? ' (OFF)' : '';
+    setForm((p) => ({
+      ...p,
+      name: `${s.label}${basisTag}`,
+      p: Math.round(Number(s.protein_g ?? 0)),
+      c: Math.round(Number(s.carbs_g ?? 0)),
+      f: Math.round(Number(s.fat_g ?? 0)),
+    }));
+    setSuggestOpen(false);
+  };
 
   return (
     <div className="space-y-4 pb-20">
@@ -113,45 +170,85 @@ export default function NutritionView() {
 
       <Card className="p-4 space-y-3">
         <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Log food</div>
-        <input
-          className="bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-sm w-full"
-          placeholder="Meal name"
-          value={form.name}
-          onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-        />
-        <div className="grid grid-cols-3 gap-2">
-          <input
-            className="bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-sm"
-            placeholder="P"
-            type="number"
-            value={form.p}
-            onChange={(e) => setForm((p) => ({ ...p, p: Number(e.target.value) }))}
-          />
-          <input
-            className="bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-sm"
-            placeholder="C"
-            type="number"
-            value={form.c}
-            onChange={(e) => setForm((p) => ({ ...p, c: Number(e.target.value) }))}
-          />
-          <input
-            className="bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-sm"
-            placeholder="F"
-            type="number"
-            value={form.f}
-            onChange={(e) => setForm((p) => ({ ...p, f: Number(e.target.value) }))}
-          />
+
+        <div className="space-y-1">
+          <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Food</div>
+          <div className="relative">
+            <input
+              className="bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-sm w-full"
+              placeholder="Type to search (USDA + OpenFoodFacts)…"
+              value={form.name}
+              onFocus={() => setSuggestOpen(true)}
+              onBlur={() => setTimeout(() => setSuggestOpen(false), 120)}
+              onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+            />
+
+            {suggestOpen && suggestions.length ? (
+              <div className="absolute z-20 mt-1 w-full bg-zinc-950 border border-zinc-800 rounded-lg overflow-hidden">
+                {suggestions.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => applySuggestion(s)}
+                    className="w-full text-left px-3 py-2 hover:bg-zinc-900"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-xs text-zinc-200 font-bold truncate">{s.label}</div>
+                      <div className="text-[10px] font-mono text-zinc-500 shrink-0">
+                        {s.source.toUpperCase()}{s.basis === 'per_100g' ? ' /100g' : ''}
+                      </div>
+                    </div>
+                    <div className="text-[10px] font-mono text-zinc-500 mt-1">
+                      P {Math.round(Number(s.protein_g ?? 0))}g · C {Math.round(Number(s.carbs_g ?? 0))}g · F {Math.round(Number(s.fat_g ?? 0))}g
+                      {s.calories != null ? ` · ${Math.round(Number(s.calories))} kcal` : ''}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
+            {suggestOpen && suggestBusy ? <div className="text-[10px] text-zinc-500 mt-1">Searching…</div> : null}
+          </div>
         </div>
-        <input
-          className="bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-sm w-full"
-          placeholder="Time label (optional)"
-          value={form.time}
-          onChange={(e) => setForm((p) => ({ ...p, time: e.target.value }))}
-        />
+
+        <div className="grid grid-cols-3 gap-2">
+          <div className="space-y-1">
+            <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Protein (g)</div>
+            <input
+              className="bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-sm w-full"
+              placeholder="e.g. 40"
+              type="number"
+              value={form.p}
+              onChange={(e) => setForm((p) => ({ ...p, p: Number(e.target.value) }))}
+            />
+          </div>
+          <div className="space-y-1">
+            <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Carbs (g)</div>
+            <input
+              className="bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-sm w-full"
+              placeholder="e.g. 20"
+              type="number"
+              value={form.c}
+              onChange={(e) => setForm((p) => ({ ...p, c: Number(e.target.value) }))}
+            />
+          </div>
+          <div className="space-y-1">
+            <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Fat (g)</div>
+            <input
+              className="bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-sm w-full"
+              placeholder="e.g. 10"
+              type="number"
+              value={form.f}
+              onChange={(e) => setForm((p) => ({ ...p, f: Number(e.target.value) }))}
+            />
+          </div>
+        </div>
 
         <div className="flex items-center justify-between">
           <div className="text-xs text-zinc-500">
-            {status === 'saving' ? 'Saving…' : status === 'saved' ? 'Saved.' : status === 'error' ? 'Failed.' : ''}
+            ≈ <span className="font-mono">{Math.round(caloriesPreview)}</span> kcal
+            {status === 'saving' ? ' · Saving…' : status === 'saved' ? ' · Saved.' : status === 'error' ? ' · Failed.' : ''}
           </div>
           <button
             onClick={save}
@@ -160,6 +257,10 @@ export default function NutritionView() {
           >
             Save
           </button>
+        </div>
+
+        <div className="text-[10px] text-zinc-600">
+          Tips: USDA data varies by item; OpenFoodFacts is usually per 100g. We’ll add serving-size scaling next.
         </div>
       </Card>
 
