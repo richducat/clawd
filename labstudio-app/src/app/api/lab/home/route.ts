@@ -137,7 +137,21 @@ export async function GET() {
   const completed7d = Number(workouts7d?.[0]?.completed ?? 0);
   const missedApprox30d = Math.max(bookedPast30d - completed7d, 0);
 
+  const upcomingBookings = icsEvents
+    .filter((e) => e.start && e.start > now && e.start < in30d)
+    .sort((a, b) => a.start!.getTime() - b.start!.getTime())
+    .slice(0, 5);
+
   const nextBooking = await getNextBooking();
+
+  const recentWorkouts = (await q`
+    select id, created_at, kind, duration_min, note
+    from lab_workout_log
+    where user_id = ${uid}
+      and created_at >= (now() - interval '7 days')
+    order by created_at desc
+    limit 10;
+  `) as any[];
 
   const calories7dTotal = Number(nutrition7d?.[0]?.calories ?? 0);
   const calories7dAvg = Math.round(calories7dTotal / 7);
@@ -149,6 +163,8 @@ export async function GET() {
       nutrition: { protein_g: Number(n.protein_g), carbs_g: Number(n.carbs_g), fat_g: Number(n.fat_g), calories: cals },
       latestStats: stats?.[0] ?? null,
       nextBooking,
+      upcomingBookings,
+      recentWorkouts,
       sessionLog: {
         bookedUpcoming30d,
         completed7d,

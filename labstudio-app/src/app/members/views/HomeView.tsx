@@ -48,6 +48,8 @@ export default function HomeView({
     nutrition: { calories: number; protein_g: number; carbs_g: number; fat_g: number };
     latestStats: { weight_lbs: string | number | null; body_fat_pct: string | number | null; resting_hr: number | null } | null;
     nextBooking: { summary: string; start: string; end: string; location: string | null; description: string | null } | null;
+    upcomingBookings?: Array<{ summary: string; start: string; end: string; location: string | null; description: string | null }>;
+    recentWorkouts?: Array<{ id: number; created_at: string; kind: string | null; duration_min: number | null; note: string | null }>;
     sessionLog?: { bookedUpcoming30d: number; completed7d: number; missedApprox30d: number };
     progress?: { photos30d: number; calories7dAvg: number; latestPr: { lift: string; value: number; unit: string; reps: number | null } | null };
   } | null>(null);
@@ -233,6 +235,22 @@ export default function HomeView({
                   </div>
                 </div>
               ) : null}
+
+              {homeData.upcomingBookings && homeData.upcomingBookings.length > 1 ? (
+                <div className="mt-3 border-t border-white/5 pt-3">
+                  <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-2">Upcoming (next 30d)</div>
+                  <div className="space-y-2">
+                    {homeData.upcomingBookings.slice(1).map((b, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-xs text-zinc-300">
+                        <div className="truncate pr-2">{b.summary || 'Session'}</div>
+                        <div className="text-zinc-500 font-mono shrink-0">
+                          {new Date(b.start).toLocaleDateString()} {new Date(b.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </Card>
           ) : (
             <Card className="bg-zinc-900/60 backdrop-blur-md p-4" onClick={() => setTab('book')}>
@@ -243,6 +261,22 @@ export default function HomeView({
                 </div>
                 <div className="text-xs font-bold text-white bg-violet-600 px-3 py-1.5 rounded-full">Book</div>
               </div>
+
+              {homeData?.upcomingBookings && homeData.upcomingBookings.length ? (
+                <div className="mt-3 border-t border-white/5 pt-3">
+                  <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-2">Upcoming (next 30d)</div>
+                  <div className="space-y-2">
+                    {homeData.upcomingBookings.map((b, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-xs text-zinc-300">
+                        <div className="truncate pr-2">{b.summary || 'Session'}</div>
+                        <div className="text-zinc-500 font-mono shrink-0">
+                          {new Date(b.start).toLocaleDateString()} {new Date(b.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </Card>
           )}
 
@@ -325,6 +359,34 @@ export default function HomeView({
                 </div>
               </div>
             </div>
+          </Card>
+
+          <Card className="bg-zinc-900/80 p-4 border-zinc-800" onClick={() => setTab('workout')}>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Workouts</div>
+                <div className="text-sm text-zinc-300">Completed (last 7 days)</div>
+              </div>
+              <div className="text-xs font-bold text-white bg-violet-600 px-3 py-1.5 rounded-full">Log</div>
+            </div>
+
+            {homeData?.recentWorkouts && homeData.recentWorkouts.length ? (
+              <div className="space-y-2">
+                {homeData.recentWorkouts.map((w) => (
+                  <div key={w.id} className="flex items-center justify-between text-xs">
+                    <div className="text-zinc-200 truncate pr-2">
+                      {(w.kind || 'workout').toUpperCase()}
+                      {w.duration_min != null ? ` • ${w.duration_min}m` : ''}
+                    </div>
+                    <div className="text-zinc-500 font-mono shrink-0">
+                      {new Date(w.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-zinc-500">No workouts logged in the last 7 days. Tap to log one.</div>
+            )}
           </Card>
 
           {/* Daily Check-in (real data write) */}
