@@ -49,21 +49,28 @@ export default function MembersChat() {
     <div style={{ display: 'grid', gap: 12 }}>
       <div
         style={{
-          border: '1px solid #ddd',
-          borderRadius: 10,
+          border: '1px solid var(--border)',
+          borderRadius: 12,
           padding: 14,
           minHeight: 360,
           maxHeight: 520,
           overflow: 'auto',
-          background: '#fff',
+          background: 'var(--panel)',
         }}
       >
         {messages.map((m, i) => (
           <div key={i} style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 12, fontWeight: 800, color: m.role === 'user' ? '#111' : '#0b5' }}>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 900,
+                letterSpacing: 1,
+                color: m.role === 'user' ? 'var(--foreground)' : 'var(--accent)',
+              }}
+            >
               {m.role === 'user' ? 'YOU' : 'TOBY'}
             </div>
-            <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>{m.text}</div>
+            <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.45, color: 'var(--foreground)' }}>{m.text}</div>
           </div>
         ))}
       </div>
@@ -79,19 +86,36 @@ export default function MembersChat() {
             }
           }}
           placeholder="Message Toby…"
-          style={{ flex: 1, padding: 12, fontSize: 16 }}
+          style={{
+            flex: 1,
+            padding: 12,
+            fontSize: 16,
+            borderRadius: 10,
+            border: '1px solid var(--border)',
+            background: 'rgba(24,24,27,0.6)',
+            color: 'var(--foreground)',
+          }}
           disabled={busy}
         />
         <button
           onClick={() => void send()}
           disabled={!canSend}
-          style={{ padding: '12px 16px', fontSize: 16, fontWeight: 800, cursor: 'pointer' }}
+          style={{
+            padding: '12px 16px',
+            fontSize: 16,
+            fontWeight: 900,
+            cursor: 'pointer',
+            borderRadius: 10,
+            border: '1px solid var(--border)',
+            background: canSend ? 'var(--accent)' : 'rgba(161,161,170,0.2)',
+            color: canSend ? '#04110a' : 'var(--muted)',
+          }}
         >
           {busy ? '…' : 'Send'}
         </button>
       </div>
 
-      <div style={{ fontSize: 12, color: '#666' }}>
+      <div style={{ fontSize: 12, color: 'var(--muted)' }}>
         v1: OpenAI-backed chat. No long-term memory yet.
       </div>
     </div>

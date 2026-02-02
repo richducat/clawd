@@ -42,11 +42,11 @@ export default async function LoginPage({
   const next = typeof sp.next === 'string' ? sp.next : '/members';
 
   return (
-    <main style={{ fontFamily: 'system-ui', padding: 24, maxWidth: 520 }}>
-      <h1 style={{ fontSize: 28, fontWeight: 800 }}>Lab Studio — Members</h1>
-      <p style={{ color: '#555' }}>Enter the access code to continue.</p>
+    <main style={{ padding: 24, maxWidth: 520, margin: '0 auto' }}>
+      <h1 style={{ fontSize: 28, fontWeight: 900, letterSpacing: -0.5 }}>Lab Studio — Members</h1>
+      <p style={{ color: 'var(--muted)' }}>Enter the access code to continue.</p>
       {error ? (
-        <p style={{ color: 'crimson' }}>Invalid code. Try again.</p>
+        <p style={{ color: '#fb7185', fontWeight: 700 }}>Invalid code. Try again.</p>
       ) : null}
 
       <form action={loginAction} style={{ display: 'grid', gap: 12, marginTop: 16 }}>
@@ -55,17 +55,33 @@ export default async function LoginPage({
           name="code"
           placeholder="Access code"
           autoComplete="one-time-code"
-          style={{ padding: 12, fontSize: 16 }}
+          style={{
+            padding: 12,
+            fontSize: 16,
+            borderRadius: 10,
+            border: '1px solid var(--border)',
+            background: 'rgba(24,24,27,0.6)',
+            color: 'var(--foreground)',
+          }}
         />
         <button
           type="submit"
-          style={{ padding: 12, fontSize: 16, fontWeight: 700, cursor: 'pointer' }}
+          style={{
+            padding: 12,
+            fontSize: 16,
+            fontWeight: 900,
+            cursor: 'pointer',
+            borderRadius: 10,
+            border: '1px solid var(--border)',
+            background: 'var(--accent)',
+            color: '#04110a',
+          }}
         >
           Continue
         </button>
       </form>
 
-      <p style={{ marginTop: 24, color: '#777', fontSize: 12 }}>
+      <p style={{ marginTop: 24, color: 'var(--muted)', fontSize: 12 }}>
         v0 access gate (no email). We’ll replace this with proper member signup/login.
       </p>
     </main>
