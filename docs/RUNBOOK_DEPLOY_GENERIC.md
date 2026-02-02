@@ -1,0 +1,94 @@
+# Deploy + Continuity Runbook (Generic)
+
+Goal: ship changes from local → repo → production reliably, without context loss.
+
+## 0) Golden rules
+- **One source of truth:** pick exactly one production pipeline (Git-based CI/CD OR CLI deploy). Don’t mix them.
+- **Prove what’s live:** always verify production with a simple request (HTTP/curl) after deploy.
+- **Write it down:** before sleeping / switching tasks, record “what I will do next” in a durable file.
+
+## 1) Identify the production pipeline
+Common patterns:
+- **Git-based pipeline** (recommended): push to GitHub/GitLab → CI builds → deploy to prod
+- **CLI-based pipeline:** `vercel deploy`, `firebase deploy`, `fly deploy`, `railway up`, etc.
+
+If prod is showing code that doesn’t match the repo, assume prod may be sourced from a CLI deploy or from a different branch/repo.
+
+## 2) Preflight checklist (local)
+- App builds cleanly:
+  - Node/Next: `npm run build`
+  - Python: run tests + build
+  - Docker: `docker build .`
+- Env vars present for the target environment (DB URLs, API keys, etc.)
+- No accidental secrets committed
+
+## 3) Repo sanity
+- Confirm remotes:
+  ```bash
+  git remote -v
+  ```
+- Confirm branch:
+  ```bash
+  git rev-parse --abbrev-ref HEAD
+  ```
+- Confirm your latest commit is present:
+  ```bash
+  git log -n 5 --oneline
+  ```
+
+## 4) Identity + permissions (the #1 silent deploy killer)
+If deploy tooling rejects you based on “git author”, “committer”, or “SSO/team access”:
+
+- Ensure your git identity matches an authorized account email:
+  ```bash
+  git config --global user.name "<Your Name>"
+  git config --global user.email "<authorized-email@example.com>"
+  ```
+
+- If older commits have a bad author (e.g., `user@Mac.lan`) and the platform enforces author membership:
+  ```bash
+  git rebase --root --exec "git commit --amend --no-edit --reset-author"
+  git push --force-with-lease
+  ```
+
+## 5) Deploy (choose one)
+### A) Git-based deploy
+1) Push branch
+2) Confirm CI ran and produced a deployment
+3) Promote/alias to production if required
+
+### B) CLI-based deploy
+- Run the CLI deploy command (varies by platform)
+- Confirm the CLI output includes:
+  - the deployment URL
+  - the alias / domain binding / production promotion
+
+## 6) Verify production (no guessing)
+Always do one of these after deploy:
+- Hit a known health endpoint: `/api/health`
+- Or hit a deterministic endpoint and check output
+- Or check server headers / build id
+
+Example:
+```bash
+curl -s -i https://your-domain.com/api/health | sed -n '1,40p'
+```
+
+## 7) Continuity (prevents “we forgot what we agreed”)
+Create/update a dated plan file before stopping work:
+- `memory/YYYY-MM-DD.md`
+
+Include:
+- What we decided
+- What’s being deployed
+- What success looks like
+- Next 1–3 actions
+- Known blockers
+
+## 8) Minimal checklist for any assistant/agent workflow
+- Confirm repo + branch
+- Confirm deploy pipeline
+- Confirm credentials/permissions
+- Deploy
+- Verify with a real production request
+- Write the next-step plan to a file

@@ -26,3 +26,19 @@
 ## LabStudio / Personal Apps (active)
 - LabStudio requirement: **NO mock data** in user-visible UI. Only real DB-backed/integration-backed data; seeding is allowed if it writes to the DB.
 - For demos: use temporary Google Calendar under `richducat@gmail.com` for bookings (later migrate to the user’s calendar).
+
+### Deploy + continuity runbook (generalized; learned 2026-02-02)
+- Generic runbook: `/Users/richardducat/clawd/docs/RUNBOOK_DEPLOY_GENERIC.md`
+
+### LabStudio deploy + continuity runbook (LabStudio-specific; learned 2026-02-02)
+- If changes work locally but not on https://app.labstudio.fit, verify Production is updated (Production may be sourced from **"vercel deploy"** instead of Git).
+- Common deploy blocker: Vercel CLI error `Git author <...@Mac.lan> must have access to the team ...`.
+  - Fix: set git identity and rewrite commit authors to match the Vercel member email.
+    - `git config --global user.name "Richard Ducat"`
+    - `git config --global user.email "richducat@gmail.com"`
+    - Rewrite authors on branch: `git rebase --root --exec "git commit --amend --no-edit --reset-author"`
+    - Then `git push --force-with-lease`
+- Vercel CLI workflow (preferred when UI automation fails):
+  - `cd labstudio-app && npx vercel link` (scope: EB28 LLC's projects, project: labstudio-app)
+  - Deploy + alias to production: `npx vercel --prod --yes` (should print `Aliased: https://app.labstudio.fit`)
+- Always write the next-day plan into `memory/YYYY-MM-DD.md` to avoid context loss.
