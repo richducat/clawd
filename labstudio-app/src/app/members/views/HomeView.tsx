@@ -21,7 +21,7 @@ import {
   Utensils,
 } from 'lucide-react';
 import Card from '../components/Card';
-import { DAILY_AGENDA, DEFAULT_NUTRITION_LOG, PROGRESS_TILES } from '../data/home';
+import { PROGRESS_TILES } from '../data/home';
 import { logEvent, readStorage, writeStorage } from '@/lib/storage';
 
 export default function HomeView({
@@ -45,15 +45,29 @@ export default function HomeView({
   const nextLevel = (level + 1) * 1000;
   const progress = Math.min((xp / nextLevel) * 100, 100);
 
-  const [nutritionLog] = useState(() => readStorage('lab-nutrition-log', DEFAULT_NUTRITION_LOG));
-  const todaysCals = useMemo(
-    () => nutritionLog.reduce((acc, curr) => acc + curr.p * 4 + curr.c * 4 + curr.f * 9, 0),
-    [nutritionLog]
-  );
-  const todaysProtein = useMemo(
-    () => nutritionLog.reduce((acc, curr) => acc + curr.p, 0),
-    [nutritionLog]
-  );
+  const [homeData, setHomeData] = useState<{
+    nutrition: { calories: number; protein_g: number; carbs_g: number; fat_g: number };
+    nextBooking: { summary: string; start: string; end: string; location: string | null; description: string | null } | null;
+  } | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    fetch('/api/lab/home')
+      .then((r) => r.json())
+      .then((data) => {
+        if (!mounted) return;
+        if (data?.ok) setHomeData(data.home);
+      })
+      .catch(() => {
+        // ignore
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const todaysCals = homeData?.nutrition?.calories ?? 0;
+  const todaysProtein = homeData?.nutrition?.protein_g ?? 0;
 
   const [showQuickLog, setShowQuickLog] = useState(false);
   const [statsLog, setStatsLog] = useState({ weight: String(userProfile.weight), bodyFat: '', note: '' });
@@ -133,38 +147,48 @@ export default function HomeView({
                 POTENTIAL
               </span>
             </h1>
-
-            <div className="flex items-center gap-3 mb-6">
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Live: 12% Capacity
-              </div>
-              <div className="text-[10px] text-zinc-500 font-mono">OPEN UNTIL 10PM</div>
-            </div>
           </div>
 
-          <Card
-            className="bg-gradient-to-r from-violet-900/20 to-zinc-900 border-l-4 border-l-violet-500 p-4"
-            onClick={() => setTab('book', { source: 'home_card' })}
-          >
-            <div className="flex justify-between items-start mb-2">
-              <div className="flex items-center gap-2 text-violet-400 font-bold text-xs uppercase tracking-widest">
-                <Calendar size={12} /> Next Mission
+          {homeData?.nextBooking ? (
+            <Card
+              className="bg-gradient-to-r from-violet-900/20 to-zinc-900 border-l-4 border-l-violet-500 p-4"
+              onClick={() => setTab('book', { source: 'home_card' })}
+            >
+              <div className="flex justify-between items-start mb-2">
+                <div className="flex items-center gap-2 text-violet-400 font-bold text-xs uppercase tracking-widest">
+                  <Calendar size={12} /> Next Mission
+                </div>
+                <div className="bg-zinc-900 border border-white/10 px-2 py-1 rounded text-[10px] font-mono text-zinc-400">
+                  {new Date(homeData.nextBooking.start).toLocaleDateString()}
+                </div>
               </div>
-              <div className="bg-zinc-900 border border-white/10 px-2 py-1 rounded text-[10px] font-mono text-zinc-400">TOMORROW</div>
-            </div>
-            <div className="font-black text-xl italic mb-1">1:1 PROTOCOL</div>
-            <div className="flex items-center gap-2 text-sm text-zinc-300 mb-3">
-              <Clock size={14} className="text-zinc-500" /> 06:00 PM
-            </div>
+              <div className="font-black text-xl italic mb-1">{homeData.nextBooking.summary || 'Session'}</div>
+              <div className="flex items-center gap-2 text-sm text-zinc-300 mb-3">
+                <Clock size={14} className="text-zinc-500" />{' '}
+                {new Date(homeData.nextBooking.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </div>
 
-            <div className="bg-black/20 rounded-lg p-3 border border-white/5 flex gap-3 items-start">
-              <AlertCircle size={16} className="text-yellow-500 shrink-0 mt-0.5" />
-              <div>
-                <div className="text-xs font-bold text-zinc-300">INTEL:</div>
-                <div className="text-xs text-zinc-500">Heavy Upper Body Focus. Bring lifting straps. Expect failure sets on Chest Press.</div>
+              {homeData.nextBooking.description ? (
+                <div className="bg-black/20 rounded-lg p-3 border border-white/5 flex gap-3 items-start">
+                  <AlertCircle size={16} className="text-yellow-500 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-xs font-bold text-zinc-300">NOTES:</div>
+                    <div className="text-xs text-zinc-500">{homeData.nextBooking.description}</div>
+                  </div>
+                </div>
+              ) : null}
+            </Card>
+          ) : (
+            <Card className="bg-zinc-900/60 backdrop-blur-md p-4" onClick={() => setTab('book')}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Next Mission</div>
+                  <div className="text-sm text-zinc-300 mt-1">No session scheduled yet.</div>
+                </div>
+                <div className="text-xs font-bold text-white bg-violet-600 px-3 py-1.5 rounded-full">Book</div>
               </div>
-            </div>
-          </Card>
+            </Card>
+          )}
 
           <div className="bg-zinc-900 border border-white/10 p-4 rounded-2xl relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition">
@@ -243,12 +267,12 @@ export default function HomeView({
             </div>
           </Card>
 
-          {/* Things to do today */}
+          {/* Daily Check-in (real data write) */}
           <div className="space-y-3">
             <div className="flex items-center justify-between px-1">
               <div>
-                <h2 className="font-bold text-lg">Things to do today</h2>
-                <div className="text-xs text-zinc-500">Your daily agenda with jump-ins.</div>
+                <h2 className="font-bold text-lg">Daily Check-in</h2>
+                <div className="text-xs text-zinc-500">Log weight/body fat and notes.</div>
               </div>
               <button
                 onClick={() => setShowQuickLog((prev) => !prev)}
@@ -256,33 +280,6 @@ export default function HomeView({
               >
                 {showQuickLog ? 'Close' : 'Quick Log'}
               </button>
-            </div>
-
-            <div className="space-y-2">
-              {DAILY_AGENDA.map((item) => (
-                <Card key={item.id} className="p-3 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center text-violet-400">
-                      {item.type === 'Workout' ? <Dumbbell size={18} /> : null}
-                      {item.type === 'Cardio' ? <Activity size={18} /> : null}
-                      {item.type === 'Habit' ? <CheckSquare size={18} /> : null}
-                      {item.type === 'Check-in' ? <Camera size={18} /> : null}
-                    </div>
-                    <div>
-                      <div className="font-bold text-sm">{item.title}</div>
-                      <div className="text-xs text-zinc-500">
-                        {item.time} • {item.type}
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => (item.action === 'progress' ? setShowQuickLog(true) : setTab(item.action))}
-                    className="text-xs font-bold text-white bg-violet-600 px-3 py-1.5 rounded-full hover:bg-violet-500"
-                  >
-                    Jump in
-                  </button>
-                </Card>
-              ))}
             </div>
 
             {showQuickLog ? (
@@ -311,7 +308,7 @@ export default function HomeView({
                   placeholder="Progress photo notes, mood, soreness..."
                 />
                 <div className="flex justify-between items-center text-xs text-zinc-500">
-                  <span>Upload progress photos in the Photos tile.</span>
+                  <span>Saved to your account.</span>
                   <button
                     onClick={logDailyStats}
                     className="text-xs font-bold text-white bg-emerald-500 px-3 py-1.5 rounded-full"
@@ -320,7 +317,11 @@ export default function HomeView({
                   </button>
                 </div>
               </Card>
-            ) : null}
+            ) : (
+              <Card className="p-4">
+                <div className="text-sm text-zinc-300">No check-in form open.</div>
+              </Card>
+            )}
           </div>
 
           {/* My Progress */}

@@ -33,21 +33,10 @@ export type ProgressTile = {
 };
 
 export const PROGRESS_TILES: ProgressTile[] = [
-  { id: 'weight', label: 'Body Weight', value: '185 lbs', trend: '+0.4 wk', icon: Scale },
-  { id: 'bodyfat', label: 'Body Fat', value: '14.0%', trend: '-0.3 wk', icon: Activity },
-  { id: 'rhr', label: 'Resting HR', value: '58 bpm', trend: '-2 bpm', icon: Heart },
-  { id: 'photos', label: 'Progress Photos', value: '3 New', trend: 'Added today', icon: Camera },
-  { id: 'nutrition', label: 'Nutrition Avg', value: '92% compliant', trend: '+4% wk', icon: Utensils },
-  { id: 'strength', label: 'Strength PRs', value: '2 this month', trend: 'New bench PR', icon: TrendingUp },
-];
-
-export const DEFAULT_PROFILE = {
-  name: 'TAYLOR',
-  goal: 'Hypertrophy',
-  weight: 185,
-  bf: 14,
-};
-
-export const DEFAULT_NUTRITION_LOG = [
-  { id: 1, name: 'Oatmeal + Whey', p: 30, c: 45, f: 5, time: '08:00 AM' },
+  { id: 'weight', label: 'Body Weight', value: '—', trend: '', icon: Scale },
+  { id: 'bodyfat', label: 'Body Fat', value: '—', trend: '', icon: Activity },
+  { id: 'rhr', label: 'Resting HR', value: '—', trend: '', icon: Heart },
+  { id: 'photos', label: 'Progress Photos', value: '—', trend: '', icon: Camera },
+  { id: 'nutrition', label: 'Nutrition Avg', value: '—', trend: '', icon: Utensils },
+  { id: 'strength', label: 'Strength PRs', value: '—', trend: '', icon: TrendingUp },
 ];

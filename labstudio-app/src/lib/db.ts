@@ -76,7 +76,7 @@ export async function getOrCreateUser(userId: string): Promise<LabUser> {
 
   const inserted = (await q`
     insert into lab_users (id, display_name, xp, level)
-    values (${userId}, 'YOU', 1250, 3)
+    values (${userId}, null, 0, 1)
     returning *;
   `) as unknown as LabUser[];
   return inserted[0];

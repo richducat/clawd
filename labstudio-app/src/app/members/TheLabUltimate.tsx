@@ -56,9 +56,9 @@ function NavBtn({
 
 export default function TheLabUltimate({ initialUser }: { initialUser: { display_name?: string; xp?: number; level?: number } | null }) {
   const [tab, setTabState] = useState<Tab>('home');
-  const xp = initialUser?.xp ?? 1250;
-  const level = initialUser?.level ?? 3;
-  const name = initialUser?.display_name ?? 'YOU';
+  const xp = initialUser?.xp ?? 0;
+  const level = initialUser?.level ?? 1;
+  const name = initialUser?.display_name ?? 'Athlete';
 
   const setTab = (next: string) => setTabState(next as Tab);
 
