@@ -12,7 +12,22 @@ import {
 import TobyCoachView from './TobyCoachView';
 import HomeView from './views/HomeView';
 
-type Tab = 'home' | 'book' | 'coach' | 'games' | 'market';
+type Tab =
+  | 'home'
+  | 'book'
+  | 'coach'
+  | 'games'
+  | 'market'
+  | 'workout'
+  | 'nutrition'
+  | 'habits'
+  | 'messages'
+  | 'community'
+  | 'challenges'
+  | 'wearables'
+  | 'social'
+  | 'library'
+  | 'progress';
 
 function NavBtn({
   icon: Icon,
@@ -39,10 +54,12 @@ function NavBtn({
 }
 
 export default function TheLabUltimate({ initialUser }: { initialUser: { display_name?: string; xp?: number; level?: number } | null }) {
-  const [tab, setTab] = useState<Tab>('home');
+  const [tab, setTabState] = useState<Tab>('home');
   const xp = initialUser?.xp ?? 1250;
   const level = initialUser?.level ?? 3;
   const name = initialUser?.display_name ?? 'YOU';
+
+  const setTab = (next: string) => setTabState(next as Tab);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white font-sans selection:bg-violet-500/30 pb-24 relative overflow-hidden">
@@ -81,7 +98,7 @@ export default function TheLabUltimate({ initialUser }: { initialUser: { display
             level={level}
             credits={1}
             userProfile={{ name, goal: 'Hypertrophy', weight: 185, bf: 14 }}
-            onGoBook={() => setTab('book')}
+            setTab={setTab}
           />
         )}
 
