@@ -24,10 +24,11 @@ export default function MembersChat() {
     setMessages((m) => [...m, { role: 'user', text }]);
 
     try {
+      const history = [...messages, { role: 'user' as const, text }].slice(-10);
       const res = await fetch('/api/toby/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, history }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error || 'Request failed');

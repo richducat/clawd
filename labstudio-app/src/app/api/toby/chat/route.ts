@@ -14,10 +14,17 @@ const DAILY_LIMIT = 35;
 
 export async function POST(req: Request) {
   try {
-    const { message } = (await req.json().catch(() => ({}))) as { message?: string };
+    const { message, history } = (await req.json().catch(() => ({}))) as {
+      message?: string;
+      history?: Array<{ role: 'user' | 'assistant'; text: string }>;
+    };
     const text = String(message || '').trim();
 
-    if (!text) {
+    const safeHistory = Array.isArray(history) ? history : [];
+    const lastUser = [...safeHistory].reverse().find((m) => m?.role === 'user')?.text;
+    const effectiveText = (lastUser ? String(lastUser) : text).trim();
+
+    if (!effectiveText) {
       return NextResponse.json({ error: 'Missing message' }, { status: 400 });
     }
 
@@ -52,6 +59,19 @@ export async function POST(req: Request) {
     // Default to a cost-effective model; override via TOBY_MODEL env.
     const model = process.env.TOBY_MODEL || 'gpt-4.1-mini';
 
+    const TRIAGE_RE = /(sharp|pinch|pain|hurt|tweak|pop|numb|tingl|shooting|joint|injur|leg press|squat|deadlift|bench|machine|right now)/i;
+    const isTriage = TRIAGE_RE.test(effectiveText);
+
+    const mappedHistory = safeHistory
+      .slice(-10)
+      .map((m) => ({ role: m.role, content: String(m.text || '').slice(0, 800) }))
+      .filter((m) => m.content.trim().length);
+
+    const input = [{ role: 'system', content: TOBY_SYSTEM_PROMPT }, ...mappedHistory];
+    if (!mappedHistory.length || mappedHistory[mappedHistory.length - 1]?.role !== 'user') {
+      input.push({ role: 'user', content: effectiveText.slice(0, 2000) });
+    }
+
     // Use OpenAI Responses API (recommended modern endpoint).
     const res = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
@@ -61,12 +81,8 @@ export async function POST(req: Request) {
       },
       body: JSON.stringify({
         model,
-        input: [
-          { role: 'system', content: TOBY_SYSTEM_PROMPT },
-          { role: 'user', content: text.slice(0, 2000) },
-        ],
-        // Keep it short for cost control.
-        max_output_tokens: 220,
+        input,
+        max_output_tokens: isTriage ? 320 : 220,
       }),
     });
 
@@ -89,11 +105,14 @@ export async function POST(req: Request) {
     }
     let reply = parts.join('\n').trim() || '(no response)';
 
-    // Hard guardrail: ensure the Stage 1 check-in contract is always present.
-    const contract = `Check in tomorrow with:\n- Joint pain: yes/no\n- Muscle soreness: 0–10\n- Energy: 0–10`;
-    const normalized = reply.toLowerCase();
-    if (!normalized.includes('check in tomorrow')) {
-      reply = `${reply}\n\n${contract}`.trim();
+    // Guardrail: keep the Stage 1 check-in contract for normal coaching,
+    // but do NOT force it during in-workout pain triage.
+    if (!isTriage) {
+      const contract = `Check in tomorrow with:\n- Joint pain: yes/no\n- Muscle soreness: 0–10\n- Energy: 0–10`;
+      const normalized = reply.toLowerCase();
+      if (!normalized.includes('check in tomorrow')) {
+        reply = `${reply}\n\n${contract}`.trim();
+      }
     }
 
     // Increment counter only on successful OpenAI call.
