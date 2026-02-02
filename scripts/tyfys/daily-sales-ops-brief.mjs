@@ -2,7 +2,7 @@
 /**
  * TYFYS Daily Sales + Ops Brief (WhatsApp-friendly text)
  *
- * Focus: Sales calls/SMS activity + Zoho deal movement + meetings booked.
+ * Focus: Sales coverage (per-rep schedule) + calls/SMS activity + Zoho deal movement + meetings booked.
  *
  * Usage:
  *   node scripts/tyfys/daily-sales-ops-brief.mjs --hours 24 --connectedSec 30 --fewMin 2
@@ -29,6 +29,19 @@ const fewMinSec = Math.round(fewMin * 60);
 
 const now = new Date();
 const from = new Date(now.getTime() - hours * 60 * 60 * 1000);
+
+// Sales roster (Zoho Owner.name matching)
+const SALES_ROSTER = ['Adam', 'Amy', 'Jared', 'Ashley'];
+
+function startOfLocalDay(d) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+const todayStart = startOfLocalDay(now);
+const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+const plus48h = new Date(todayStart.getTime() + 48 * 60 * 60 * 1000);
 
 const RC_API_SERVER = process.env.RINGCENTRAL_API_SERVER || 'https://platform.ringcentral.com';
 const RC_CLIENT_ID = process.env.RINGCENTRAL_CLIENT_ID;
@@ -140,6 +153,27 @@ async function zohoFetchMeetingsBooked({ accessToken }) {
   return { events };
 }
 
+async function zohoFetchSalesCoverageNext48h({ accessToken }) {
+  // Pull upcoming Events + due Tasks over the next 48h, then filter locally by Owner.name.
+  // COQL support for filtering on lookup subfields can vary by org, so we avoid Owner.name filters here.
+
+  // Upcoming meetings/calls on calendar (Zoho Events)
+  const qEvents = `select id, Event_Title, Start_DateTime, End_DateTime, Owner, What_Id from Events where Start_DateTime >= '${iso(todayStart)}' and Start_DateTime <= '${iso(plus48h)}' order by Start_DateTime asc limit 200`;
+
+  // Tasks due (Zoho Tasks) — Due_Date is date-only in many orgs
+  const qTasks = `select id, Subject, Due_Date, Status, Priority, Owner, What_Id from Tasks where Due_Date >= '${todayStart.toISOString().slice(0, 10)}' and Due_Date <= '${plus48h.toISOString().slice(0, 10)}' order by Due_Date asc limit 200`;
+
+  const [eventsRes, tasksRes] = await Promise.all([
+    zohoCrmCoql({ accessToken, apiDomain: ZOHO_API_DOMAIN, selectQuery: qEvents }),
+    zohoCrmCoql({ accessToken, apiDomain: ZOHO_API_DOMAIN, selectQuery: qTasks }),
+  ]);
+
+  const events = (eventsRes?.data || []).filter(e => SALES_ROSTER.includes(e?.Owner?.name));
+  const tasks = (tasksRes?.data || []).filter(t => SALES_ROSTER.includes(t?.Owner?.name));
+
+  return { events, tasks };
+}
+
 function briefHeader() {
   return `Daily Sales + Ops Brief — ${now.toLocaleDateString('en-US')}`;
 }
@@ -193,6 +227,37 @@ function briefHeader() {
 
   // Zoho CRM
   const zohoToken = await getZohoAccessToken();
+
+  // Sales coverage (next 48h) — this is the “what to expect from Sales” section.
+  const coverage = await zohoFetchSalesCoverageNext48h({ accessToken: zohoToken });
+
+  lines.push('');
+  lines.push('SALES COVERAGE (Zoho Activities — next 48h)');
+  for (const rep of SALES_ROSTER) {
+    const repEvents = (coverage.events || []).filter(e => e?.Owner?.name === rep);
+    const repTasks = (coverage.tasks || []).filter(t => t?.Owner?.name === rep);
+
+    const todayEvents = repEvents.filter(e => e.Start_DateTime && new Date(e.Start_DateTime) >= todayStart && new Date(e.Start_DateTime) < tomorrowStart);
+    const tomorrowEvents = repEvents.filter(e => e.Start_DateTime && new Date(e.Start_DateTime) >= tomorrowStart && new Date(e.Start_DateTime) < plus48h);
+
+    const todayTasks = repTasks.filter(t => t.Due_Date === todayStart.toISOString().slice(0, 10));
+    const tomorrowTasks = repTasks.filter(t => t.Due_Date === tomorrowStart.toISOString().slice(0, 10));
+
+    lines.push('');
+    lines.push(`${rep}:`);
+    lines.push(`- Meetings today: ${todayEvents.length} | tomorrow: ${tomorrowEvents.length}`);
+    lines.push(`- Tasks due today: ${todayTasks.length} | tomorrow: ${tomorrowTasks.length}`);
+
+    const nextTwo = repEvents
+      .filter(e => e.Start_DateTime && new Date(e.Start_DateTime) >= now)
+      .slice(0, 2)
+      .map(e => `  - ${fmtLocal(e.Start_DateTime)}: ${e.Event_Title || 'Event'}`);
+    if (nextTwo.length) {
+      lines.push(`- Next up:`);
+      lines.push(...nextTwo);
+    }
+  }
+
   const { deals, createdToday, closedWon, closedLost } = await zohoFetchDealMovement({ accessToken: zohoToken });
   const { events } = await zohoFetchMeetingsBooked({ accessToken: zohoToken });
 
