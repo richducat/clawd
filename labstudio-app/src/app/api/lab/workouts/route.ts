@@ -6,9 +6,8 @@ import { neon } from '@neondatabase/serverless';
 export const runtime = 'nodejs';
 
 type Body = {
-  weight?: string | number;
-  bodyFat?: string | number;
-  restingHr?: string | number;
+  kind?: string;
+  durationMin?: number | string;
   note?: string;
 };
 
@@ -30,25 +29,17 @@ export async function POST(req: Request) {
   }
 
   const body = (await req.json().catch(() => ({}))) as Body;
+  const kind = (body.kind || 'workout').slice(0, 50);
+  const durationMin = body.durationMin == null || body.durationMin === '' ? null : Number(body.durationMin);
+  const note = body.note?.slice(0, 2000) ?? null;
 
   await ensureSchema();
   await getOrCreateUser(uid);
 
-  const weight = body.weight === '' || body.weight == null ? null : Number(body.weight);
-  const bodyFat = body.bodyFat === '' || body.bodyFat == null ? null : Number(body.bodyFat);
-  const restingHr = body.restingHr === '' || body.restingHr == null ? null : Number(body.restingHr);
-  const note = body.note?.slice(0, 2000) ?? null;
-
   const q = sql();
   const rows = (await q`
-    insert into lab_daily_stats (user_id, weight_lbs, body_fat_pct, resting_hr, note)
-    values (
-      ${uid},
-      ${Number.isFinite(weight as any) ? weight : null},
-      ${Number.isFinite(bodyFat as any) ? bodyFat : null},
-      ${Number.isFinite(restingHr as any) ? restingHr : null},
-      ${note}
-    )
+    insert into lab_workout_log (user_id, kind, duration_min, note)
+    values (${uid}, ${kind}, ${Number.isFinite(durationMin as any) ? durationMin : null}, ${note})
     returning id, created_at;
   `) as any[];
 

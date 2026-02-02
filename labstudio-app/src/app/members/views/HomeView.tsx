@@ -46,8 +46,10 @@ export default function HomeView({
   const [homeData, setHomeData] = useState<{
     profile: { first_name?: string | null; last_name?: string | null; goal?: string | null } | null;
     nutrition: { calories: number; protein_g: number; carbs_g: number; fat_g: number };
-    latestStats: { weight_lbs: string | number | null; body_fat_pct: string | number | null } | null;
+    latestStats: { weight_lbs: string | number | null; body_fat_pct: string | number | null; resting_hr: number | null } | null;
     nextBooking: { summary: string; start: string; end: string; location: string | null; description: string | null } | null;
+    sessionLog?: { bookedUpcoming30d: number; completed7d: number; missedApprox30d: number };
+    progress?: { photos30d: number; calories7dAvg: number; latestPr: { lift: string; value: number; unit: string; reps: number | null } | null };
   } | null>(null);
 
   useEffect(() => {
@@ -70,7 +72,9 @@ export default function HomeView({
   const todaysProtein = homeData?.nutrition?.protein_g ?? 0;
 
   const [showQuickLog, setShowQuickLog] = useState(false);
-  const [statsLog, setStatsLog] = useState({ weight: '', bodyFat: '', note: '' });
+  const [statsLog, setStatsLog] = useState({ weight: '', bodyFat: '', restingHr: '', note: '' });
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoNote, setPhotoNote] = useState('');
 
   useEffect(() => {
     // When DB data arrives, prefill the quick log with the latest recorded values.
@@ -79,6 +83,7 @@ export default function HomeView({
       ...prev,
       weight: homeData.latestStats?.weight_lbs != null ? String(homeData.latestStats.weight_lbs) : prev.weight,
       bodyFat: homeData.latestStats?.body_fat_pct != null ? String(homeData.latestStats.body_fat_pct) : prev.bodyFat,
+      restingHr: homeData.latestStats?.resting_hr != null ? String(homeData.latestStats.resting_hr) : prev.restingHr,
     }));
   }, [homeData?.latestStats]);
 
@@ -129,12 +134,53 @@ export default function HomeView({
       await fetch('/api/lab/daily-stats', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ weight: statsLog.weight, bodyFat: statsLog.bodyFat, note: statsLog.note }),
+        body: JSON.stringify({
+          weight: statsLog.weight,
+          bodyFat: statsLog.bodyFat,
+          restingHr: statsLog.restingHr,
+          note: statsLog.note,
+        }),
       });
     } catch {
       // ignore (offline etc.)
     }
+  };
+
+  const saveProgressPhoto = async () => {
+    if (!photoFile) return;
+    const toDataUrl = (file: File) =>
+      new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('read failed'));
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.readAsDataURL(file);
+      });
+
+    try {
+      const imageDataUrl = await toDataUrl(photoFile);
+      await fetch('/api/lab/progress-photos', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ imageDataUrl, note: photoNote }),
+      });
+    } catch {
+      // ignore
+    }
+  };
+
+  const saveCheckin = async () => {
+    await Promise.all([logDailyStats(), saveProgressPhoto()]);
+    setPhotoFile(null);
+    setPhotoNote('');
     setShowQuickLog(false);
+    // refresh home data
+    try {
+      const r = await fetch('/api/lab/home');
+      const data = await r.json();
+      if (data?.ok) setHomeData(data.home);
+    } catch {
+      // ignore
+    }
   };
 
   const bfText = useMemo(() => {
@@ -266,16 +312,16 @@ export default function HomeView({
               <div className="p-4 space-y-3">
                 <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-1">Session Log</div>
                 <div className="flex justify-between items-center">
-                  <div className="text-xs text-zinc-400">Booked</div>
-                  <div className="font-mono font-bold">5</div>
+                  <div className="text-xs text-zinc-400">Booked (next 30d)</div>
+                  <div className="font-mono font-bold">{homeData?.sessionLog?.bookedUpcoming30d ?? 0}</div>
                 </div>
                 <div className="flex justify-between items-center">
-                  <div className="text-xs text-zinc-400">Made</div>
-                  <div className="font-mono font-bold text-blue-400">3</div>
+                  <div className="text-xs text-zinc-400">Completed (last 7d)</div>
+                  <div className="font-mono font-bold text-blue-400">{homeData?.sessionLog?.completed7d ?? 0}</div>
                 </div>
                 <div className="flex justify-between items-center">
-                  <div className="text-xs text-zinc-400">Missed</div>
-                  <div className="font-mono font-bold text-zinc-600">0</div>
+                  <div className="text-xs text-zinc-400">Missed (approx 30d)</div>
+                  <div className="font-mono font-bold text-zinc-600">{homeData?.sessionLog?.missedApprox30d ?? 0}</div>
                 </div>
               </div>
             </div>
@@ -314,6 +360,12 @@ export default function HomeView({
                     className="bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-sm"
                     placeholder="Body fat %"
                   />
+                  <input
+                    value={statsLog.restingHr}
+                    onChange={(event) => setStatsLog({ ...statsLog, restingHr: event.target.value })}
+                    className="bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-sm col-span-2"
+                    placeholder="Resting HR (optional)"
+                  />
                 </div>
                 <textarea
                   value={statsLog.note}
@@ -321,10 +373,26 @@ export default function HomeView({
                   className="bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-sm h-20 resize-none"
                   placeholder="Progress photo notes, mood, soreness..."
                 />
+                <div className="space-y-2">
+                  <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Progress Photo (optional)</div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
+                    className="text-xs text-zinc-400"
+                  />
+                  <input
+                    value={photoNote}
+                    onChange={(e) => setPhotoNote(e.target.value)}
+                    className="bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-sm w-full"
+                    placeholder="Photo note (optional)"
+                  />
+                </div>
+
                 <div className="flex justify-between items-center text-xs text-zinc-500">
                   <span>Saved to your account.</span>
                   <button
-                    onClick={logDailyStats}
+                    onClick={saveCheckin}
                     className="text-xs font-bold text-white bg-emerald-500 px-3 py-1.5 rounded-full"
                   >
                     Save
@@ -384,14 +452,58 @@ export default function HomeView({
                 .filter((tile) => tile.visible)
                 .map((tile) => {
                   const Icon = (tile as any).icon;
+
+                  let value = tile.value;
+                  let trend = tile.trend;
+                  let onClick: (() => void) | undefined;
+
+                  if (tile.id === 'weight') {
+                    value = homeData?.latestStats?.weight_lbs != null ? `${homeData.latestStats.weight_lbs} lb` : '—';
+                    trend = 'Log in Daily Check-in';
+                    onClick = () => setShowQuickLog(true);
+                  }
+
+                  if (tile.id === 'bodyfat') {
+                    value = homeData?.latestStats?.body_fat_pct != null ? `${homeData.latestStats.body_fat_pct}%` : '—';
+                    trend = 'Log in Daily Check-in';
+                    onClick = () => setShowQuickLog(true);
+                  }
+
+                  if (tile.id === 'rhr') {
+                    value = homeData?.latestStats?.resting_hr != null ? `${homeData.latestStats.resting_hr} bpm` : '—';
+                    trend = 'Add in Daily Check-in';
+                    onClick = () => setShowQuickLog(true);
+                  }
+
+                  if (tile.id === 'nutrition') {
+                    const avg = homeData?.progress?.calories7dAvg;
+                    value = avg != null ? `${avg} kcal` : '—';
+                    trend = '7-day avg';
+                    onClick = () => setTab('nutrition');
+                  }
+
+                  if (tile.id === 'photos') {
+                    value = `${homeData?.progress?.photos30d ?? 0}`;
+                    trend = 'Photos (30d)';
+                    // We'll add photo capture in Daily Check-in section.
+                    onClick = () => setShowQuickLog(true);
+                  }
+
+                  if (tile.id === 'strength') {
+                    const pr = homeData?.progress?.latestPr;
+                    value = pr ? `${pr.lift}` : '—';
+                    trend = pr ? `${pr.value}${pr.unit}${pr.reps ? ` x${pr.reps}` : ''}` : 'Add a PR';
+                    onClick = () => setTab('workout');
+                  }
+
                   return (
-                    <Card key={tile.id} className="p-3 space-y-2">
+                    <Card key={tile.id} className={`p-3 space-y-2 ${onClick ? 'cursor-pointer hover:bg-zinc-800 transition' : ''}`} onClick={onClick}>
                       <div className="flex items-center justify-between text-xs text-zinc-500">
                         <span className="uppercase font-bold tracking-widest">{tile.label}</span>
                         <Icon size={14} className="text-violet-400" />
                       </div>
-                      <div className="text-lg font-black">{tile.value}</div>
-                      <div className="text-[10px] text-emerald-400">{tile.trend}</div>
+                      <div className="text-lg font-black">{value}</div>
+                      <div className="text-[10px] text-emerald-400">{trend}</div>
                     </Card>
                   );
                 })}

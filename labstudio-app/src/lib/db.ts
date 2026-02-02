@@ -80,9 +80,13 @@ export async function ensureSchema() {
       created_at timestamptz not null default now(),
       weight_lbs numeric,
       body_fat_pct numeric,
+      resting_hr integer,
       note text
     );
   `;
+
+  // Backfill/upgrade older schemas.
+  await q`alter table lab_daily_stats add column if not exists resting_hr integer;`;
 
   await q`
     create index if not exists lab_daily_stats_user_created_at_idx on lab_daily_stats(user_id, created_at desc);
@@ -104,6 +108,45 @@ export async function ensureSchema() {
   await q`
     create index if not exists lab_nutrition_log_user_created_at_idx on lab_nutrition_log(user_id, created_at desc);
   `;
+
+  // Completed workouts (for home session log + progress tiles)
+  await q`
+    create table if not exists lab_workout_log (
+      id bigserial primary key,
+      user_id text not null references lab_users(id) on delete cascade,
+      created_at timestamptz not null default now(),
+      kind text,
+      duration_min integer,
+      note text
+    );
+  `;
+  await q`create index if not exists lab_workout_log_user_created_at_idx on lab_workout_log(user_id, created_at desc);`;
+
+  // Progress photos (simple: store image as data URL for now; later move to blob storage)
+  await q`
+    create table if not exists lab_progress_photos (
+      id bigserial primary key,
+      user_id text not null references lab_users(id) on delete cascade,
+      created_at timestamptz not null default now(),
+      image_data_url text not null,
+      note text
+    );
+  `;
+  await q`create index if not exists lab_progress_photos_user_created_at_idx on lab_progress_photos(user_id, created_at desc);`;
+
+  // Strength PRs
+  await q`
+    create table if not exists lab_strength_prs (
+      id bigserial primary key,
+      user_id text not null references lab_users(id) on delete cascade,
+      created_at timestamptz not null default now(),
+      lift text not null,
+      value numeric not null,
+      unit text not null default 'lb',
+      reps integer
+    );
+  `;
+  await q`create index if not exists lab_strength_prs_user_created_at_idx on lab_strength_prs(user_id, created_at desc);`;
 }
 
 export async function getOrCreateUser(userId: string): Promise<LabUser> {
