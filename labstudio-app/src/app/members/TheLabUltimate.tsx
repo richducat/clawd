@@ -74,7 +74,7 @@ export default function TheLabUltimate({ initialUser }: { initialUser: { display
       </header>
 
       {/* Content */}
-      <main className="max-w-md mx-auto p-4 relative z-10">
+      <main className="max-w-md lg:max-w-6xl mx-auto p-4 relative z-10">
         {tab === 'home' && (
           <HomeView
             xp={xp}
@@ -97,7 +97,7 @@ export default function TheLabUltimate({ initialUser }: { initialUser: { display
 
       {/* Nav Bar */}
       <nav className="fixed bottom-0 left-0 right-0 bg-zinc-950/90 backdrop-blur-xl border-t border-white/10 z-50 pb-safe pt-2 shadow-[0_-10px_40px_-10px_rgba(0,0,0,1)]">
-        <div className="max-w-md mx-auto flex justify-around items-center px-1">
+        <div className="max-w-md lg:max-w-6xl mx-auto flex justify-around items-center px-1">
           <NavBtn icon={Activity} label="Dash" active={tab === 'home'} onClick={() => setTab('home')} />
           <NavBtn icon={Calendar} label="Book" active={tab === 'book'} onClick={() => setTab('book')} />
 
