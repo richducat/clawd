@@ -547,15 +547,14 @@ export default function HomeView({
                   if (tile.id === 'photos') {
                     value = `${homeData?.progress?.photos30d ?? 0}`;
                     trend = 'Photos (30d)';
-                    // We'll add photo capture in Daily Check-in section.
-                    onClick = () => setShowQuickLog(true);
+                    onClick = () => setTab('progress', { mode: 'photos' });
                   }
 
                   if (tile.id === 'strength') {
                     const pr = homeData?.progress?.latestPr;
                     value = pr ? `${pr.lift}` : '—';
                     trend = pr ? `${pr.value}${pr.unit}${pr.reps ? ` x${pr.reps}` : ''}` : 'Add a PR';
-                    onClick = () => setTab('workout');
+                    onClick = () => setTab('progress', { mode: 'prs' });
                   }
 
                   return (

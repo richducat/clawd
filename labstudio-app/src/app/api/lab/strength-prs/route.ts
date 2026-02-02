@@ -38,10 +38,10 @@ export async function GET() {
     from lab_strength_prs
     where user_id = ${uid}
     order by created_at desc
-    limit 1;
+    limit 20;
   `) as any[];
 
-  return NextResponse.json({ ok: true, latest: rows?.[0] ?? null });
+  return NextResponse.json({ ok: true, latest: rows?.[0] ?? null, history: rows });
 }
 
 export async function POST(req: Request) {

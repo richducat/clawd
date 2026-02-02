@@ -32,11 +32,11 @@ export async function GET() {
 
   const q = sql();
   const rows = (await q`
-    select id, created_at, note
+    select id, created_at, note, image_data_url
     from lab_progress_photos
     where user_id = ${uid}
     order by created_at desc
-    limit 20;
+    limit 10;
   `) as any[];
 
   return NextResponse.json({ ok: true, photos: rows });

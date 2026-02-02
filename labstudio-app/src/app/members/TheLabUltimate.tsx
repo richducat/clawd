@@ -17,6 +17,7 @@ import SocialView from './views/SocialView';
 import LibraryView from './views/LibraryView';
 import GamesView from './views/GamesView';
 import MarketView from './views/MarketView';
+import ProgressView from './views/ProgressView';
 
 type Tab =
   | 'home'
@@ -73,6 +74,7 @@ export default function TheLabUltimate({
   needsOnboarding?: boolean;
 }) {
   const [tab, setTabState] = useState<Tab>('home');
+  const [tabMeta, setTabMeta] = useState<Record<string, unknown> | null>(null);
   const xp = initialUser?.xp ?? 0;
   const level = initialUser?.level ?? 1;
   const name =
@@ -81,7 +83,10 @@ export default function TheLabUltimate({
     'Athlete';
   const goal = initialProfile?.goal ?? null;
 
-  const setTab = (next: string) => setTabState(next as Tab);
+  const setTab = (next: string, meta?: Record<string, unknown>) => {
+    setTabState(next as Tab);
+    setTabMeta(meta ?? null);
+  };
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white font-sans selection:bg-violet-500/30 pb-24 relative overflow-hidden">
@@ -153,6 +158,12 @@ export default function TheLabUltimate({
         {tab === 'wearables' && <WearablesView />}
         {tab === 'social' && <SocialView />}
         {tab === 'library' && <LibraryView />}
+        {tab === 'progress' && (
+          <ProgressView
+            mode={(tabMeta?.mode as any) === 'prs' ? 'prs' : 'photos'}
+            onBack={() => setTab('home')}
+          />
+        )}
       </main>
 
       {/* Nav Bar */}
