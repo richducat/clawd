@@ -29,6 +29,19 @@ async function loginAction(formData: FormData) {
     maxAge: 60 * 60 * 24 * 30,
   });
 
+  // Create a stable anon user id cookie for v1 persistence (until real auth).
+  const uidCookie = jar.get('labstudio_uid')?.value;
+  if (!uidCookie) {
+    const { randomUUID } = await import('node:crypto');
+    jar.set('labstudio_uid', randomUUID(), {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: true,
+      path: '/',
+      maxAge: 60 * 60 * 24 * 365,
+    });
+  }
+
   redirect(nextPath);
 }
 

@@ -37,8 +37,11 @@ function NavBtn({
   );
 }
 
-export default function TheLabUltimate() {
+export default function TheLabUltimate({ initialUser }: { initialUser: { display_name?: string; xp?: number; level?: number } | null }) {
   const [tab, setTab] = useState<Tab>('home');
+  const xp = initialUser?.xp ?? 1250;
+  const level = initialUser?.level ?? 3;
+  const name = initialUser?.display_name ?? 'YOU';
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white font-sans selection:bg-violet-500/30 pb-24 relative overflow-hidden">
@@ -75,9 +78,10 @@ export default function TheLabUltimate() {
           <div className="space-y-4">
             <h1 className="text-3xl font-black italic uppercase">Dashboard</h1>
             <div className="rounded-2xl border border-white/5 bg-zinc-900/60 backdrop-blur-md p-4">
-              <div className="text-sm text-zinc-300">Welcome. This is the full UI shell (v1).</div>
-              <div className="text-xs text-zinc-500 mt-2">
-                Next: port the remaining views from your existing members/main.js.
+              <div className="text-sm text-zinc-300">Welcome, <span className="font-bold">{name}</span>.</div>
+              <div className="text-xs text-zinc-500 mt-2">LVL {level} • {xp} XP</div>
+              <div className="text-xs text-zinc-500 mt-3">
+                This tab is now backed by Vercel Postgres when configured; otherwise it falls back to demo values.
               </div>
             </div>
           </div>

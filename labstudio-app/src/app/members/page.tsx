@@ -1,7 +1,23 @@
+import { cookies } from 'next/headers';
 import TheLabUltimate from './TheLabUltimate';
+import { dbConfigured, getOrCreateUser } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-export default function MembersHome() {
-  return <TheLabUltimate />;
+export default async function MembersHome() {
+  const jar = await cookies();
+  const uid = jar.get('labstudio_uid')?.value;
+
+  let initialUser: { display_name?: string; xp?: number; level?: number } | null = null;
+  if (uid && dbConfigured()) {
+    try {
+      const u = await getOrCreateUser(uid);
+      initialUser = { display_name: u.display_name, xp: u.xp, level: u.level };
+    } catch {
+      // fall back
+      initialUser = null;
+    }
+  }
+
+  return <TheLabUltimate initialUser={initialUser} />;
 }
