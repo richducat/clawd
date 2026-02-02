@@ -98,3 +98,21 @@ export async function zohoCrmGet({ accessToken, apiDomain, pathAndQuery }) {
   }
   return json;
 }
+
+export async function zohoCrmPost({ accessToken, apiDomain, path, json }) {
+  const url = `${apiDomain}${path}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Zoho-oauthtoken ${accessToken}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(json ?? {}),
+  });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(`Zoho POST failed (${res.status}): ${out?.message || JSON.stringify(out)}`);
+  }
+  return out;
+}
