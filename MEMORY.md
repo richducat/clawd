@@ -22,3 +22,7 @@
 - Communication cadence while executing tasks:
   - If the task/project will take **< 10 minutes**, send a progress update **every minute**.
   - If it will take **≥ 10 minutes**, send a progress update **every 3 minutes** (and immediately when major milestones/blocks happen).
+
+## LabStudio / Personal Apps (active)
+- LabStudio requirement: **NO mock data** in user-visible UI. Only real DB-backed/integration-backed data; seeding is allowed if it writes to the DB.
+- For demos: use temporary Google Calendar under `richducat@gmail.com` for bookings (later migrate to the user’s calendar).
