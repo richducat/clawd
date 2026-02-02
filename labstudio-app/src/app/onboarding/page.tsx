@@ -13,7 +13,10 @@ export default async function OnboardingPage() {
     try {
       const user = await getOrCreateUser(uid);
       const profile = await getUserProfile(uid);
-      if (user.onboarding_complete || profile) {
+
+      // Only skip onboarding if required profile fields exist.
+      const profileComplete = Boolean(profile?.first_name?.trim()) && Boolean(profile?.last_name?.trim()) && Boolean(profile?.goal?.trim());
+      if (user.onboarding_complete && profileComplete) {
         redirect('/members');
       }
     } catch {

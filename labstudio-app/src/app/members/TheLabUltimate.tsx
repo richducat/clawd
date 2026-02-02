@@ -62,6 +62,7 @@ function NavBtn({
 export default function TheLabUltimate({
   initialUser,
   initialProfile,
+  needsOnboarding,
 }: {
   initialUser: { display_name?: string; xp?: number; level?: number } | null;
   initialProfile: {
@@ -69,6 +70,7 @@ export default function TheLabUltimate({
     last_name?: string | null;
     goal?: string | null;
   } | null;
+  needsOnboarding?: boolean;
 }) {
   const [tab, setTabState] = useState<Tab>('home');
   const xp = initialUser?.xp ?? 0;
@@ -112,6 +114,20 @@ export default function TheLabUltimate({
 
       {/* Content */}
       <main className="max-w-md lg:max-w-6xl mx-auto p-4 relative z-10">
+        {needsOnboarding ? (
+          <div className="mb-4 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-4 flex items-center justify-between gap-4">
+            <div>
+              <div className="text-xs font-bold text-yellow-400 tracking-widest uppercase">Action needed</div>
+              <div className="text-sm text-zinc-200">Finish onboarding so your dashboard, coaching, and plans are personalized.</div>
+            </div>
+            <a
+              href="/onboarding"
+              className="shrink-0 text-xs font-black text-zinc-950 bg-yellow-400 hover:bg-yellow-300 px-3 py-2 rounded-xl"
+            >
+              Finish onboarding
+            </a>
+          </div>
+        ) : null}
         {tab === 'home' && (
           <HomeView
             xp={xp}

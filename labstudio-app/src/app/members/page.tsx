@@ -12,15 +12,23 @@ export default async function MembersHome() {
 
   let initialUser: { display_name?: string; xp?: number; level?: number } | null = null;
   let initialProfile: InitialProfile = null;
+  let needsOnboarding = false;
+
   if (uid && dbConfigured()) {
     try {
       const u = await getOrCreateUser(uid);
       const p = await getUserProfile(uid);
 
-      const onboarded = u.onboarding_complete || Boolean(p);
-      if (!onboarded) {
+      // Rule B: treat onboarding as incomplete unless required profile fields exist.
+      const profileComplete = Boolean(p?.first_name?.trim()) && Boolean(p?.last_name?.trim()) && Boolean(p?.goal?.trim());
+
+      // If there is no profile at all, force onboarding.
+      if (!p) {
         redirect('/onboarding');
       }
+
+      // If onboarding flag is false OR profile is incomplete, allow members but show a banner (Rule C).
+      needsOnboarding = !u.onboarding_complete || !profileComplete;
 
       initialProfile = p;
       initialUser = { display_name: u.display_name ?? undefined, xp: u.xp, level: u.level };
@@ -29,5 +37,5 @@ export default async function MembersHome() {
     }
   }
 
-  return <TheLabUltimate initialUser={initialUser} initialProfile={initialProfile} />;
+  return <TheLabUltimate initialUser={initialUser} initialProfile={initialProfile} needsOnboarding={needsOnboarding} />;
 }
