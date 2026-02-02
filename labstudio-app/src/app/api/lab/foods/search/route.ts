@@ -55,10 +55,14 @@ async function usdaSearch(q: string, limit: number): Promise<UnifiedFood[]> {
     const description = String(f?.description || '').trim();
     const brand = String(f?.brandName || '').trim() || undefined;
 
+    // USDA search results can be "per 100g" or "per serving" depending on item.
+    // We treat as unknown for now; UI will not auto-scale unless basis==per_100g.
+    const label = [brand, description].filter(Boolean).join(' — ') || 'Food';
+
     return {
       id: `usda:${String(f?.fdcId)}`,
       source: 'usda',
-      label: description || brand || 'Food',
+      label,
       brand,
       calories,
       protein_g,
@@ -93,7 +97,7 @@ async function offSearch(q: string, limit: number): Promise<UnifiedFood[]> {
     const carbs_g = n(nutr['carbohydrates_100g']);
     const fat_g = n(nutr['fat_100g']);
 
-    const label = [name || 'Food', brand].filter(Boolean).join(' — ');
+    const label = [brand, name || 'Food'].filter(Boolean).join(' — ');
 
     return {
       id: `off:${String(p?.code || p?._id || p?.id || name)}`,

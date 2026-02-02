@@ -30,12 +30,18 @@ export default function NutritionView() {
   const [data, setData] = useState<NutritionState | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const [form, setForm] = useState({ name: '', p: 0, c: 0, f: 0, time: '' });
+  const [form, setForm] = useState({ name: '', p: 0, c: 0, f: 0, time: '', amount_g: 0 });
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const [suggestions, setSuggestions] = useState<FoodSuggestion[]>([]);
   const [suggestBusy, setSuggestBusy] = useState(false);
   const [suggestOpen, setSuggestOpen] = useState(false);
+
+  // When a user selects a food from the database, we keep the base macros and allow
+  // serving-size scaling (esp. OFF which is per 100g). If user edits macros manually,
+  // auto-scaling is disabled.
+  const [selected, setSelected] = useState<FoodSuggestion | null>(null);
+  const [autoMacros, setAutoMacros] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -55,17 +61,42 @@ export default function NutritionView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const recalcFromSelection = (nextAmountG: number) => {
+    if (!selected || !autoMacros) return;
+    if (selected.basis !== 'per_100g') return;
+    const mult = (Number(nextAmountG) || 0) / 100;
+    setForm((p) => ({
+      ...p,
+      p: Math.round(Number(selected.protein_g ?? 0) * mult),
+      c: Math.round(Number(selected.carbs_g ?? 0) * mult),
+      f: Math.round(Number(selected.fat_g ?? 0) * mult),
+    }));
+  };
+
   const save = async () => {
     setStatus('saving');
     try {
+      const payload = {
+        name:
+          selected?.basis === 'per_100g' && (Number(form.amount_g) || 0) > 0
+            ? `${form.name} (${Math.round(Number(form.amount_g))}g)`
+            : form.name,
+        p: form.p,
+        c: form.c,
+        f: form.f,
+        time: form.time,
+      };
+
       const res = await fetch('/api/lab/nutrition', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error('failed');
       setStatus('saved');
-      setForm({ name: '', p: 0, c: 0, f: 0, time: '' });
+      setForm({ name: '', p: 0, c: 0, f: 0, time: '', amount_g: 0 });
+      setSelected(null);
+      setAutoMacros(false);
       await load();
       setTimeout(() => setStatus('idle'), 1200);
     } catch {
@@ -76,6 +107,12 @@ export default function NutritionView() {
   const maxCals = useMemo(() => Math.max(...(data?.last7?.map((d) => d.calories) ?? [0])), [data?.last7]);
 
   const caloriesPreview = useMemo(() => (Number(form.p) || 0) * 4 + (Number(form.c) || 0) * 4 + (Number(form.f) || 0) * 9, [form.p, form.c, form.f]);
+
+  const amountLabel = useMemo(() => {
+    if (!selected) return null;
+    if (selected.basis === 'per_100g') return 'grams';
+    return null;
+  }, [selected]);
 
   const searchFoods = async (q: string) => {
     const query = q.trim();
@@ -106,13 +143,20 @@ export default function NutritionView() {
   }, [form.name, suggestOpen]);
 
   const applySuggestion = (s: FoodSuggestion) => {
-    const basisTag = s.basis === 'per_100g' ? ' (per 100g)' : s.source === 'off' ? ' (OFF)' : '';
+    setSelected(s);
+    setAutoMacros(true);
+
+    // OFF is per 100g → default to 100g and scale macros.
+    const defaultAmount = s.basis === 'per_100g' ? 100 : 0;
+    const mult = s.basis === 'per_100g' && defaultAmount > 0 ? defaultAmount / 100 : 1;
+
     setForm((p) => ({
       ...p,
-      name: `${s.label}${basisTag}`,
-      p: Math.round(Number(s.protein_g ?? 0)),
-      c: Math.round(Number(s.carbs_g ?? 0)),
-      f: Math.round(Number(s.fat_g ?? 0)),
+      name: s.label,
+      amount_g: defaultAmount,
+      p: Math.round(Number(s.protein_g ?? 0) * mult),
+      c: Math.round(Number(s.carbs_g ?? 0) * mult),
+      f: Math.round(Number(s.fat_g ?? 0) * mult),
     }));
     setSuggestOpen(false);
   };
@@ -176,11 +220,15 @@ export default function NutritionView() {
           <div className="relative">
             <input
               className="bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-sm w-full"
-              placeholder="Type to search (USDA + OpenFoodFacts)…"
+              placeholder="Type to search (brand first)…"
               value={form.name}
               onFocus={() => setSuggestOpen(true)}
               onBlur={() => setTimeout(() => setSuggestOpen(false), 120)}
-              onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+              onChange={(e) => {
+                setSelected(null);
+                setAutoMacros(false);
+                setForm((p) => ({ ...p, name: e.target.value }));
+              }}
             />
 
             {suggestOpen && suggestions.length ? (
@@ -220,7 +268,10 @@ export default function NutritionView() {
               placeholder="e.g. 40"
               type="number"
               value={form.p}
-              onChange={(e) => setForm((p) => ({ ...p, p: Number(e.target.value) }))}
+              onChange={(e) => {
+                setAutoMacros(false);
+                setForm((p) => ({ ...p, p: Number(e.target.value) }));
+              }}
             />
           </div>
           <div className="space-y-1">
@@ -230,7 +281,10 @@ export default function NutritionView() {
               placeholder="e.g. 20"
               type="number"
               value={form.c}
-              onChange={(e) => setForm((p) => ({ ...p, c: Number(e.target.value) }))}
+              onChange={(e) => {
+                setAutoMacros(false);
+                setForm((p) => ({ ...p, c: Number(e.target.value) }));
+              }}
             />
           </div>
           <div className="space-y-1">
@@ -240,10 +294,48 @@ export default function NutritionView() {
               placeholder="e.g. 10"
               type="number"
               value={form.f}
-              onChange={(e) => setForm((p) => ({ ...p, f: Number(e.target.value) }))}
+              onChange={(e) => {
+                setAutoMacros(false);
+                setForm((p) => ({ ...p, f: Number(e.target.value) }));
+              }}
             />
           </div>
         </div>
+
+        {amountLabel === 'grams' ? (
+          <div className="grid grid-cols-2 gap-2 items-end">
+            <div className="space-y-1">
+              <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Amount (g)</div>
+              <input
+                className="bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-sm w-full"
+                placeholder="100"
+                type="number"
+                value={form.amount_g}
+                onChange={(e) => {
+                  const next = Number(e.target.value);
+                  setForm((p) => ({ ...p, amount_g: next }));
+                  recalcFromSelection(next);
+                }}
+              />
+            </div>
+            <div className="text-[10px] text-zinc-500">
+              {selected?.source === 'off' ? 'OpenFoodFacts is per 100g.' : 'Per 100g item.'}
+              {autoMacros ? '' : ' (macros unlocked)'}
+              {autoMacros ? (
+                <button
+                  type="button"
+                  className="ml-2 underline text-zinc-400 hover:text-zinc-300"
+                  onClick={() => {
+                    setAutoMacros(true);
+                    recalcFromSelection(form.amount_g);
+                  }}
+                >
+                  Recalc
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
 
         <div className="flex items-center justify-between">
           <div className="text-xs text-zinc-500">
@@ -260,7 +352,7 @@ export default function NutritionView() {
         </div>
 
         <div className="text-[10px] text-zinc-600">
-          Tips: USDA data varies by item; OpenFoodFacts is usually per 100g. We’ll add serving-size scaling next.
+          Tips: Select a food to auto-fill macros. For OpenFoodFacts items, use Amount (g) to scale from per-100g nutrition.
         </div>
       </Card>
 
