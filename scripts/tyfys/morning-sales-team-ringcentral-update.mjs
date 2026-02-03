@@ -1,0 +1,181 @@
+#!/usr/bin/env node
+/**
+ * TYFYS Morning Sales Team Update (RingCentral Team Messaging)
+ *
+ * Posts to a RingCentral team chat:
+ *  - Today's booked meetings (Zoho Events happening today)
+ *  - Yesterday's outbound performance (RingCentral outbound calls + outbound SMS) by rep
+ *  - A short motivational line
+ *
+ * Usage:
+ *   node scripts/tyfys/morning-sales-team-ringcentral-update.mjs --chatId 144856375302
+ */
+
+import { loadEnvLocal } from '../lib/load-env-local.mjs';
+import { getZohoAccessToken, zohoCrmCoql } from '../lib/zoho.mjs';
+import { ringcentralGetJson, ringcentralPostJson } from '../lib/ringcentral.mjs';
+
+loadEnvLocal();
+
+function getArg(name, def) {
+  const idx = process.argv.indexOf(name);
+  if (idx === -1) return def;
+  const v = process.argv[idx + 1];
+  if (!v || v.startsWith('--')) return def;
+  return v;
+}
+
+function startOfLocalDay(d) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function isoNoMs(d) {
+  return d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+function fmtLocal(dt) {
+  try {
+    return new Date(dt).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit' });
+  } catch {
+    return String(dt);
+  }
+}
+
+function formatTable(rows) {
+  // WhatsApp-free / RC-friendly: simple aligned-ish lines.
+  const maxName = Math.max(...rows.map(r => r.name.length), 3);
+  return rows
+    .map(r => `${r.name.padEnd(maxName)}  calls:${String(r.calls).padStart(3)}  sms:${String(r.sms).padStart(3)}`)
+    .join('\n');
+}
+
+const SALES_ROSTER = ['Adam', 'Amy', 'Jared', 'Ashley'];
+const ZOHO_API_DOMAIN = process.env.ZOHO_API_DOMAIN || 'https://www.zohoapis.com';
+
+const MOTIVATION = [
+  'Let’s make it a clean day: fast follow-ups, tight notes, no dropped balls.',
+  'One more touchpoint than yesterday. Momentum compounds.',
+  'Control the controllables: speed-to-lead, clear next steps, and good energy.',
+  'Win the first hour, win the day. Let’s go.',
+];
+
+async function getTodaysMeetings({ accessToken, todayStart, tomorrowStart }) {
+  // Events happening today (regardless of when they were created).
+  const q = `select id, Event_Title, Start_DateTime, End_DateTime, Owner from Events where Start_DateTime >= '${isoNoMs(todayStart)}' and Start_DateTime < '${isoNoMs(tomorrowStart)}' order by Start_DateTime asc limit 200`;
+  const res = await zohoCrmCoql({ accessToken, apiDomain: ZOHO_API_DOMAIN, selectQuery: q });
+  const events = (res?.data || []).filter(e => SALES_ROSTER.includes(e?.Owner?.name));
+  return events;
+}
+
+async function getRcExtensionsForRoster() {
+  // Map RingCentral extensions to reps by name. Best-effort.
+  const extRes = await ringcentralGetJson('/restapi/v1.0/account/~/extension?perPage=200');
+  const exts = extRes?.records || [];
+
+  const roster = new Map();
+  for (const rep of SALES_ROSTER) {
+    const match = exts.find(e => {
+      const n = `${e?.contact?.firstName || ''} ${e?.contact?.lastName || ''}`.trim();
+      const uname = String(e?.name || '');
+      return n.toLowerCase().includes(rep.toLowerCase()) || uname.toLowerCase().includes(rep.toLowerCase());
+    });
+    if (match?.id) roster.set(rep, match.id);
+  }
+
+  return roster;
+}
+
+async function getOutboundPerf({ from, to }) {
+  const rosterIds = await getRcExtensionsForRoster();
+
+  const rows = [];
+  for (const rep of SALES_ROSTER) {
+    const extId = rosterIds.get(rep);
+    if (!extId) {
+      rows.push({ name: rep, calls: 0, sms: 0, _missing: true });
+      continue;
+    }
+
+    const callLog = await ringcentralGetJson(
+      `/restapi/v1.0/account/~/extension/${extId}/call-log?dateFrom=${encodeURIComponent(isoNoMs(from))}&dateTo=${encodeURIComponent(isoNoMs(to))}&perPage=1000`,
+    );
+    const msgStore = await ringcentralGetJson(
+      `/restapi/v1.0/account/~/extension/${extId}/message-store?dateFrom=${encodeURIComponent(isoNoMs(from))}&dateTo=${encodeURIComponent(isoNoMs(to))}&perPage=1000`,
+    );
+
+    const calls = (callLog?.records || []).filter(r => r.direction === 'Outbound').length;
+    const sms = (msgStore?.records || []).filter(r => r.type === 'SMS' && r.direction === 'Outbound').length;
+
+    rows.push({ name: rep, calls, sms });
+  }
+
+  // winner: calls primary, sms tiebreak
+  const sorted = [...rows].sort((a, b) => (b.calls - a.calls) || (b.sms - a.sms));
+  const winner = sorted[0];
+
+  return { rows, winner };
+}
+
+async function postToRingCentralChat({ chatId, text }) {
+  // RingCentral Team Messaging (legacy Glip) endpoint.
+  // ChatId is the numeric id from the URL: https://app.ringcentral.com/messages/<chatId>
+  return ringcentralPostJson(`/restapi/v1.0/glip/chats/${chatId}/posts`, { text });
+}
+
+(async function main() {
+  const chatId = getArg('--chatId', null);
+  if (!chatId) {
+    console.error('Missing --chatId');
+    process.exit(1);
+  }
+
+  const now = new Date();
+  const todayStart = startOfLocalDay(now);
+  const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+
+  // Use previous business day (Mon–Fri) for performance so Monday reports cover Friday,
+  // and we don't spam everyone with zeros for weekend days.
+  const previousBusinessDayStart = (() => {
+    const d = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
+    while (d.getDay() === 0 || d.getDay() === 6) {
+      d.setDate(d.getDate() - 1);
+    }
+    d.setHours(0, 0, 0, 0);
+    return d;
+  })();
+
+  const zohoToken = await getZohoAccessToken();
+  const todaysMeetings = await getTodaysMeetings({ accessToken: zohoToken, todayStart, tomorrowStart });
+
+  const perf = await getOutboundPerf({ from: previousBusinessDayStart, to: todayStart });
+
+  const meetingLines = todaysMeetings.length
+    ? todaysMeetings.map(e => `- ${fmtLocal(e.Start_DateTime)} — ${e.Event_Title || 'Meeting'} (${e.Owner?.name || '—'})`).join('\n')
+    : '- None on the calendar for the sales roster today.';
+
+  const motivation = MOTIVATION[Math.floor(Math.random() * MOTIVATION.length)];
+
+  const perfTable = formatTable(perf.rows);
+  const winnerLine = perf.winner ? `Top outbound yesterday: ${perf.winner.name} (calls ${perf.winner.calls}, sms ${perf.winner.sms})` : '';
+
+  const text = [
+    `Good morning team — here’s today’s lineup (${todayStart.toLocaleDateString('en-US')}):`,
+    '',
+    'Today’s booked meetings:',
+    meetingLines,
+    '',
+    'Previous business day outbound performance (calls + SMS):',
+    perfTable,
+    winnerLine ? `\n${winnerLine}` : '',
+    '',
+    motivation,
+  ].filter(Boolean).join('\n');
+
+  await postToRingCentralChat({ chatId, text });
+  process.stdout.write('Posted morning update to RingCentral chat.\n');
+})().catch(err => {
+  console.error(err?.stack || String(err));
+  process.exit(1);
+});
