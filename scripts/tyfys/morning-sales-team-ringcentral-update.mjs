@@ -9,6 +9,9 @@
  *
  * Usage:
  *   node scripts/tyfys/morning-sales-team-ringcentral-update.mjs --chatId 144856375302
+ *
+ * Options:
+ *   --window previousBusinessDay|today   (default: previousBusinessDay)
  */
 
 import { loadEnvLocal } from '../lib/load-env-local.mjs';
@@ -131,12 +134,17 @@ async function postToRingCentralChat({ chatId, text }) {
     process.exit(1);
   }
 
+  const windowMode = getArg('--window', 'previousBusinessDay');
+  if (!['previousBusinessDay', 'today'].includes(windowMode)) {
+    console.error("Invalid --window. Use 'previousBusinessDay' or 'today'.");
+    process.exit(1);
+  }
+
   const now = new Date();
   const todayStart = startOfLocalDay(now);
   const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
 
-  // Use previous business day (Mon–Fri) for performance so Monday reports cover Friday,
-  // and we don't spam everyone with zeros for weekend days.
+  // Use previous business day (Mon–Fri) for the morning report so Monday covers Friday.
   const previousBusinessDayStart = (() => {
     const d = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
     while (d.getDay() === 0 || d.getDay() === 6) {
@@ -146,10 +154,13 @@ async function postToRingCentralChat({ chatId, text }) {
     return d;
   })();
 
+  const perfFrom = windowMode === 'today' ? todayStart : previousBusinessDayStart;
+  const perfTo = windowMode === 'today' ? now : todayStart;
+
   const zohoToken = await getZohoAccessToken();
   const todaysMeetings = await getTodaysMeetings({ accessToken: zohoToken, todayStart, tomorrowStart });
 
-  const perf = await getOutboundPerf({ from: previousBusinessDayStart, to: todayStart });
+  const perf = await getOutboundPerf({ from: perfFrom, to: perfTo });
 
   const meetingLines = todaysMeetings.length
     ? todaysMeetings.map(e => `- ${fmtLocal(e.Start_DateTime)} — ${e.Event_Title || 'Meeting'} (${e.Owner?.name || '—'})`).join('\n')
@@ -166,7 +177,9 @@ async function postToRingCentralChat({ chatId, text }) {
     'Today’s booked meetings:',
     meetingLines,
     '',
-    'Previous business day outbound performance (calls + SMS):',
+    windowMode === 'today'
+      ? `Today outbound performance so far (calls + SMS, through ${fmtLocal(now)}):`
+      : 'Previous business day outbound performance (calls + SMS):',
     perfTable,
     winnerLine ? `\n${winnerLine}` : '',
     '',
