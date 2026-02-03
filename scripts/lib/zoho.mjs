@@ -116,3 +116,36 @@ export async function zohoCrmPost({ accessToken, apiDomain, path, json }) {
   }
   return out;
 }
+
+/**
+ * Zoho Bookings (Creator-backed) reports
+ *
+ * NOTE: The Zoho Bookings UI uses Creator report endpoints like:
+ *   https://bookings.zoho.com/api/v2.1/<ownerName>/bookings/report/WEB_APPOINTMENT?... 
+ * These require Zoho Creator OAuth scopes (e.g., ZohoCreator.report.READ).
+ */
+export async function zohoBookingsReportGet({ accessToken, ownerName, reportLinkName, query = {} }) {
+  if (!ownerName) throw new Error('Missing ownerName for Zoho Bookings');
+  if (!reportLinkName) throw new Error('Missing reportLinkName for Zoho Bookings');
+
+  const url = new URL(`https://bookings.zoho.com/api/v2.1/${ownerName}/bookings/report/${reportLinkName}`);
+  url.searchParams.set('zc_ownername', ownerName);
+  for (const [k, v] of Object.entries(query || {})) {
+    if (v === undefined || v === null) continue;
+    url.searchParams.set(k, String(v));
+  }
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      Authorization: `Zoho-oauthtoken ${accessToken}`,
+      Accept: 'application/json',
+    },
+  });
+
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    // creator-style errors are {code,description}
+    throw new Error(`Zoho Bookings report GET failed (${res.status}): ${out?.description || out?.message || JSON.stringify(out)}`);
+  }
+  return out;
+}

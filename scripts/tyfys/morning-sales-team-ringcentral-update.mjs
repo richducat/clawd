@@ -15,7 +15,7 @@
  */
 
 import { loadEnvLocal } from '../lib/load-env-local.mjs';
-import { getZohoAccessToken, zohoCrmCoql } from '../lib/zoho.mjs';
+import { getZohoAccessToken, zohoCrmCoql, zohoBookingsReportGet } from '../lib/zoho.mjs';
 import { ringcentralGetJson, ringcentralPostJson } from '../lib/ringcentral.mjs';
 
 loadEnvLocal();
@@ -71,16 +71,56 @@ const MOTIVATION = [
   'Win the first hour, win the day. Let’s go.',
 ];
 
+const ZB_OWNER_NAME = process.env.ZOHO_BOOKINGS_OWNER_NAME || 'clay_thankyouforyourservice';
+const ZB_WORKSPACE_ID = process.env.ZOHO_BOOKINGS_WORKSPACE_ID || '4739587000000043008';
+
+function fmtBookingsCriteriaDate(d) {
+  // Bookings UI criteria uses: "02-Feb-2026 20:51:00"
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mon = months[d.getMonth()];
+  const yyyy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mm = String(d.getMinutes()).padStart(2,'0');
+  const ss = String(d.getSeconds()).padStart(2,'0');
+  return `${dd}-${mon}-${yyyy} ${hh}:${mm}:${ss}`;
+}
+
 async function getTodaysMeetings({ accessToken, todayStart, tomorrowStart }) {
-  // Events happening today (regardless of when they were created).
+  // Source of truth: Zoho Bookings appointments (Creator-backed WEB_APPOINTMENT report).
+  // Requires Zoho Creator scopes (ZohoCreator.report.READ) on the Zoho OAuth token.
+  try {
+    const criteria = `WORKSPACE_ID==${ZB_WORKSPACE_ID} && FROM_TIME>\"${fmtBookingsCriteriaDate(todayStart)}\" && FROM_TIME<\"${fmtBookingsCriteriaDate(tomorrowStart)}\"`;
+    const out = await zohoBookingsReportGet({
+      accessToken,
+      ownerName: ZB_OWNER_NAME,
+      reportLinkName: 'WEB_APPOINTMENT',
+      query: {
+        max_records: 200,
+        sortBy: 'FROM_TIME:true',
+        criteria,
+      },
+    });
+
+    // The Creator report API returns {data:[...]}.
+    const rows = out?.data || out;
+    if (Array.isArray(rows)) {
+      return rows.map(r => ({
+        Start_DateTime: r.FROM_TIME || r.From_Time || r.from_time,
+        End_DateTime: r.TO_TIME || r.To_Time || r.to_time,
+        Event_Title: r.SERVICE_NAME || r.Service_Name || r.service_name || r.APPOINTMENT_FOR || r.Appointment_For || 'Booking',
+        _raw: r,
+      }));
+    }
+  } catch (e) {
+    // Fall back to Zoho CRM Events if Bookings token isn't set up yet.
+    // (We'll surface the error implicitly by still having meetings, but we should migrate fully.)
+  }
+
+  // Fallback: Zoho CRM Events happening today
   const q = `select id, Event_Title, Start_DateTime, End_DateTime, Owner from Events where Start_DateTime >= '${isoNoMs(todayStart)}' and Start_DateTime < '${isoNoMs(tomorrowStart)}' order by Start_DateTime asc limit 200`;
   const res = await zohoCrmCoql({ accessToken, apiDomain: ZOHO_API_DOMAIN, selectQuery: q });
-
-  // NOTE: Zoho COQL returns Owner.id reliably, but Owner.name may not be included depending
-  // on field projection. Previously we filtered on Owner.name and accidentally dropped everything.
-  // For now, include all Events for today.
-  const events = (res?.data || []);
-  return events;
+  return (res?.data || []);
 }
 
 async function getRcExtensionsForRoster() {

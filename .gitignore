@@ -9,4 +9,5 @@
 # Token caches
 memory/ringcentral-token.json
 memory/zoho-token.json
+memory/zoho-refresh-token.json
 .vercel
