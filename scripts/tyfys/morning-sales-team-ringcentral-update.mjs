@@ -75,7 +75,11 @@ async function getTodaysMeetings({ accessToken, todayStart, tomorrowStart }) {
   // Events happening today (regardless of when they were created).
   const q = `select id, Event_Title, Start_DateTime, End_DateTime, Owner from Events where Start_DateTime >= '${isoNoMs(todayStart)}' and Start_DateTime < '${isoNoMs(tomorrowStart)}' order by Start_DateTime asc limit 200`;
   const res = await zohoCrmCoql({ accessToken, apiDomain: ZOHO_API_DOMAIN, selectQuery: q });
-  const events = (res?.data || []).filter(e => SALES_ROSTER.includes(e?.Owner?.name));
+
+  // NOTE: Zoho COQL returns Owner.id reliably, but Owner.name may not be included depending
+  // on field projection. Previously we filtered on Owner.name and accidentally dropped everything.
+  // For now, include all Events for today.
+  const events = (res?.data || []);
   return events;
 }
 
@@ -178,8 +182,12 @@ async function postToRingCentralChat({ chatId, text }) {
   const perf = await getOutboundPerf({ from: perfFrom, to: perfTo });
 
   const meetingLines = todaysMeetings.length
-    ? todaysMeetings.map(e => `- ${fmtLocal(e.Start_DateTime)} — ${e.Event_Title || 'Meeting'} (${e.Owner?.name || '—'})`).join('\n')
-    : '- None on the calendar for the sales roster today.';
+    ? todaysMeetings.map(e => {
+        const title = e.Event_Title || 'Meeting';
+        const repHint = SALES_ROSTER.find(r => title.toLowerCase().includes(r.toLowerCase()));
+        return `- ${fmtLocal(e.Start_DateTime)} — ${title}${repHint ? ` (${repHint})` : ''}`;
+      }).join('\n')
+    : '- None on the calendar today.';
 
   const motivation = MOTIVATION[Math.floor(Math.random() * MOTIVATION.length)];
 
