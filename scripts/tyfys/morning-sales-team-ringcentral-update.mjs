@@ -54,7 +54,14 @@ function formatTable(rows) {
     .join('\n');
 }
 
-const SALES_ROSTER = ['Adam', 'Amy', 'Jared', 'Ashley'];
+const SALES_ROSTER = ['Adam', 'Amy', 'Jared'];
+
+// Explicit extension ids (more reliable than name matching)
+const RC_EXTENSION_ID_BY_REP = {
+  Adam: 1162671035, // Adam Ayotte
+  Amy: 1156144035,  // Amy Cagle
+  Jared: 454161034, // Jared Maxwell
+};
 const ZOHO_API_DOMAIN = process.env.ZOHO_API_DOMAIN || 'https://www.zohoapis.com';
 
 const MOTIVATION = [
@@ -79,6 +86,14 @@ async function getRcExtensionsForRoster() {
 
   const roster = new Map();
   for (const rep of SALES_ROSTER) {
+    // Prefer explicit mapping.
+    const explicit = RC_EXTENSION_ID_BY_REP?.[rep];
+    if (explicit) {
+      roster.set(rep, explicit);
+      continue;
+    }
+
+    // Fallback: best-effort name matching.
     const match = exts.find(e => {
       const n = `${e?.contact?.firstName || ''} ${e?.contact?.lastName || ''}`.trim();
       const uname = String(e?.name || '');
