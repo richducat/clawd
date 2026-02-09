@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Activity,
   AlertCircle,
   BookOpen,
   Calendar,
@@ -70,8 +69,11 @@ export default function HomeView({
     };
   }, []);
 
-  const todaysCals = homeData?.nutrition?.calories ?? 0;
-  const todaysProtein = homeData?.nutrition?.protein_g ?? 0;
+  const homeLoaded = homeData !== null;
+
+  // Avoid “default looks-real” values before /api/lab/home returns.
+  const todaysCals = homeLoaded ? (homeData?.nutrition?.calories ?? 0) : null;
+  const todaysProtein = homeLoaded ? (homeData?.nutrition?.protein_g ?? 0) : null;
 
   const [showQuickLog, setShowQuickLog] = useState(false);
   const [statsLog, setStatsLog] = useState({ weight: '', bodyFat: '', restingHr: '', note: '' });
@@ -428,26 +430,26 @@ export default function HomeView({
                 <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-1">Nutrition Today</div>
                 <div className="flex justify-between items-center">
                   <div className="text-xs text-zinc-400">Cals</div>
-                  <div className="font-mono font-bold">{Math.round(todaysCals)}</div>
+                  <div className="font-mono font-bold">{todaysCals == null ? '—' : Math.round(todaysCals)}</div>
                 </div>
                 <div className="flex justify-between items-center">
                   <div className="text-xs text-zinc-400">Protein</div>
-                  <div className="font-mono font-bold text-emerald-400">{Math.round(todaysProtein)}g</div>
+                  <div className="font-mono font-bold text-emerald-400">{todaysProtein == null ? '—' : Math.round(todaysProtein)}g</div>
                 </div>
               </div>
               <div className="p-4 space-y-3">
                 <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-1">Session Log</div>
                 <div className="flex justify-between items-center">
                   <div className="text-xs text-zinc-400">Booked (next 30d)</div>
-                  <div className="font-mono font-bold">{homeData?.sessionLog?.bookedUpcoming30d ?? 0}</div>
+                  <div className="font-mono font-bold">{homeLoaded ? (homeData?.sessionLog?.bookedUpcoming30d ?? 0) : '—'}</div>
                 </div>
                 <div className="flex justify-between items-center">
                   <div className="text-xs text-zinc-400">Completed (last 7d)</div>
-                  <div className="font-mono font-bold text-blue-400">{homeData?.sessionLog?.completed7d ?? 0}</div>
+                  <div className="font-mono font-bold text-blue-400">{homeLoaded ? (homeData?.sessionLog?.completed7d ?? 0) : '—'}</div>
                 </div>
                 <div className="flex justify-between items-center">
                   <div className="text-xs text-zinc-400">Missed (approx 30d)</div>
-                  <div className="font-mono font-bold text-zinc-600">{homeData?.sessionLog?.missedApprox30d ?? 0}</div>
+                  <div className="font-mono font-bold text-zinc-600">{homeLoaded ? (homeData?.sessionLog?.missedApprox30d ?? 0) : '—'}</div>
                 </div>
               </div>
             </div>
@@ -605,7 +607,7 @@ export default function HomeView({
               {orderedTiles
                 .filter((tile) => tile.visible)
                 .map((tile) => {
-                  const Icon = (tile as any).icon;
+                  const Icon = tile.icon;
 
                   let value = tile.value;
                   let trend = tile.trend;
@@ -637,7 +639,7 @@ export default function HomeView({
                   }
 
                   if (tile.id === 'photos') {
-                    value = `${homeData?.progress?.photos30d ?? 0}`;
+                    value = homeLoaded ? `${homeData?.progress?.photos30d ?? 0}` : '—';
                     trend = 'Photos (30d)';
                     onClick = () => setTab('progress', { mode: 'photos' });
                   }
