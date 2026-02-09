@@ -115,11 +115,11 @@ async function writeTokens(obj) {
       // Safe defaults for our TYFYS tooling.
       // IMPORTANT: RingCentral's authorize endpoint for this tenant appears to accept
       // human-readable scope labels (with spaces), not the API-style tokens.
-      'Read Accounts Read Call Log Read Messages Read Contacts SMS';
+      'Read Accounts,Read Call Log,Read Messages,Read Contacts,SMS';
 
-    const scopes = String(scopesRaw)
-      .replace(/^"|"$/g, '')
-      .split(/[\s,]+/g)
+    const raw = String(scopesRaw).replace(/^"|"$/g, '').trim();
+    const parts = raw.includes(',') ? raw.split(',') : raw.split(/[\s]+/g);
+    const scopes = parts
       .map((s) => s.trim())
       .filter(Boolean)
       .join(' ');
