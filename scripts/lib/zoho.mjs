@@ -117,11 +117,29 @@ export async function zohoCrmPost({ accessToken, apiDomain, path, json }) {
   return out;
 }
 
+export async function zohoCrmPut({ accessToken, apiDomain, path, json }) {
+  const url = `${apiDomain}${path}`;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Zoho-oauthtoken ${accessToken}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(json ?? {}),
+  });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(`Zoho PUT failed (${res.status}): ${out?.message || JSON.stringify(out)}`);
+  }
+  return out;
+}
+
 /**
  * Zoho Bookings (Creator-backed) reports
  *
  * NOTE: The Zoho Bookings UI uses Creator report endpoints like:
- *   https://bookings.zoho.com/api/v2.1/<ownerName>/bookings/report/WEB_APPOINTMENT?... 
+ *   https://bookings.zoho.com/api/v2.1/<ownerName>/bookings/report/WEB_APPOINTMENT?...
  * These require Zoho Creator OAuth scopes (e.g., ZohoCreator.report.READ).
  */
 export async function zohoBookingsReportGet({ accessToken, ownerName, reportLinkName, query = {} }) {

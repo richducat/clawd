@@ -93,7 +93,9 @@ export async function GET() {
 
   // Workout summary (last 7d)
   const workouts7d = (await q`
-    select count(*)::int as completed
+    select
+      count(*)::int as completed,
+      coalesce(sum(duration_min), 0)::int as minutes
     from lab_workout_log
     where user_id = ${uid}
       and created_at >= (now() - interval '7 days');
@@ -135,6 +137,7 @@ export async function GET() {
   const bookedPast30d = icsEvents.filter((e) => e.start && e.start < now && e.start > last30d).length;
 
   const completed7d = Number(workouts7d?.[0]?.completed ?? 0);
+  const workoutMinutes7d = Number(workouts7d?.[0]?.minutes ?? 0);
   const missedApprox30d = Math.max(bookedPast30d - completed7d, 0);
 
   const upcomingBookings = icsEvents
@@ -173,6 +176,7 @@ export async function GET() {
       progress: {
         photos30d: Number(photos30d?.[0]?.count ?? 0),
         calories7dAvg,
+        workouts7d: { count: completed7d, minutes: workoutMinutes7d },
         latestPr: latestPr?.[0] ?? null,
       },
     },

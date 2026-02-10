@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Activity,
   AlertCircle,
   BookOpen,
   Calendar,
@@ -51,7 +50,12 @@ export default function HomeView({
     upcomingBookings?: Array<{ summary: string; start: string; end: string; location: string | null; description: string | null }>;
     recentWorkouts?: Array<{ id: number; created_at: string; kind: string | null; duration_min: number | null; note: string | null }>;
     sessionLog?: { bookedUpcoming30d: number; completed7d: number; missedApprox30d: number };
-    progress?: { photos30d: number; calories7dAvg: number; latestPr: { lift: string; value: number; unit: string; reps: number | null } | null };
+    progress?: {
+      photos30d: number;
+      calories7dAvg: number;
+      workouts7d?: { count: number; minutes: number };
+      latestPr: { lift: string; value: number; unit: string; reps: number | null } | null;
+    };
   } | null>(null);
 
   useEffect(() => {
@@ -70,8 +74,11 @@ export default function HomeView({
     };
   }, []);
 
-  const todaysCals = homeData?.nutrition?.calories ?? 0;
-  const todaysProtein = homeData?.nutrition?.protein_g ?? 0;
+  const homeLoaded = homeData !== null;
+
+  // Avoid “default looks-real” values before /api/lab/home returns.
+  const todaysCals = homeLoaded ? (homeData?.nutrition?.calories ?? 0) : null;
+  const todaysProtein = homeLoaded ? (homeData?.nutrition?.protein_g ?? 0) : null;
 
   const [showQuickLog, setShowQuickLog] = useState(false);
   const [statsLog, setStatsLog] = useState({ weight: '', bodyFat: '', restingHr: '', note: '' });
@@ -428,26 +435,26 @@ export default function HomeView({
                 <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-1">Nutrition Today</div>
                 <div className="flex justify-between items-center">
                   <div className="text-xs text-zinc-400">Cals</div>
-                  <div className="font-mono font-bold">{Math.round(todaysCals)}</div>
+                  <div className="font-mono font-bold">{todaysCals == null ? '—' : Math.round(todaysCals)}</div>
                 </div>
                 <div className="flex justify-between items-center">
                   <div className="text-xs text-zinc-400">Protein</div>
-                  <div className="font-mono font-bold text-emerald-400">{Math.round(todaysProtein)}g</div>
+                  <div className="font-mono font-bold text-emerald-400">{todaysProtein == null ? '—' : Math.round(todaysProtein)}g</div>
                 </div>
               </div>
               <div className="p-4 space-y-3">
                 <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-1">Session Log</div>
                 <div className="flex justify-between items-center">
                   <div className="text-xs text-zinc-400">Booked (next 30d)</div>
-                  <div className="font-mono font-bold">{homeData?.sessionLog?.bookedUpcoming30d ?? 0}</div>
+                  <div className="font-mono font-bold">{homeLoaded ? (homeData?.sessionLog?.bookedUpcoming30d ?? 0) : '—'}</div>
                 </div>
                 <div className="flex justify-between items-center">
                   <div className="text-xs text-zinc-400">Completed (last 7d)</div>
-                  <div className="font-mono font-bold text-blue-400">{homeData?.sessionLog?.completed7d ?? 0}</div>
+                  <div className="font-mono font-bold text-blue-400">{homeLoaded ? (homeData?.sessionLog?.completed7d ?? 0) : '—'}</div>
                 </div>
                 <div className="flex justify-between items-center">
                   <div className="text-xs text-zinc-400">Missed (approx 30d)</div>
-                  <div className="font-mono font-bold text-zinc-600">{homeData?.sessionLog?.missedApprox30d ?? 0}</div>
+                  <div className="font-mono font-bold text-zinc-600">{homeLoaded ? (homeData?.sessionLog?.missedApprox30d ?? 0) : '—'}</div>
                 </div>
               </div>
             </div>
@@ -457,9 +464,14 @@ export default function HomeView({
             <div className="flex items-center justify-between mb-3">
               <div>
                 <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Workouts</div>
-                <div className="text-sm text-zinc-300">Completed (last 7 days)</div>
+                <div className="text-sm text-zinc-300">Last 7 days</div>
               </div>
-              <div className="text-xs font-bold text-white bg-violet-600 px-3 py-1.5 rounded-full">Log</div>
+              <div className="flex items-center gap-2">
+                <div className="text-[10px] font-mono text-zinc-400 bg-black/20 border border-white/10 px-2 py-1 rounded">
+                  {homeLoaded ? `${homeData?.progress?.workouts7d?.count ?? 0} • ${homeData?.progress?.workouts7d?.minutes ?? 0}m` : '—'}
+                </div>
+                <div className="text-xs font-bold text-white bg-violet-600 px-3 py-1.5 rounded-full">Log</div>
+              </div>
             </div>
 
             {homeData?.recentWorkouts && homeData.recentWorkouts.length ? (
@@ -605,7 +617,7 @@ export default function HomeView({
               {orderedTiles
                 .filter((tile) => tile.visible)
                 .map((tile) => {
-                  const Icon = (tile as any).icon;
+                  const Icon = tile.icon;
 
                   let value = tile.value;
                   let trend = tile.trend;
@@ -637,7 +649,7 @@ export default function HomeView({
                   }
 
                   if (tile.id === 'photos') {
-                    value = `${homeData?.progress?.photos30d ?? 0}`;
+                    value = homeLoaded ? `${homeData?.progress?.photos30d ?? 0}` : '—';
                     trend = 'Photos (30d)';
                     onClick = () => setTab('progress', { mode: 'photos' });
                   }

@@ -1,13 +1,12 @@
 import {
   Activity,
   Camera,
-  CheckSquare,
-  Dumbbell,
   Heart,
   Scale,
   TrendingUp,
   Utensils,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 export type AgendaItem = {
   id: string;
@@ -29,7 +28,7 @@ export type ProgressTile = {
   label: string;
   value: string;
   trend: string;
-  icon: any;
+  icon: LucideIcon;
 };
 
 export const PROGRESS_TILES: ProgressTile[] = [
