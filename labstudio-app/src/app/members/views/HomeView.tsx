@@ -50,7 +50,12 @@ export default function HomeView({
     upcomingBookings?: Array<{ summary: string; start: string; end: string; location: string | null; description: string | null }>;
     recentWorkouts?: Array<{ id: number; created_at: string; kind: string | null; duration_min: number | null; note: string | null }>;
     sessionLog?: { bookedUpcoming30d: number; completed7d: number; missedApprox30d: number };
-    progress?: { photos30d: number; calories7dAvg: number; latestPr: { lift: string; value: number; unit: string; reps: number | null } | null };
+    progress?: {
+      photos30d: number;
+      calories7dAvg: number;
+      workouts7d?: { count: number; minutes: number };
+      latestPr: { lift: string; value: number; unit: string; reps: number | null } | null;
+    };
   } | null>(null);
 
   useEffect(() => {
@@ -459,9 +464,14 @@ export default function HomeView({
             <div className="flex items-center justify-between mb-3">
               <div>
                 <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Workouts</div>
-                <div className="text-sm text-zinc-300">Completed (last 7 days)</div>
+                <div className="text-sm text-zinc-300">Last 7 days</div>
               </div>
-              <div className="text-xs font-bold text-white bg-violet-600 px-3 py-1.5 rounded-full">Log</div>
+              <div className="flex items-center gap-2">
+                <div className="text-[10px] font-mono text-zinc-400 bg-black/20 border border-white/10 px-2 py-1 rounded">
+                  {homeLoaded ? `${homeData?.progress?.workouts7d?.count ?? 0} • ${homeData?.progress?.workouts7d?.minutes ?? 0}m` : '—'}
+                </div>
+                <div className="text-xs font-bold text-white bg-violet-600 px-3 py-1.5 rounded-full">Log</div>
+              </div>
             </div>
 
             {homeData?.recentWorkouts && homeData.recentWorkouts.length ? (
