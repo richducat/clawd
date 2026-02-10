@@ -11,7 +11,8 @@
  * - State file prevents re-sending the same kickoff to the same lead.
  *
  * Usage:
- *   node scripts/tyfys/leads-evening-nurture.mjs --dry-run
+ *   node scripts/tyfys/leads-evening-nurture.mjs --dry-run [--tenant new]
+ *   node scripts/tyfys/leads-evening-nurture.mjs --limit 200 --tenant new
  */
 
 import fs from 'node:fs/promises';
@@ -26,11 +27,17 @@ loadEnvLocal();
 // Avoid crashing when piping to `head` / closed stdout.
 process.stdout.on('error', () => {});
 
+function getArg(name, def) {
+  const idx = process.argv.indexOf(name);
+  if (idx === -1) return def;
+  const v = process.argv[idx + 1];
+  if (!v || v.startsWith('--')) return def;
+  return v;
+}
+
 const dryRun = process.argv.includes('--dry-run');
-const limit = Number((() => {
-  const i = process.argv.indexOf('--limit');
-  return i !== -1 ? process.argv[i + 1] : '250';
-})());
+const tenant = getArg('--tenant', 'new');
+const limit = Number(getArg('--limit', '250'));
 
 const STATE_PATH = path.resolve('memory/tyfys-lead-nurture.json');
 const DOC_EXPORT_URL = 'https://docs.google.com/document/d/1g2hC0qzFcAPjkawu4ArAAjlgsq1Rg8_ue7L-mN8UA6w/export?format=txt';
@@ -43,21 +50,25 @@ const REP_LINES = {
   'Jared Maxwell': '+16822675268',
 };
 
+function tokenKey(userKey) {
+  return tenant ? `${tenant}:${userKey}` : userKey;
+}
+
 async function loadRepRefreshTokens() {
   // Stored locally (not in git) at memory/ringcentral-refresh-tokens.json
   const p = path.resolve('memory/ringcentral-refresh-tokens.json');
   const raw = await fs.readFile(p, 'utf8');
   const j = JSON.parse(raw);
   return {
-    'Adam Ayotte': j.adam,
-    'Amy Cagle': j.amy,
-    'Jared Maxwell': j.jared,
+    'Adam Ayotte': j[tokenKey('adam')],
+    'Amy Cagle': j[tokenKey('amy')],
+    'Jared Maxwell': j[tokenKey('jared')],
   };
 }
 
 async function ringcentralSendSmsViaRefreshToken({ refreshToken, fromNumber, toNumber, text }) {
-  const apiServer = process.env.RINGCENTRAL_API_SERVER || 'https://platform.ringcentral.com';
-  const refreshed = await ringcentralRefreshToken({ refreshToken });
+  const apiServer = process.env[(tenant ? `RINGCENTRAL_${tenant.toUpperCase()}_API_SERVER` : '')] || process.env.RINGCENTRAL_API_SERVER || 'https://platform.ringcentral.com';
+  const refreshed = await ringcentralRefreshToken({ refreshToken, tenant });
   const accessToken = refreshed?.access_token;
   if (!accessToken) throw new Error('RingCentral refresh did not return access_token');
 

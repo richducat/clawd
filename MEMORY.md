@@ -19,9 +19,10 @@
 - Improve workflow and revenue where possible.
 - For changes/builds: create PRs for user to review; do not push live; user will test and commit.
 - When writing outbound drafts (emails/messages), bundle multiple drafts together when possible (send them “along with any other drafts” going forward).
+- **Email rule (2026-02-10): draft-only simple replies for everyone; do NOT email Karen back.**
 - Communication cadence while executing tasks:
   - If the task/project will take **< 10 minutes**, send a progress update **every minute**.
-  - If it will take **≥ 10 minutes**, send a progress update **every 3 minutes** (and immediately when major milestones/blocks happen).
+  - If the task/project will take **≥ 10 minutes**, send a progress update **every 3 minutes** (and immediately when major milestones/blocks happen).
 
 ## LabStudio / Personal Apps (active)
 - LabStudio requirement: **NO mock data** in user-visible UI. Only real DB-backed/integration-backed data; seeding is allowed if it writes to the DB.

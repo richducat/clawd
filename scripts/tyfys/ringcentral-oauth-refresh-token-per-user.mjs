@@ -144,10 +144,11 @@ async function writeTokens(obj) {
   if (!token.refresh_token) throw new Error('No refresh_token returned. Ensure Offline Access is enabled and scopes include it.');
 
   const tokens = await readTokens();
-  tokens[userKey] = token.refresh_token;
+  const k = tenant ? `${tenant}:${userKey}` : userKey;
+  tokens[k] = token.refresh_token;
   await writeTokens(tokens);
 
-  console.log(`✅ Stored refresh token for ${userKey} in ${path.relative(process.cwd(), TOKENS_PATH)}`);
+  console.log(`✅ Stored refresh token for ${k} in ${path.relative(process.cwd(), TOKENS_PATH)}`);
 })().catch((err) => {
   console.error(err?.stack || String(err));
   process.exit(1);

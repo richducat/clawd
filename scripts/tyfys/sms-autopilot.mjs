@@ -49,6 +49,7 @@ function getArg(name, def) {
 const dryRun = process.argv.includes('--dry-run');
 const lookbackMin = Number(getArg('--lookbackMin', '60'));
 const mode = getArg('--mode', 'schedule'); // schedule | reactive
+const tenant = getArg('--tenant', 'new'); // RingCentral tenant/app namespace (default: new)
 
 function normalizePhone(v) {
   const s = String(v || '').trim();
@@ -237,7 +238,7 @@ async function fetchRecentSms({ fromDate }) {
     perPage: '200',
     messageType: 'SMS',
   });
-  return ringcentralGetJson(`/restapi/v1.0/account/~/extension/~/message-store?${qs.toString()}`);
+  return ringcentralGetJson(`/restapi/v1.0/account/~/extension/~/message-store?${qs.toString()}`, { tenant });
 }
 
 function getRecordCounterparty(rec) {
@@ -345,7 +346,7 @@ async function main() {
     if (dryRun) {
       process.stdout.write(`[dry-run] ${wantEvening ? 'EVENING' : 'MORNING'} ${kind.toUpperCase()}(${ownerName || 'n/a'}) to ${phone} from ${fromNumber}: ${text}\n`);
     } else {
-      await ringcentralSendSms({ fromNumber, toNumber: phone, text });
+      await ringcentralSendSms({ fromNumber, toNumber: phone, text, tenant });
     }
 
     if (wantEvening) sentMeta.eveningAt = nowIso;
