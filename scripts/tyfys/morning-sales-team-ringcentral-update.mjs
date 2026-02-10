@@ -55,13 +55,11 @@ function formatTable(rows) {
 }
 
 const SALES_ROSTER = ['Adam', 'Amy', 'Jared'];
+const tenant = getArg('--tenant', 'new'); // RingCentral tenant/app namespace (default: new)
 
-// Explicit extension ids (more reliable than name matching)
-const RC_EXTENSION_ID_BY_REP = {
-  Adam: 1162671035, // Adam Ayotte
-  Amy: 1156144035,  // Amy Cagle
-  Jared: 454161034, // Jared Maxwell
-};
+// NOTE: Extension ids differ between RingCentral tenants/accounts.
+// We prefer name matching against the live extension directory.
+const RC_EXTENSION_ID_BY_REP = {};
 const ZOHO_API_DOMAIN = process.env.ZOHO_API_DOMAIN || 'https://www.zohoapis.com';
 
 const MOTIVATION = [
@@ -125,7 +123,7 @@ async function getTodaysMeetings({ accessToken, todayStart, tomorrowStart }) {
 
 async function getRcExtensionsForRoster() {
   // Map RingCentral extensions to reps by name. Best-effort.
-  const extRes = await ringcentralGetJson('/restapi/v1.0/account/~/extension?perPage=200');
+  const extRes = await ringcentralGetJson('/restapi/v1.0/account/~/extension?perPage=200', { tenant });
   const exts = extRes?.records || [];
 
   const roster = new Map();
@@ -162,9 +160,11 @@ async function getOutboundPerf({ from, to }) {
 
     const callLog = await ringcentralGetJson(
       `/restapi/v1.0/account/~/extension/${extId}/call-log?dateFrom=${encodeURIComponent(isoNoMs(from))}&dateTo=${encodeURIComponent(isoNoMs(to))}&perPage=1000`,
+      { tenant },
     );
     const msgStore = await ringcentralGetJson(
       `/restapi/v1.0/account/~/extension/${extId}/message-store?dateFrom=${encodeURIComponent(isoNoMs(from))}&dateTo=${encodeURIComponent(isoNoMs(to))}&perPage=1000`,
+      { tenant },
     );
 
     const calls = (callLog?.records || []).filter(r => r.direction === 'Outbound').length;
@@ -183,7 +183,7 @@ async function getOutboundPerf({ from, to }) {
 async function postToRingCentralChat({ chatId, text }) {
   // RingCentral Team Messaging (legacy Glip) endpoint.
   // ChatId is the numeric id from the URL: https://app.ringcentral.com/messages/<chatId>
-  return ringcentralPostJson(`/restapi/v1.0/glip/chats/${chatId}/posts`, { text });
+  return ringcentralPostJson(`/restapi/v1.0/glip/chats/${chatId}/posts`, { text }, { tenant });
 }
 
 (async function main() {
@@ -192,6 +192,8 @@ async function postToRingCentralChat({ chatId, text }) {
     console.error('Missing --chatId');
     process.exit(1);
   }
+
+  const dryRun = process.argv.includes('--dry-run');
 
   const windowMode = getArg('--window', 'previousBusinessDay');
   if (!['previousBusinessDay', 'today'].includes(windowMode)) {
@@ -248,6 +250,11 @@ async function postToRingCentralChat({ chatId, text }) {
     '',
     motivation,
   ].filter(Boolean).join('\n');
+
+  if (dryRun) {
+    process.stdout.write(`[dry-run] Would post to chatId=${chatId}:\n\n${text}\n`);
+    return;
+  }
 
   await postToRingCentralChat({ chatId, text });
   process.stdout.write('Posted morning update to RingCentral chat.\n');
