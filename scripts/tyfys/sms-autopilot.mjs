@@ -50,6 +50,13 @@ const dryRun = process.argv.includes('--dry-run');
 const lookbackMin = Number(getArg('--lookbackMin', '60'));
 const mode = getArg('--mode', 'schedule'); // schedule | reactive
 const tenant = getArg('--tenant', 'new'); // RingCentral tenant/app namespace (default: new)
+const repsArg = getArg('--reps', ''); // optional: comma-separated rep keys (adam,amy,jared,devin,karen)
+const allowedRepKeys = new Set(
+  String(repsArg || '')
+    .split(',')
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean),
+);
 
 function normalizePhone(v) {
   const s = String(v || '').trim();
@@ -231,6 +238,12 @@ function ownerToLine(ownerName) {
   return null;
 }
 
+function fromNumberAllowed(fromNumber) {
+  if (!allowedRepKeys.size) return true;
+  const keyByNumber = Object.entries(LINE_NUMBERS).find(([, num]) => num === fromNumber)?.[0]?.toLowerCase();
+  return keyByNumber ? allowedRepKeys.has(keyByNumber) : false;
+}
+
 async function fetchRecentSms({ fromDate }) {
   // message-store includes inbound/outbound; filter type=SMS.
   const qs = new URLSearchParams({
@@ -333,10 +346,16 @@ async function main() {
     // Determine fromNumber.
     let fromNumber = null;
     if (kind === 'lead' || kind === 'unknown') {
-      fromNumber = ownerToLine(ownerName) || LINE_NUMBERS.AMY;
+      fromNumber = ownerToLine(ownerName);
+      // If rep filtering is enabled and we can't map owner->line, skip (avoid sending from wrong rep).
+      if (allowedRepKeys.size && !fromNumber) continue;
+      fromNumber = fromNumber || LINE_NUMBERS.AMY;
     } else {
       fromNumber = c.lastLine || LINE_NUMBERS.DEVIN;
     }
+
+    // If rep filtering is enabled, only send when the chosen fromNumber is one of the allowed rep lines.
+    if (!fromNumberAllowed(fromNumber)) continue;
 
     const msg = wantEvening ? (templates?.[day]?.evening || templates?.[1]?.evening) : (templates?.[day]?.morning || templates?.[1]?.morning);
     if (!msg) continue;
