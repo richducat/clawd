@@ -51,6 +51,9 @@ const TOKENS_PATH = path.resolve('memory/ringcentral-refresh-tokens.json');
 const LINE_NUMBERS = {
   richard: '+13212741262',
   devin: '+13212826941',
+  adam: '+14072168511',
+  amy: '+13212349530',
+  jared: '+16822675268',
 };
 
 const LOOKBACK_MINUTES = Number(process.env.RC_SMS_LOOKBACK_MINUTES || '30');
@@ -124,8 +127,10 @@ function tokenKey(userKey) {
 
 async function loadRefreshTokens() {
   const t = await readJson(TOKENS_PATH, {});
-  if (!t?.[tokenKey('richard')] || !t?.[tokenKey('devin')]) {
-    throw new Error(`Missing refresh tokens for richard/devin (tenant=${tenant || 'default'}) in memory/ringcentral-refresh-tokens.json`);
+  const needed = ['richard', 'devin', 'adam', 'amy', 'jared'];
+  const missing = needed.filter(k => !t?.[tokenKey(k)]);
+  if (missing.length) {
+    throw new Error(`Missing refresh tokens for ${missing.join(', ')} (tenant=${tenant || 'default'}) in memory/ringcentral-refresh-tokens.json`);
   }
   return t;
 }
@@ -321,7 +326,7 @@ async function main() {
   // to that extension/line. Some records may not include a "to" phoneNumber that matches the public
   // direct line, so we do not gate on it.
 
-  for (const lineKey of ['richard', 'devin']) {
+  for (const lineKey of ['richard', 'devin', 'adam', 'amy', 'jared']) {
     const refreshToken = refreshTokens[tokenKey(lineKey)];
     const inbound = await fetchInboundSms({
       refreshToken,
