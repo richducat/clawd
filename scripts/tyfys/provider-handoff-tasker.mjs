@@ -32,6 +32,25 @@ const STATE_PATH = path.resolve('memory/tyfys-provider-handoff-tasker.json');
 const isoZoho = (d) => d.toISOString().replace(/\.\d{3}Z$/, '+00:00');
 const todayEt = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date());
 
+function escLike(s) {
+  // COQL uses SQL-ish LIKE with % wildcards. Escape single quotes; we don’t rely on other escaping.
+  return String(s || '').replace(/'/g, "\\'");
+}
+
+async function zohoHasOpenTaskForDeal({ dealId, dueDate, subjectPrefix }) {
+  // Duplicate-proofing even if local state is lost.
+  // We search open Tasks for this Deal (What_Id) with same due date and a stable subject prefix.
+  const prefix = escLike(subjectPrefix);
+  const q = `select id, Subject, Due_Date, Status from Tasks where What_Id = '${dealId}' and Due_Date = '${dueDate}' and (Status != 'Completed' and Status != 'Closed') and Subject like '${prefix}%' limit 1`;
+  try {
+    const res = await zohoCrmCoql({ accessToken: zohoToken, apiDomain, selectQuery: q });
+    return Boolean(res?.data?.length);
+  } catch {
+    // If this COQL fails due to org differences, do not block task creation.
+    return false;
+  }
+}
+
 async function readState() {
   try { return JSON.parse(await fs.readFile(STATE_PATH,'utf8')); }
   catch { return { createdTasks: {} }; }
@@ -81,7 +100,20 @@ async function getDealFileHealth(dealId) {
   return dealFileHealthSummary({ tasks, notes, attachments });
 }
 
-async function createTask({ subject, dueDate, whatId, description }) {
+async function createTask({ subject, dueDate, whatId, description, subjectPrefixForDedup }) {
+  // Zoho-side de-dupe: if an open task already exists for this deal/due date with same prefix, skip.
+  if (subjectPrefixForDedup) {
+    const exists = await zohoHasOpenTaskForDeal({
+      dealId: String(whatId),
+      dueDate,
+      subjectPrefix: subjectPrefixForDedup,
+    });
+    if (exists) {
+      process.stdout.write(`[skip] existing open task found (zoho-side dedupe) what=${whatId} due=${dueDate} prefix=${subjectPrefixForDedup}\n`);
+      return { id: 'skipped-existing' };
+    }
+  }
+
   const payload = {
     data: [{
       Subject: subject,
@@ -145,7 +177,7 @@ async function main() {
           '- Remove/replace Alina with an active provider (Neura/Rivers/Suntree/Other)',
           '- Then proceed with normal handoff + follow-up tasks',
         ].join('\n');
-        await createTask({ subject: subj, dueDate: dayKey, whatId: dealId, description: desc });
+        await createTask({ subject: subj, dueDate: dayKey, whatId: dealId, description: desc, subjectPrefixForDedup: 'REASSIGN PROVIDER' });
         state.createdTasks[key] = { at: new Date().toISOString(), kind: 'reassign-alina' };
         created += 1;
       }
@@ -172,7 +204,7 @@ async function main() {
           '- Update Appointment Status + Last Time Contacted',
           '- Move stage to Sent to Provider after sending',
         ].join('\n');
-        await createTask({ subject: subj, dueDate: dayKey, whatId: dealId, description: desc });
+        await createTask({ subject: subj, dueDate: dayKey, whatId: dealId, description: desc, subjectPrefixForDedup: 'Provider handoff:' });
         state.createdTasks[key] = { at: new Date().toISOString(), kind: 'ready-pack' };
         created += 1;
       }
@@ -203,7 +235,7 @@ async function main() {
             '- Update Last Time Contacted + log notes',
             '- Create next follow-up task/date if still pending',
           ].join('\n');
-          await createTask({ subject: subj, dueDate: dayKey, whatId: dealId, description: desc });
+          await createTask({ subject: subj, dueDate: dayKey, whatId: dealId, description: desc, subjectPrefixForDedup: 'Provider follow-up' });
           state.createdTasks[key] = { at: new Date().toISOString(), kind: 'provider-followup' };
           created += 1;
         }
