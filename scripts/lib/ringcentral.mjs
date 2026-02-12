@@ -163,8 +163,22 @@ export async function ringcentralGetAccessTokenForUser({ tenant, userKey } = {})
 
   // Prefer per-user refresh tokens file.
   const tokens = await readPerUserRefreshTokens();
-  const tenantObj = tokens?.[tenantKey(tenant)?.toLowerCase?.() || tenantKey(tenant)] || tokens?.[tenantKey(tenant)] || tokens;
-  const rt = tenantObj?.[u]?.refresh_token || tokens?.[u]?.refresh_token || tenantObj?.[u] || tokens?.[u];
+  const tKey = String(tenantKey(tenant) || '').toLowerCase();
+
+  // Common shapes we support:
+  // 1) { "new:amy": "<rt>" }
+  // 2) { "amy": "<rt>" }
+  // 3) { "NEW": { "amy": { refresh_token: "<rt>" } } }
+  const directKey = tKey ? `${tKey}:${u}` : null;
+  const direct = directKey ? tokens?.[directKey] : null;
+  const tenantObj = tokens?.[tenantKey(tenant)] || tokens?.[tKey] || tokens;
+
+  const rt =
+    (typeof direct === 'string' ? direct : direct?.refresh_token) ||
+    tenantObj?.[u]?.refresh_token ||
+    tokens?.[u]?.refresh_token ||
+    (typeof tenantObj?.[u] === 'string' ? tenantObj[u] : null) ||
+    (typeof tokens?.[u] === 'string' ? tokens[u] : null);
   if (!rt) throw new Error(`No refresh token found in ${PER_USER_REFRESH_PATH} for userKey=${u} tenant=${tenantKey(tenant)}`);
 
   // Use per-user cache path; patch rotation back into file.
