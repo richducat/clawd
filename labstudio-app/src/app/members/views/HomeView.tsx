@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Activity,
   AlertCircle,
   BookOpen,
   Calendar,
@@ -56,6 +57,7 @@ export default function HomeView({
       workouts7d?: { count: number; minutes: number };
       latestPr: { lift: string; value: number; unit: string; reps: number | null } | null;
     };
+    agenda?: Array<{ id: string; title: string; time: string | null; type: string; action: string; completed: boolean }>;
   } | null>(null);
 
   useEffect(() => {
@@ -492,6 +494,85 @@ export default function HomeView({
               <div className="text-xs text-zinc-500">No workouts logged in the last 7 days. Tap to log one.</div>
             )}
           </Card>
+
+          {/* Things to do today (DB-backed agenda + check-ins) */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between px-1">
+              <div>
+                <h2 className="font-bold text-lg">Things to do today</h2>
+                <div className="text-xs text-zinc-500">Your agenda + check-ins (real data).</div>
+              </div>
+            </div>
+
+            {homeLoaded ? (
+              homeData?.agenda && homeData.agenda.length ? (
+                <div className="space-y-2">
+                  {homeData.agenda.map((item) => {
+                    const icon =
+                      item.type === 'Workout' ? (
+                        <Dumbbell size={18} />
+                      ) : item.type === 'Cardio' ? (
+                        <Activity size={18} />
+                      ) : item.type === 'Habit' ? (
+                        <CheckSquare size={18} />
+                      ) : item.type === 'Check-in' ? (
+                        <Camera size={18} />
+                      ) : (
+                        <Clock size={18} />
+                      );
+
+                    const jumpIn = () => {
+                      if (item.action === 'quicklog') {
+                        setShowQuickLog(true);
+                        return;
+                      }
+                      if (item.action === 'progress_photos') {
+                        setTab('progress', { mode: 'photos' });
+                        return;
+                      }
+                      setTab(item.action);
+                    };
+
+                    return (
+                      <Card key={item.id} className="p-3 flex items-center justify-between">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center text-violet-400 shrink-0">
+                            {icon}
+                          </div>
+                          <div className="min-w-0">
+                            <div className={`font-bold text-sm truncate ${item.completed ? 'text-zinc-400 line-through' : ''}`}>{item.title}</div>
+                            <div className="text-xs text-zinc-500">
+                              {(item.time ? `${item.time} • ` : '') + item.type}
+                              {item.completed ? ' • done' : ''}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            jumpIn();
+                          }}
+                          className={`text-xs font-bold px-3 py-1.5 rounded-full ${
+                            item.completed ? 'bg-zinc-800 text-zinc-500' : 'text-white bg-violet-600 hover:bg-violet-500'
+                          }`}
+                        >
+                          {item.completed ? 'View' : 'Jump in'}
+                        </button>
+                      </Card>
+                    );
+                  })}
+                </div>
+              ) : (
+                <Card className="p-4">
+                  <div className="text-xs text-zinc-500">No agenda items yet. Add habits to see them here.</div>
+                </Card>
+              )
+            ) : (
+              <Card className="p-4">
+                <div className="text-xs text-zinc-500">Loading…</div>
+              </Card>
+            )}
+          </div>
 
           {/* Daily Check-in (real data write) */}
           <div className="space-y-3">

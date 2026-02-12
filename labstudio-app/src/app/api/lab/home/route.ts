@@ -6,6 +6,15 @@ import { parseICS } from 'ical';
 
 export const runtime = 'nodejs';
 
+function todayInNY(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
 function sql() {
   const url = process.env.DATABASE_URL || '';
   if (!url) throw new Error('DATABASE_URL not configured');
@@ -159,6 +168,97 @@ export async function GET() {
   const calories7dTotal = Number(nutrition7d?.[0]?.calories ?? 0);
   const calories7dAvg = Math.round(calories7dTotal / 7);
 
+  // Agenda (derived from real logs + optional planned items)
+  const day = todayInNY();
+
+  const [dailyStatsCount, progressPhotoCount, nutritionCount] = await Promise.all([
+    q`select count(*)::int as count
+      from lab_daily_stats
+      where user_id = ${uid}
+        and (created_at at time zone 'America/New_York')::date = ${day}::date;`,
+    q`select count(*)::int as count
+      from lab_progress_photos
+      where user_id = ${uid}
+        and (created_at at time zone 'America/New_York')::date = ${day}::date;`,
+    q`select count(*)::int as count
+      from lab_nutrition_log
+      where user_id = ${uid}
+        and (created_at at time zone 'America/New_York')::date = ${day}::date;`,
+  ]);
+
+  const habits = (await q`
+    select
+      h.id,
+      h.name,
+      h.sort_order,
+      (hc.id is not null) as checked
+    from lab_habits h
+    left join lab_habit_checkins hc
+      on hc.habit_id = h.id
+      and hc.user_id = h.user_id
+      and hc.day = ${day}::date
+    where h.user_id = ${uid}
+      and h.active = true
+    order by h.sort_order asc, h.created_at asc;
+  `) as any[];
+
+  const plannedAgenda = (await q`
+    select id, time_label, title, type, action, sort_order, completed_at
+    from lab_agenda_items
+    where user_id = ${uid}
+      and day = ${day}::date
+    order by sort_order asc, created_at asc;
+  `) as any[];
+
+  const agenda: Array<{ id: string; title: string; time: string | null; type: string; action: string; completed: boolean }> = [];
+
+  agenda.push({
+    id: 'auto:daily-stats',
+    title: 'Daily stats check-in',
+    time: null,
+    type: 'Check-in',
+    action: 'quicklog',
+    completed: Number(dailyStatsCount?.[0]?.count ?? 0) > 0,
+  });
+  agenda.push({
+    id: 'auto:progress-photo',
+    title: 'Progress photo',
+    time: null,
+    type: 'Check-in',
+    action: 'progress_photos',
+    completed: Number(progressPhotoCount?.[0]?.count ?? 0) > 0,
+  });
+  agenda.push({
+    id: 'auto:nutrition',
+    title: 'Log nutrition',
+    time: null,
+    type: 'Habit',
+    action: 'nutrition',
+    completed: Number(nutritionCount?.[0]?.count ?? 0) > 0,
+  });
+
+  for (const h of habits) {
+    agenda.push({
+      id: `habit:${h.id}`,
+      title: h.name,
+      time: null,
+      type: 'Habit',
+      action: 'habits',
+      completed: Boolean(h.checked),
+    });
+  }
+
+  for (const p of plannedAgenda) {
+    agenda.push({
+      id: `planned:${p.id}`,
+      title: p.title,
+      time: p.time_label ?? null,
+      type: String(p.type ?? 'Task'),
+      action: String(p.action ?? 'home'),
+      completed: Boolean(p.completed_at),
+    });
+  }
+
   return NextResponse.json({
     ok: true,
     home: {
@@ -168,6 +268,7 @@ export async function GET() {
       nextBooking,
       upcomingBookings,
       recentWorkouts,
+      agenda,
       sessionLog: {
         bookedUpcoming30d,
         completed7d,
