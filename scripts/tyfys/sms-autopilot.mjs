@@ -17,7 +17,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { loadEnvLocal } from '../lib/load-env-local.mjs';
-import { getZohoAccessToken, zohoCrmCoql } from '../lib/zoho.mjs';
+import { getZohoAccessToken, zohoCrmCoql, zohoCrmGet } from '../lib/zoho.mjs';
 import { ringcentralGetJson, ringcentralSendSms } from '../lib/ringcentral.mjs';
 
 loadEnvLocal();
@@ -26,6 +26,8 @@ const STATE_PATH = path.resolve('memory/tyfys-sms-autopilot.json');
 const DOC_EXPORT_URL = 'https://docs.google.com/document/d/1g2hC0qzFcAPjkawu4ArAAjlgsq1Rg8_ue7L-mN8UA6w/export?format=txt';
 
 const BOOKING_LINE = 'Book here if easier: zbooking.us/hh8dC';
+
+const DEFAULT_LEAD_SLA_HOURS = 48;
 
 const LINE_NUMBERS = {
   DEVIN: '+13212147853',
@@ -50,6 +52,13 @@ const dryRun = process.argv.includes('--dry-run');
 const lookbackMin = Number(getArg('--lookbackMin', '60'));
 const mode = getArg('--mode', 'schedule'); // schedule | reactive
 const tenant = getArg('--tenant', 'new'); // RingCentral tenant/app namespace (default: new)
+
+// New: proactive lead SLA outreach (owner-based) for leads untouched for N hours.
+// Enabled by default in schedule mode (per Richard request), can be disabled with --no-lead-sla.
+const leadSlaEnabled = !process.argv.includes('--no-lead-sla') && mode === 'schedule';
+const leadSlaHours = Number(getArg('--leadSlaHours', String(DEFAULT_LEAD_SLA_HOURS)));
+const leadLimit = Number(getArg('--leadLimit', '120'));
+
 const repsArg = getArg('--reps', ''); // optional: comma-separated rep keys (adam,amy,jared,devin,karen)
 const allowedRepKeys = new Set(
   String(repsArg || '')
@@ -211,6 +220,33 @@ function shouldStopFromInbound(text) {
   return ['stop', 'unsubscribe', 'do not contact', 'wrong number', 'wrong #'].some(k => t.includes(k));
 }
 
+function isDisqualifiedLeadStatus(status) {
+  const t = String(status || '').trim().toLowerCase();
+  if (!t) return false;
+  // Conservative: treat these as “no / stop / do not contact / dead”.
+  return [
+    'do not',
+    'dnc',
+    'junk',
+    'spam',
+    'dead',
+    'not qualified',
+    'unqualified',
+    'rejected',
+    'wrong',
+    'duplicate',
+    'not interested',
+    'no',
+    'stop',
+  ].some((k) => t.includes(k));
+}
+
+function newestIso(a, b) {
+  if (!a) return b || null;
+  if (!b) return a || null;
+  return new Date(a).getTime() >= new Date(b).getTime() ? a : b;
+}
+
 async function zohoFindLeadOrDeal({ accessToken, apiDomain, phone }) {
   // Try Leads first.
   const qLead = `select id, First_Name, Last_Name, Full_Name, Email, Phone, Mobile, Owner, Lead_Status from Leads where (Phone = '${phone}' or Mobile = '${phone}') limit 1`;
@@ -225,6 +261,59 @@ async function zohoFindLeadOrDeal({ accessToken, apiDomain, phone }) {
   if (contact) return { kind: 'contact', record: contact };
 
   return null;
+}
+
+async function zohoFetchActiveUsersById({ accessToken, apiDomain }) {
+  const j = await zohoCrmGet({ accessToken, apiDomain, pathAndQuery: '/crm/v2/users?type=ActiveUsers' });
+  const users = j?.users || [];
+  const m = new Map();
+  for (const u of users) {
+    m.set(String(u.id), String(u.full_name || ''));
+  }
+  return m;
+}
+
+async function zohoFetchLeadSlaCandidates({ accessToken, apiDomain, slaHours, limit }) {
+  const cutoff = new Date(Date.now() - slaHours * 3600 * 1000);
+  const cutoffIso = cutoff.toISOString().replace(/\.\d{3}Z$/, '+00:00');
+
+  // Leads module does NOT support Modified_Time in this org; use Last_Activity_Time + Created_Time.
+  // We pull a capped set and filter locally.
+  const q = `select id, Full_Name, Owner, Phone, Mobile, Lead_Status, Created_Time, Last_Activity_Time from Leads where Created_Time <= '${cutoffIso}' limit ${Math.min(Math.max(Number(limit) || 120, 1), 200)}`;
+  const res = await zohoCrmCoql({ accessToken, apiDomain, selectQuery: q });
+  const rows = res?.data || [];
+
+  const userNameById = await zohoFetchActiveUsersById({ accessToken, apiDomain }).catch(() => new Map());
+
+  const out = [];
+  for (const l of rows) {
+    if (isDisqualifiedLeadStatus(l?.Lead_Status)) continue;
+
+    const phone = normalizePhone(l?.Mobile || l?.Phone);
+    if (!phone) continue;
+
+    const lastTouch = l?.Last_Activity_Time || l?.Created_Time;
+    if (!lastTouch) continue;
+
+    const lastTouchMs = new Date(lastTouch).getTime();
+    if (!Number.isFinite(lastTouchMs) || lastTouchMs > cutoff.getTime()) continue;
+
+    const ownerId = String(l?.Owner?.id || '');
+    const ownerName = String(l?.Owner?.name || userNameById.get(ownerId) || '').trim() || null;
+
+    out.push({
+      id: String(l.id),
+      name: String(l.Full_Name || '').trim(),
+      ownerName,
+      phone,
+      lastTouch,
+      leadStatus: l?.Lead_Status || null,
+    });
+  }
+
+  // oldest first (stale first)
+  out.sort((a, b) => new Date(a.lastTouch).getTime() - new Date(b.lastTouch).getTime());
+  return out;
 }
 
 function ownerToLine(ownerName) {
@@ -311,6 +400,75 @@ async function main() {
     await writeState(state);
     process.stdout.write('Quiet hours active (PT). No sends.\n');
     return;
+  }
+
+  // Proactive SLA-based outreach for stale leads (schedule mode only)
+  if (leadSlaEnabled) {
+    const candidates = await zohoFetchLeadSlaCandidates({
+      accessToken: zohoToken,
+      apiDomain,
+      slaHours: leadSlaHours,
+      limit: leadLimit,
+    }).catch(() => []);
+
+    for (const l of candidates) {
+      // Respect stop flags if we have them.
+      const c = (state.contacts[l.phone] ||= {
+        firstSeenAt: null,
+        lastInboundAt: null,
+        lastOutboundAt: null,
+        lastLine: null,
+        day0At: null,
+        stopped: false,
+        sent: {},
+      });
+      if (c.stopped) continue;
+
+      // Only send if we haven't touched them in the last 48h (either direction) according to our local history.
+      // If we have no local history, rely on Zoho lastTouch filter.
+      const lastLocalTouch = newestIso(c.lastInboundAt, c.lastOutboundAt);
+      if (lastLocalTouch) {
+        const ms = new Date(lastLocalTouch).getTime();
+        if (Date.now() - ms < leadSlaHours * 3600 * 1000) continue;
+      }
+
+      const fromNumber = ownerToLine(l.ownerName);
+      if (!fromNumber) continue;
+      if (!fromNumberAllowed(fromNumber)) continue;
+
+      // In schedule mode, only send during the windows; prefer morning template in AM window and evening template in PM window.
+      const wantMorning = inMorningWindowPt();
+      const wantEvening = inEveningWindowPt();
+      if (!wantMorning && !wantEvening) continue;
+
+      const day = chooseDayNumber({ day0At: c.day0At });
+      const sentDay = (c.sent ||= {});
+      const sentMeta = (sentDay[day] ||= { morningAt: null, eveningAt: null });
+
+      // If we already sent a morning/evening text today, don't send another.
+      const shouldSendMorning = wantMorning && !sentMeta.morningAt;
+      const shouldSendEvening = !shouldSendMorning && wantEvening && !sentMeta.eveningAt;
+      if (!shouldSendMorning && !shouldSendEvening) continue;
+
+      const msg = shouldSendEvening
+        ? (templates?.[day]?.evening || templates?.[1]?.evening)
+        : (templates?.[day]?.morning || templates?.[1]?.morning);
+      if (!msg) continue;
+
+      const text = `${msg}\n\n${BOOKING_LINE}`;
+
+      if (dryRun) {
+        process.stdout.write(`[dry-run] SLA${leadSlaHours}h LEAD(${l.ownerName || 'n/a'}) to ${l.phone} from ${fromNumber}: ${text}\n`);
+      } else {
+        await ringcentralSendSms({ fromNumber, toNumber: l.phone, text, tenant });
+      }
+
+      const nowIso2 = new Date().toISOString();
+      if (shouldSendMorning) sentMeta.morningAt = nowIso2;
+      if (shouldSendEvening) sentMeta.eveningAt = nowIso2;
+      c.lastOutboundAt = nowIso2;
+      // continue scanning; cap volume naturally by leadLimit + window
+    }
   }
 
   const nowIso = new Date().toISOString();
