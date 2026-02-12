@@ -88,31 +88,52 @@ async function findDealByEmail({ accessToken, email }) {
 }
 
 async function computeCustomerTotals({ customerId }) {
-  // Lifetime totals from paid invoices (approx: sum total_paid). Limited to last 100 invoices per customer.
-  // If you need full-lifetime for long histories, we can page further.
-  const inv = await stripe.invoices.list({ customer: customerId, limit: 100 });
+  /**
+   * Totals should reflect *all* customer payments, not just subscriptions.
+   *
+   * We combine:
+   * - Charges (captures one-time + subscription payments; includes refunds)
+   * - Invoices (for a stable “last invoice amount” + paid_at timestamp when present)
+   *
+   * NOTE: Stripe is paginated; we cap at 100 items each for now (can expand if needed).
+   */
+
+  // Charges are the most universal source of truth for actual paid amounts + refunds.
+  const charges = await stripe.charges.list({ customer: customerId, limit: 100 });
   let lifetimePaid = 0;
   let refundedTotal = 0;
   let lastPaidAt = null;
+
+  for (const c of charges.data || []) {
+    if (c.paid) {
+      lifetimePaid += (c.amount || 0);
+      refundedTotal += (c.amount_refunded || 0);
+      const paidAt = c.created ? new Date(c.created * 1000) : null;
+      if (paidAt && (!lastPaidAt || paidAt > lastPaidAt)) lastPaidAt = paidAt;
+    }
+  }
+
+  // Invoices: best for “last invoice amount” and can provide paid_at.
+  const inv = await stripe.invoices.list({ customer: customerId, limit: 100 });
   let lastInvoiceAmount = null;
+  let lastInvoicePaidAt = null;
 
   for (const i of inv.data || []) {
     if (i.status === 'paid') {
-      lifetimePaid += (i.total_paid || 0);
       const paidAt = i.status_transitions?.paid_at ? new Date(i.status_transitions.paid_at * 1000) : null;
-      if (paidAt && (!lastPaidAt || paidAt > lastPaidAt)) {
-        lastPaidAt = paidAt;
-        lastInvoiceAmount = i.total_paid || i.amount_paid || null;
+      if (paidAt && (!lastInvoicePaidAt || paidAt > lastInvoicePaidAt)) {
+        lastInvoicePaidAt = paidAt;
+        lastInvoiceAmount = (i.amount_paid ?? i.total_paid ?? i.amount_due ?? null);
       }
     }
-    // Refunds: easiest via charge.refunded events; here we use amount_refunded if present.
-    refundedTotal += (i.amount_refunded || 0);
   }
+
+  const effectiveLastPaidAt = (lastInvoicePaidAt && (!lastPaidAt || lastInvoicePaidAt > lastPaidAt)) ? lastInvoicePaidAt : lastPaidAt;
 
   return {
     lifetimePaidCents: lifetimePaid,
     refundedTotalCents: refundedTotal,
-    lastPaidAt: lastPaidAt ? lastPaidAt.toISOString() : null,
+    lastPaidAt: effectiveLastPaidAt ? effectiveLastPaidAt.toISOString() : null,
     lastInvoiceAmountCents: lastInvoiceAmount,
   };
 }
