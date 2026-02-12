@@ -46,7 +46,7 @@ function envName(tenant, base) {
   return t ? `RINGCENTRAL_${t}_${base}` : `RINGCENTRAL_${base}`;
 }
 
-const tenant = getArg('--tenant', '');
+const tenant = getArg('--tenant', 'new');
 const apiServer = process.env[envName(tenant, 'API_SERVER')] || process.env.RINGCENTRAL_API_SERVER || 'https://platform.ringcentral.com';
 const clientId = reqEnv(envName(tenant, 'CLIENT_ID'));
 const clientSecret = reqEnv(envName(tenant, 'CLIENT_SECRET'));
@@ -130,6 +130,12 @@ async function writeTokens(obj) {
     authUrl.searchParams.set('redirect_uri', redirectUri);
     authUrl.searchParams.set('state', state);
     if (!noScope) authUrl.searchParams.set('scope', scopes);
+
+    // IMPORTANT: prevent RingCentral from reusing an existing browser session for the wrong extension.
+    // This forces an explicit login/consent screen.
+    if (!process.argv.includes('--no-prompt-login')) {
+      authUrl.searchParams.set('prompt', 'login');
+    }
 
     console.log(`RingCentral OAuth for user key: ${userKey}${tenant ? ` (tenant=${tenant})` : ''}`);
     console.log(`Scopes: ${noScope ? '(omitted; use app-configured scopes)' : scopes}`);
