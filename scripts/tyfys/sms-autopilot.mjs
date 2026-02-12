@@ -37,6 +37,17 @@ const LINE_NUMBERS = {
   KAREN: '+17724099069',
 };
 
+function lineToUserKey(fromNumber) {
+  const n = normalizePhone(fromNumber);
+  if (!n) return null;
+  if (n === normalizePhone(LINE_NUMBERS.DEVIN)) return 'devin';
+  if (n === normalizePhone(LINE_NUMBERS.ADAM)) return 'adam';
+  if (n === normalizePhone(LINE_NUMBERS.AMY)) return 'amy';
+  if (n === normalizePhone(LINE_NUMBERS.JARED)) return 'jared';
+  if (n === normalizePhone(LINE_NUMBERS.KAREN)) return 'karen';
+  return null;
+}
+
 const QUIET_START_PT_HOUR = 21; // 9pm PT
 const QUIET_END_PT_HOUR = 8; // 8am PT
 
@@ -460,7 +471,7 @@ async function main() {
       if (dryRun) {
         process.stdout.write(`[dry-run] SLA${leadSlaHours}h LEAD(${l.ownerName || 'n/a'}) to ${l.phone} from ${fromNumber}: ${text}\n`);
       } else {
-        await ringcentralSendSms({ fromNumber, toNumber: l.phone, text, tenant });
+        await ringcentralSendSms({ fromNumber, toNumber: l.phone, text, tenant, userKey: lineToUserKey(fromNumber) });
       }
 
       const nowIso2 = new Date().toISOString();
@@ -523,7 +534,7 @@ async function main() {
     if (dryRun) {
       process.stdout.write(`[dry-run] ${wantEvening ? 'EVENING' : 'MORNING'} ${kind.toUpperCase()}(${ownerName || 'n/a'}) to ${phone} from ${fromNumber}: ${text}\n`);
     } else {
-      await ringcentralSendSms({ fromNumber, toNumber: phone, text, tenant });
+      await ringcentralSendSms({ fromNumber, toNumber: phone, text, tenant, userKey: lineToUserKey(fromNumber) });
     }
 
     if (wantEvening) sentMeta.eveningAt = nowIso;
