@@ -251,13 +251,15 @@ export async function ringcentralPostJson(pathAndQuery, body, { tenant, userKey 
   return ringcentralRequestJson({ method: 'POST', pathAndQuery, body, tenant, userKey });
 }
 
-export async function ringcentralSendSms({ fromNumber, toNumber, text, tenant, userKey } = {}) {
+export async function ringcentralSendSms({ fromNumber, toNumber, text, tenant, userKey, extensionId } = {}) {
   if (!fromNumber) throw new Error('ringcentralSendSms: missing fromNumber');
   if (!toNumber) throw new Error('ringcentralSendSms: missing toNumber');
   if (!text) throw new Error('ringcentralSendSms: missing text');
 
+  const extPath = extensionId ? String(extensionId) : '~';
+
   return ringcentralPostJson(
-    '/restapi/v1.0/account/~/extension/~/sms',
+    `/restapi/v1.0/account/~/extension/${extPath}/sms`,
     {
       from: { phoneNumber: fromNumber },
       to: [{ phoneNumber: toNumber }],

@@ -20,6 +20,35 @@ import { loadEnvLocal } from '../lib/load-env-local.mjs';
 import { getZohoAccessToken, zohoCrmCoql, zohoCrmGet } from '../lib/zoho.mjs';
 import { ringcentralGetJson, ringcentralSendSms } from '../lib/ringcentral.mjs';
 
+const ADMIN_USER_KEY = 'new-admin';
+const FROM_NUMBER_TO_EXTENSION_CACHE_PATH = path.resolve('memory/ringcentral-from-number-to-extension.json');
+
+async function readFromNumberCache() {
+  try { return JSON.parse(await fs.readFile(FROM_NUMBER_TO_EXTENSION_CACHE_PATH, 'utf8')); } catch { return {}; }
+}
+async function writeFromNumberCache(obj) {
+  await fs.mkdir(path.dirname(FROM_NUMBER_TO_EXTENSION_CACHE_PATH), { recursive: true });
+  await fs.writeFile(FROM_NUMBER_TO_EXTENSION_CACHE_PATH, JSON.stringify(obj, null, 2) + '\n', 'utf8');
+}
+
+async function resolveExtensionIdForFromNumber({ fromNumber, tenant }) {
+  const n = normalizePhone(fromNumber);
+  if (!n) return null;
+
+  const cache = await readFromNumberCache();
+  if (cache[n]?.extensionId) return cache[n].extensionId;
+
+  // Query account phone numbers using admin token to find which extension owns this direct number.
+  const out = await ringcentralGetJson('/restapi/v1.0/account/~/phone-number?perPage=1000', { tenant, userKey: ADMIN_USER_KEY });
+  const rec = (out?.records || []).find(r => normalizePhone(r?.phoneNumber) === n);
+  const extId = rec?.extension?.id || null;
+
+  cache[n] = { extensionId: extId, extensionNumber: rec?.extension?.extensionNumber || null, updatedAt: new Date().toISOString() };
+  await writeFromNumberCache(cache);
+
+  return extId;
+}
+
 loadEnvLocal();
 
 const STATE_PATH = path.resolve('memory/tyfys-sms-autopilot.json');
@@ -471,7 +500,8 @@ async function main() {
       if (dryRun) {
         process.stdout.write(`[dry-run] SLA${leadSlaHours}h LEAD(${l.ownerName || 'n/a'}) to ${l.phone} from ${fromNumber}: ${text}\n`);
       } else {
-        await ringcentralSendSms({ fromNumber, toNumber: l.phone, text, tenant, userKey: lineToUserKey(fromNumber) });
+        const extensionId = await resolveExtensionIdForFromNumber({ fromNumber, tenant });
+        await ringcentralSendSms({ fromNumber, toNumber: l.phone, text, tenant, userKey: ADMIN_USER_KEY, extensionId });
       }
 
       const nowIso2 = new Date().toISOString();
@@ -534,7 +564,8 @@ async function main() {
     if (dryRun) {
       process.stdout.write(`[dry-run] ${wantEvening ? 'EVENING' : 'MORNING'} ${kind.toUpperCase()}(${ownerName || 'n/a'}) to ${phone} from ${fromNumber}: ${text}\n`);
     } else {
-      await ringcentralSendSms({ fromNumber, toNumber: phone, text, tenant, userKey: lineToUserKey(fromNumber) });
+      const extensionId = await resolveExtensionIdForFromNumber({ fromNumber, tenant });
+      await ringcentralSendSms({ fromNumber, toNumber: phone, text, tenant, userKey: ADMIN_USER_KEY, extensionId });
     }
 
     if (wantEvening) sentMeta.eveningAt = nowIso;
