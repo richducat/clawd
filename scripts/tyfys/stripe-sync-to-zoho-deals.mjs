@@ -16,8 +16,10 @@
  *   node scripts/tyfys/stripe-sync-to-zoho-deals.mjs --send
  *
  * Options:
- *   --sinceHours 72   (default: 72)  // pull Stripe events over this window
- *   --limit 200       (default: 200) // max Stripe events to process
+ *   --sinceHours 72   (default: 72)  // pull Stripe events over this window (event-based scan)
+ *   --limit 200       (default: 200) // max Stripe events to process (event-based scan)
+ *   --scan subscriptions              // subscription-based scan (recommended for backfill)
+ *   --max 2000        (default: 2000) // max subscriptions to scan when --scan subscriptions
  */
 
 import fs from 'node:fs/promises';
@@ -43,6 +45,9 @@ function getArg(name, def) {
 
 const sinceHours = Number(getArg('--sinceHours', '72'));
 const limit = Number(getArg('--limit', '200'));
+
+const scanMode = String(getArg('--scan', 'events')); // events | subscriptions
+const maxScan = Number(getArg('--max', '2000'));
 
 const STRIPE_API_KEY = process.env.STRIPE_API_KEY;
 if (!STRIPE_API_KEY) {
@@ -131,24 +136,55 @@ async function main() {
   const accessToken = await getZohoAccessToken();
   const state = await readJson(STATE_PATH, { lastRunAt: null });
 
-  const since = new Date(Date.now() - sinceHours * 3600 * 1000);
-  const events = await stripe.events.list({
-    created: { gte: Math.floor(since.getTime() / 1000) },
-    limit: Math.min(Math.max(limit, 1), 200),
-    types: [
-      'invoice.paid',
-      'invoice.payment_failed',
-      'customer.subscription.created',
-      'customer.subscription.updated',
-      'customer.subscription.deleted',
-    ],
-  });
-
   const uniqCustomers = new Map();
-  for (const ev of events.data || []) {
-    const obj = ev.data?.object;
-    const customerId = obj?.customer;
-    if (customerId) uniqCustomers.set(String(customerId), true);
+  let stripeEventsCount = 0;
+  let stripeSubscriptionsScanned = 0;
+
+  if (scanMode === 'subscriptions') {
+    // Backfill mode: page through subscriptions and collect unique customers.
+    // This catches older subscriptions without needing a huge event window.
+    let startingAfter = null;
+    while (uniqCustomers.size < maxScan) {
+      const pageLimit = Math.min(100, maxScan - uniqCustomers.size);
+      const page = await stripe.subscriptions.list({
+        limit: pageLimit,
+        status: 'all',
+        ...(startingAfter ? { starting_after: startingAfter } : {}),
+        expand: ['data.customer'],
+      });
+
+      for (const s of page.data || []) {
+        stripeSubscriptionsScanned += 1;
+        const customerId = typeof s.customer === 'string' ? s.customer : s.customer?.id;
+        if (customerId) uniqCustomers.set(String(customerId), true);
+        startingAfter = s.id;
+      }
+
+      if (!page.has_more) break;
+      if (!startingAfter) break;
+    }
+  } else {
+    // Default: event-based scan over a recent window.
+    const since = new Date(Date.now() - sinceHours * 3600 * 1000);
+    const events = await stripe.events.list({
+      created: { gte: Math.floor(since.getTime() / 1000) },
+      limit: Math.min(Math.max(limit, 1), 200),
+      types: [
+        'invoice.paid',
+        'invoice.payment_failed',
+        'customer.subscription.created',
+        'customer.subscription.updated',
+        'customer.subscription.deleted',
+      ],
+    });
+
+    stripeEventsCount = events.data?.length || 0;
+
+    for (const ev of events.data || []) {
+      const obj = ev.data?.object;
+      const customerId = obj?.customer;
+      if (customerId) uniqCustomers.set(String(customerId), true);
+    }
   }
 
   let matched = 0;
@@ -207,7 +243,7 @@ async function main() {
   await writeJson(STATE_PATH, state);
 
   process.stdout.write(
-    `Done. dryRun=${dryRun} sinceHours=${sinceHours} stripeEvents=${events.data?.length || 0} customers=${uniqCustomers.size} matchedDeals=${matched} updated=${updated} skippedNoEmail=${skippedNoEmail} skippedNoDeal=${skippedNoDeal}\n`,
+    `Done. dryRun=${dryRun} scan=${scanMode} sinceHours=${sinceHours} stripeEvents=${stripeEventsCount} stripeSubscriptionsScanned=${stripeSubscriptionsScanned} customers=${uniqCustomers.size} matchedDeals=${matched} updated=${updated} skippedNoEmail=${skippedNoEmail} skippedNoDeal=${skippedNoDeal}\n`,
   );
 }
 
