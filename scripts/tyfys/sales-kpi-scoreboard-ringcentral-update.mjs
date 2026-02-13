@@ -177,7 +177,10 @@ async function fetchMeetings({ accessToken, todayStart, tomorrowStart, now }) {
   // Prefer Bookings if scope exists; otherwise fall back to CRM Events.
   let meetingsToday = [];
   let bookedToday = [];
+  let upcomingFuture = [];
   let used = 'bookings';
+
+  const futureEnd = new Date(todayStart.getTime() + 30 * 24 * 3600 * 1000);
 
   try {
     // Meetings happening today
@@ -195,7 +198,7 @@ async function fetchMeetings({ accessToken, todayStart, tomorrowStart, now }) {
       created: r.Created_Time || r.CREATEDTIME || r.CreatedTime || r.CREATED_TIME || null,
     }));
 
-    // Meetings booked today (created today) — best effort if created field exists; otherwise will remain empty.
+    // Meetings booked today (created today) — best effort if created field exists.
     const criteriaCreated = `WORKSPACE_ID==${ZB_WORKSPACE_ID} && CREATEDTIME>\"${fmtBookingsCriteriaDate(todayStart)}\" && CREATEDTIME<\"${fmtBookingsCriteriaDate(tomorrowStart)}\"`;
     const outCreated = await zohoBookingsReportGet({
       accessToken,
@@ -212,7 +215,24 @@ async function fetchMeetings({ accessToken, todayStart, tomorrowStart, now }) {
       }));
     }
 
-    return { meetingsToday, bookedToday, used };
+    // Future meetings on calendar (next 30 days, excluding today)
+    const criteriaFuture = `WORKSPACE_ID==${ZB_WORKSPACE_ID} && FROM_TIME>=\"${fmtBookingsCriteriaDate(tomorrowStart)}\" && FROM_TIME<\"${fmtBookingsCriteriaDate(futureEnd)}\"`;
+    const outFuture = await zohoBookingsReportGet({
+      accessToken,
+      ownerName: ZB_OWNER_NAME,
+      reportLinkName: 'WEB_APPOINTMENT',
+      query: { max_records: 200, sortBy: 'FROM_TIME:true', criteria: criteriaFuture },
+    }).catch(() => null);
+
+    if (outFuture) {
+      upcomingFuture = (outFuture?.data || outFuture || []).map(r => ({
+        title: r.SERVICE_NAME || r.APPOINTMENT_FOR || r.Service_Name || 'Booking',
+        from: r.FROM_TIME || r.From_Time,
+        owner: r.ASSIGNED_TO || r.Assigned_To || r.STAFF_NAME || r.Staff_Name,
+      }));
+    }
+
+    return { meetingsToday, bookedToday, upcomingFuture, used };
   } catch (e) {
     used = 'crm-events';
   }
@@ -235,7 +255,15 @@ async function fetchMeetings({ accessToken, todayStart, tomorrowStart, now }) {
     owner: e?.Owner?.name,
   }));
 
-  return { meetingsToday, bookedToday, used };
+  const qFuture = `select id, Event_Title, Start_DateTime, Owner from Events where Start_DateTime >= '${isoNoMs(tomorrowStart)}' and Start_DateTime < '${isoNoMs(futureEnd)}' order by Start_DateTime asc limit 200`;
+  const resFuture = await zohoCrmCoql({ accessToken, apiDomain, selectQuery: qFuture });
+  upcomingFuture = (resFuture?.data || []).map(e => ({
+    title: e.Event_Title || 'Meeting',
+    from: e.Start_DateTime,
+    owner: e?.Owner?.name,
+  }));
+
+  return { meetingsToday, bookedToday, upcomingFuture, used };
 }
 
 async function fetchDealsCreatedCounts({ accessToken, start, end }) {
@@ -375,9 +403,11 @@ async function fetchLeadTouchCounts({ accessToken, days = 365, pages = 10, perPa
   // Per-rep meeting counts
   const meetingsOnCalendarToday = new Map();
   const meetingsBookedToday = new Map();
+  const meetingsFuture = new Map();
   for (const rep of SALES_ROSTER) {
     meetingsOnCalendarToday.set(rep, 0);
     meetingsBookedToday.set(rep, 0);
+    meetingsFuture.set(rep, 0);
   }
 
   for (const m of meetings.meetingsToday || []) {
@@ -392,14 +422,27 @@ async function fetchLeadTouchCounts({ accessToken, days = 365, pages = 10, perPa
     meetingsBookedToday.set(rep, meetingsBookedToday.get(rep) + 1);
   }
 
+  for (const m of meetings.upcomingFuture || []) {
+    const rep = normRep(m?.owner) || normRep(m?.title);
+    if (!rep) continue;
+    meetingsFuture.set(rep, meetingsFuture.get(rep) + 1);
+  }
+
   const perfLabel = windowMode === 'today'
     ? `today (through ${fmtTimeET(now)} ET)`
     : 'previous business day';
 
   const header = `Sales KPI scoreboard — ${todayStart.toLocaleDateString('en-US')} (as of ${fmtTimeET(now)} ET)`;
   const sub = `Performance window: ${perfLabel} | Connected >=${CONNECTED_SEC}s | Call quota ${CALL_QUOTA}/day | Meetings source: ${meetings.used}`;
+  const defs = [
+    `Definitions:`,
+    `- conn% = connected calls / outbound calls (in performance window)`,
+    `- booked = meetings created today (Zoho Bookings; fallback = CRM Events created today)`,
+    `- today on calendar = meetings happening today (prep load)`,
+    `- future scheduled = meetings on calendar next 30 days (excluding today)`,
+  ].join('\n');
 
-  const lines = [header, sub, ''];
+  const lines = [header, sub, defs, ''];
 
   for (const rep of SALES_ROSTER) {
     const a = rc.get(rep) || { callsOut: 0, smsOut: 0, connected: 0, contactRate: 0 };
@@ -409,6 +452,7 @@ async function fetchLeadTouchCounts({ accessToken, days = 365, pages = 10, perPa
 
     const mtToday = meetingsOnCalendarToday.get(rep) || 0;
     const mbToday = meetingsBookedToday.get(rep) || 0;
+    const mf = meetingsFuture.get(rep) || 0;
 
     const lt = leadTouch.get(rep) || { total: 0, attempted: 0, neverTouched: 0, buckets: { '<24h': 0, '24–48h': 0, '2–7d': 0, '>7d': 0 } };
 
@@ -425,7 +469,7 @@ async function fetchLeadTouchCounts({ accessToken, days = 365, pages = 10, perPa
       `*${rep}* ${quotaHit} calls ${a.callsOut}/${CALL_QUOTA} | conn ${a.connected} (${contactRateText}) | sms ${a.smsOut}`,
     );
     lines.push(
-      `meetings: booked ${mbToday} (rate ${bookingRateText}) | today on calendar ${mtToday} ${busy}`.trim(),
+      `meetings: booked ${mbToday} (rate ${bookingRateText}) | today on calendar ${mtToday} ${busy} | future scheduled ${mf}`.trim(),
     );
     lines.push(
       `deals created (${windowMode === 'today' ? 'today' : 'prev biz day'}): ${dPerf} | WTD ${dWtd} | MTD ${dMtd}`,
