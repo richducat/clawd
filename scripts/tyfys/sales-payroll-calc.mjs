@@ -55,13 +55,17 @@ const DEAL_EXCEPTIONS = [
 // One-off manual credits for a given pay window.
 // Key format: "YYYY-MM-DD_to_YYYY-MM-DD"
 const MANUAL_CREDITS = {
-  // Per Richard (2026-02-13): Amy gets credit for Charles Wade for this payroll coverage.
+  // Window-specific overrides for one-off corrections.
   '2026-01-30_to_2026-02-12': {
     dealCreditsByNameIncludes: [
       { match: 'charles wade', rep: 'Amy', note: 'Manual credit per Richard: lead converted by Amy' },
     ],
     // Per Richard: due to phone line issues last week, guarantee $50 bonus for everyone for week 2.
     guaranteeWeek2CallBonus: true,
+    // Per Richard: Amy earned the “5 old leads closed” bonus in this window.
+    extraBonuses: [
+      { rep: 'Amy', amount: 200, label: 'Old leads bonus (5 old leads closed)' },
+    ],
   },
 };
 
@@ -389,16 +393,26 @@ function computeWeeklyCallBonus({ outboundByDay, from, to, overrides }) {
     callBonusByRep.set(rep, { missingExtension: false, weeks, totalBonus });
   }
 
+  // Extra bonuses (manual / one-offs)
+  const extraBonusesByRep = new Map();
+  for (const rep of SALES_ROSTER) extraBonusesByRep.set(rep, []);
+  for (const b of overrides?.extraBonuses || []) {
+    if (!b?.rep || typeof b.amount !== 'number') continue;
+    if (!extraBonusesByRep.has(b.rep)) continue;
+    extraBonusesByRep.get(b.rep).push({ amount: b.amount, label: b.label || 'Bonus' });
+  }
+
   // Totals
   const summary = [];
   let grandTotal = 0;
   for (const rep of SALES_ROSTER) {
     const repDeals = dealsByRep.get(rep) || [];
     const dealTotal = repDeals.reduce((s, x) => s + (x.payout || 0), 0);
-    const bonus = callBonusByRep.get(rep)?.totalBonus || 0;
-    const total = dealTotal + bonus;
+    const callBonus = callBonusByRep.get(rep)?.totalBonus || 0;
+    const extraBonus = (extraBonusesByRep.get(rep) || []).reduce((s, x) => s + (x.amount || 0), 0);
+    const total = dealTotal + callBonus + extraBonus;
     grandTotal += total;
-    summary.push({ rep, deals: repDeals.length, dealTotal, bonus, total });
+    summary.push({ rep, deals: repDeals.length, dealTotal, callBonus, extraBonus, total });
   }
 
   const payload = {
@@ -421,6 +435,7 @@ function computeWeeklyCallBonus({ outboundByDay, from, to, overrides }) {
     dealsByRep: Object.fromEntries([...dealsByRep.entries()]),
     dealsUnassigned: unassigned,
     callBonusByRep: Object.fromEntries([...callBonusByRep.entries()]),
+    extraBonusesByRep: Object.fromEntries([...extraBonusesByRep.entries()]),
     summary,
     grandTotal,
   };
@@ -438,7 +453,8 @@ function computeWeeklyCallBonus({ outboundByDay, from, to, overrides }) {
 
   lines.push('## Summary (amounts due)');
   for (const s of summary) {
-    lines.push(`- **${s.rep}** — deals: ${s.deals} ($${s.dealTotal}) + call bonus $${s.bonus} => **$${s.total}**`);
+    const extra = s.extraBonus ? ` + extra bonus $${s.extraBonus}` : '';
+    lines.push(`- **${s.rep}** — deals: ${s.deals} ($${s.dealTotal}) + call bonus $${s.callBonus}${extra} => **$${s.total}**`);
   }
   lines.push(`- **TOTAL**: **$${grandTotal}**`);
   lines.push('');
@@ -466,6 +482,21 @@ function computeWeeklyCallBonus({ outboundByDay, from, to, overrides }) {
     lines.push('');
   }
 
+  // Extra bonus breakdown
+  const anyExtra = summary.some(s => (s.extraBonus || 0) > 0);
+  if (anyExtra) {
+    lines.push('## Extra bonuses');
+    for (const rep of SALES_ROSTER) {
+      const items = extraBonusesByRep.get(rep) || [];
+      if (!items.length) continue;
+      lines.push(`### ${rep}`);
+      for (const x of items) {
+        lines.push(`- $${x.amount} — ${x.label}`);
+      }
+      lines.push('');
+    }
+  }
+
   lines.push('## Call bonus breakdown');
   for (const rep of SALES_ROSTER) {
     const cb = callBonusByRep.get(rep);
@@ -476,7 +507,7 @@ function computeWeeklyCallBonus({ outboundByDay, from, to, overrides }) {
       continue;
     }
     for (const w of cb.weeks || []) {
-      lines.push(`- Week ${w.start} → ${w.end}: ${w.hit ? 'HIT' : 'MISS'} => $${w.bonus}`);
+      lines.push(`- Week ${w.start} → ${w.end}: ${w.hit ? 'HIT' : 'MISS'} => $${w.bonus}${w.override ? ` (${w.override})` : ''}`);
     }
     lines.push(`- Total call bonus: $${cb.totalBonus || 0}`);
     lines.push('');
