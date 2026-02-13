@@ -6,8 +6,44 @@
 # OS
 .DS_Store
 
-# Token caches
-memory/ringcentral-token.json
+# Dependencies / builds
+node_modules/
+**/node_modules/
+.next/
+dist/
+build/
+coverage/
+
+# Vercel
+.vercel
+
+# Local scratch
+/tmp/
+tmp/
+*.zip
+scripts/**/tmp/
+
+# OpenClaw / app state
+# Keep markdown notes, ignore data/tokens by default.
+memory/**/*.json
+memory/**/*.csv
+memory/**/*.pdf
+memory/**/email-attachments/
+memory/**/email-out/
+memory/**/forms-pdfs/
+memory/**/meeting-doc-pdfs/
+
+# Explicit token caches (redundant with memory/**/*.json but kept for clarity)
+memory/ringcentral-token*.json
+memory/ringcentral-refresh-tokens.json
 memory/zoho-token.json
 memory/zoho-refresh-token.json
-.vercel
+
+# Backup artifacts
+scripts/backup/*.tar.gz
+scripts/backup/*.zip
+tmp/backups/
+
+# Local databases (stored in Google Drive sync)
+db/*.sqlite
+db/*.db
