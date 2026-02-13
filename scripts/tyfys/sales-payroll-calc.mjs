@@ -3,13 +3,17 @@
  * TYFYS Sales Payroll Calculator (biweekly; Wed→Wed)
  *
  * Computes:
- * - New deals created in the period by owner
+ * - New deals in the period (default attribution mode: leadConverted)
  * - Per-deal payout ($250 default; exceptions supported)
  * - Call quota bonus: $50/week if rep hit 25 outbound calls/day for each business day in that week
  *
+ * Attribution mode:
+ * - leadConverted (default): attribute payout to the ORIGINAL Lead Owner (deal created as part of conversion)
+ * - dealCreated: attribute payout to Deal Owner / Created_By (legacy)
+ *
  * Notes / assumptions:
  * - Periods are Wed 00:00 ET → next Wed 00:00 ET (exclusive end)
- * - Deal payout uses Zoho Deals Created_Time and Owner
+ * - Deal payout uses Zoho Deals Created_Time and (when available) Deal.Lead_Conversion_Time != null
  * - Call quota uses RingCentral outbound call logs by extension
  * - THIS SCRIPT DOES NOT SEND EMAIL. It outputs a markdown report + JSON.
  */
@@ -47,6 +51,19 @@ const DEAL_EXCEPTIONS = [
     note: 'Referral exception: $200 lead + $75 referral',
   },
 ];
+
+// One-off manual credits for a given pay window.
+// Key format: "YYYY-MM-DD_to_YYYY-MM-DD"
+const MANUAL_CREDITS = {
+  // Per Richard (2026-02-13): Amy gets credit for Charles Wade for this payroll coverage.
+  '2026-01-30_to_2026-02-12': {
+    dealCreditsByNameIncludes: [
+      { match: 'charles wade', rep: 'Amy', note: 'Manual credit per Richard: lead converted by Amy' },
+    ],
+    // Per Richard: due to phone line issues last week, guarantee $50 bonus for everyone for week 2.
+    guaranteeWeek2CallBonus: true,
+  },
+};
 
 // Bonus
 const CALL_QUOTA_PER_DAY = 25;
@@ -105,9 +122,13 @@ function computeWindow({ end, fromArg, toArg }) {
   return { periodStart, periodEnd };
 }
 
-async function fetchDealsCreated({ accessToken, from, to }) {
+async function fetchDealsCreated({ accessToken, from, to, requireConverted }) {
   // COQL needs WHERE + no ms. (Owner can be omitted/blank here; we enrich via GET per deal.)
-  const q = `select id, Deal_Name, Created_Time from Deals where Created_Time >= '${isoNoMs(from)}' and Created_Time < '${isoNoMs(to)}' order by Created_Time asc limit 200`;
+  const where = requireConverted
+    ? `(Created_Time >= '${isoNoMs(from)}' and Created_Time < '${isoNoMs(to)}') and (Lead_Conversion_Time is not null)`
+    : `(Created_Time >= '${isoNoMs(from)}' and Created_Time < '${isoNoMs(to)}')`;
+
+  const q = `select id, Deal_Name, Created_Time, Lead_Conversion_Time from Deals where ${where} order by Created_Time asc limit 200`;
   const res = await zohoCrmCoql({ accessToken, apiDomain, selectQuery: q });
   return res?.data || [];
 }
@@ -115,12 +136,41 @@ async function fetchDealsCreated({ accessToken, from, to }) {
 async function enrichDealOwner({ accessToken, deal }) {
   const dealId = String(deal?.id || '');
   if (!dealId) return deal;
-  const fields = ['id', 'Deal_Name', 'Owner', 'Created_By', 'Created_Time'].join(',');
+  const fields = ['id', 'Deal_Name', 'Owner', 'Created_By', 'Created_Time', 'Email_Address', 'Phone_Number'].join(',');
   const pathAndQuery = `/crm/v2/Deals/${encodeURIComponent(dealId)}?fields=${encodeURIComponent(fields)}`;
   const res = await zohoCrmGet({ accessToken, apiDomain, pathAndQuery }).catch(() => null);
   const full = res?.data?.[0];
   if (!full) return deal;
-  return { ...deal, Owner: full.Owner, Created_By: full.Created_By };
+  return { ...deal, Owner: full.Owner, Created_By: full.Created_By, Email_Address: full.Email_Address, Phone_Number: full.Phone_Number };
+}
+
+async function findLeadForDeal({ accessToken, deal }) {
+  // Deals can change owner after conversion; try to attribute to the original Lead owner.
+  // We best-effort match Leads by Email or Phone/Mobile.
+  const email = String(deal?.Email_Address || '').trim();
+  const phone = String(deal?.Phone_Number || '').trim();
+
+  const trySearch = async (criteria) => {
+    const pathAndQuery = `/crm/v2/Leads/search?criteria=${encodeURIComponent(criteria)}&per_page=10&page=1`;
+    const res = await zohoCrmGet({ accessToken, apiDomain, pathAndQuery }).catch(() => null);
+    return res?.data || [];
+  };
+
+  let hits = [];
+  if (email) hits = await trySearch(`(Email:equals:${email})`);
+  if (!hits.length && phone) {
+    // Remove non-digits for alternate match attempt.
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length >= 7) {
+      hits = await trySearch(`((Phone:contains:${digits}) or (Mobile:contains:${digits}))`);
+    } else {
+      hits = await trySearch(`((Phone:equals:${phone}) or (Mobile:equals:${phone}))`);
+    }
+  }
+
+  // Prefer the most recently modified lead as the best match.
+  hits.sort((a, b) => String(b?.Modified_Time || '').localeCompare(String(a?.Modified_Time || '')));
+  return hits[0] || null;
 }
 
 function payoutForDeal({ dealName, rep }) {
@@ -183,7 +233,7 @@ async function fetchOutboundCallsByDay({ extId, from, to }) {
   return out;
 }
 
-function computeWeeklyCallBonus({ outboundByDay, from, to }) {
+function computeWeeklyCallBonus({ outboundByDay, from, to, overrides }) {
   // Weeks are Wed→Wed; bonus assessed for each 7-day block within the 14-day period.
   // Rule: $50 if rep hit 25 outbound calls on EACH business day in that week.
   const days = listDays(from, to);
@@ -193,7 +243,8 @@ function computeWeeklyCallBonus({ outboundByDay, from, to }) {
   ];
 
   const weekResults = [];
-  for (const w of weeks) {
+  for (let i = 0; i < weeks.length; i++) {
+    const w = weeks[i];
     const wDays = days.filter(d => d >= w.start && d < w.end && isBusinessDay(d));
     let ok = true;
     const perDay = [];
@@ -203,13 +254,17 @@ function computeWeeklyCallBonus({ outboundByDay, from, to }) {
       perDay.push({ day: k, calls: c, hit: c >= CALL_QUOTA_PER_DAY });
       if (c < CALL_QUOTA_PER_DAY) ok = false;
     }
+
+    const forceBonus = overrides?.guaranteeWeek2CallBonus && i === 1;
+
     weekResults.push({
       start: fmtDateET(w.start),
       end: fmtDateET(new Date(w.end.getTime() - 1)),
       businessDays: wDays.length,
-      hit: ok && wDays.length > 0,
-      bonus: ok && wDays.length > 0 ? WEEKLY_CALL_BONUS : 0,
+      hit: forceBonus ? true : (ok && wDays.length > 0),
+      bonus: forceBonus ? WEEKLY_CALL_BONUS : ((ok && wDays.length > 0) ? WEEKLY_CALL_BONUS : 0),
       perDay,
+      override: forceBonus ? 'guaranteed_due_to_phone_line_issue' : null,
     });
   }
   return weekResults;
@@ -219,6 +274,13 @@ function computeWeeklyCallBonus({ outboundByDay, from, to }) {
   const endArg = getArg('--end', null);
   const fromArg = getArg('--from', null);
   const toArg = getArg('--to', null);
+  const mode = getArg('--mode', 'leadConverted');
+
+  const windowKey = fromArg && toArg ? `${fromArg}_to_${toArg}` : null;
+  const overrides = windowKey ? (MANUAL_CREDITS[windowKey] || null) : null;
+  if (!['leadConverted', 'dealCreated'].includes(mode)) {
+    throw new Error("Invalid --mode. Use 'leadConverted' or 'dealCreated'.");
+  }
 
   const end = endArg ? new Date(endArg) : new Date();
   const { periodStart, periodEnd } = computeWindow({ end, fromArg, toArg });
@@ -233,8 +295,15 @@ function computeWeeklyCallBonus({ outboundByDay, from, to }) {
 
   const accessToken = await getZohoAccessToken();
 
-  // Deals created
-  let deals = await fetchDealsCreated({ accessToken, from: periodStart, to: periodEnd });
+  // Deals created in window.
+  // In leadConverted mode we ATTRIBUTE to original Lead owner, but we do not filter by Lead_Conversion_Time
+  // because this org does not consistently populate it.
+  let deals = await fetchDealsCreated({
+    accessToken,
+    from: periodStart,
+    to: periodEnd,
+    requireConverted: false,
+  });
   // Enrich owner/created_by via per-record GET (Owner sometimes missing in COQL responses)
   deals = await Promise.all(deals.map(d => enrichDealOwner({ accessToken, deal: d })));
 
@@ -242,16 +311,53 @@ function computeWeeklyCallBonus({ outboundByDay, from, to }) {
   for (const rep of SALES_ROSTER) dealsByRep.set(rep, []);
 
   const unassigned = [];
+  const manualDealCredits = overrides?.dealCreditsByNameIncludes || [];
+
   for (const d of deals) {
     const dealName = d?.Deal_Name || '';
+    const dealNameLc = String(dealName).toLowerCase();
 
     // Hard-coded business rule: Jeremy Johns is Adam referral.
-    // (Owner/createdBy may not reflect who sourced the deal.)
-    const repOverride = String(dealName).toLowerCase().includes('jeremy johns') ? 'Adam' : null;
+    const repOverride = dealNameLc.includes('jeremy johns') ? 'Adam' : null;
 
-    const rep = repOverride || normRep(d?.Owner?.name) || normRep(d?.Created_By?.name);
+    // One-off manual credits (override attribution to a specific rep)
+    const manual = manualDealCredits.find(x => dealNameLc.includes(String(x.match || '').toLowerCase()));
+
+    let rep = null;
+    let attributedVia = null;
+
+    // Always honor hard overrides.
+    if (manual?.rep) {
+      rep = manual.rep;
+      attributedVia = `manual:${manual.note || 'manual_credit'}`;
+    } else if (repOverride) {
+      rep = repOverride;
+      attributedVia = 'override';
+    }
+
+    // In leadConverted mode, attribute to original lead owner (preferred).
+    let lead = null;
+    if (!rep && mode === 'leadConverted') {
+      lead = await findLeadForDeal({ accessToken, deal: d });
+      rep = normRep(lead?.Owner?.name) || normRep(lead?.Created_By?.name) || null;
+      if (rep) attributedVia = 'lead_owner';
+    }
+
+    // Fallback / legacy attribution.
     if (!rep) {
-      unassigned.push({ id: d.id, dealName, owner: d?.Owner?.name, createdBy: d?.Created_By?.name });
+      rep = normRep(d?.Owner?.name) || normRep(d?.Created_By?.name);
+      if (rep) attributedVia = 'deal_owner_or_created_by';
+    }
+
+    if (!rep) {
+      unassigned.push({
+        id: d.id,
+        dealName,
+        owner: d?.Owner?.name,
+        createdBy: d?.Created_By?.name,
+        email: d?.Email_Address || null,
+        phone: d?.Phone_Number || null,
+      });
       continue;
     }
 
@@ -262,6 +368,8 @@ function computeWeeklyCallBonus({ outboundByDay, from, to }) {
       createdTime: d.Created_Time,
       payout,
       note,
+      attributedVia,
+      leadOwner: lead?.Owner?.name || null,
     });
   }
 
@@ -276,7 +384,7 @@ function computeWeeklyCallBonus({ outboundByDay, from, to }) {
       continue;
     }
     const outboundByDay = await fetchOutboundCallsByDay({ extId, from: periodStart, to: periodEnd });
-    const weeks = computeWeeklyCallBonus({ outboundByDay, from: periodStart, to: periodEnd });
+    const weeks = computeWeeklyCallBonus({ outboundByDay, from: periodStart, to: periodEnd, overrides });
     const totalBonus = weeks.reduce((s, w) => s + (w.bonus || 0), 0);
     callBonusByRep.set(rep, { missingExtension: false, weeks, totalBonus });
   }
