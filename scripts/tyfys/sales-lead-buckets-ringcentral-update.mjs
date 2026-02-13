@@ -5,12 +5,11 @@
  * Posts a simple “lead aging buckets by rep” snapshot into the Sales Team chat.
  * Goal: accountability on speed-to-lead + stale follow-ups.
  *
- * Buckets are based on the most recent of:
- *  - Deals.Last_Activity_Time (Zoho datetime)
- *  - Deals.Last_Time_Contacted (Zoho text date, yyyy-mm-dd)
+ * Source of truth: Zoho CRM **Leads** (not Deals).
+ * Bucket is based on Leads.Last_Activity_Time when present; otherwise fall back to Created_Time.
  *
  * Usage:
- *   node scripts/tyfys/sales-lead-buckets-ringcentral-update.mjs --chatId 156659499014
+ *   node scripts/tyfys/sales-lead-buckets-ringcentral-update.mjs --chatId 156659499014 --tenant new
  */
 
 import { loadEnvLocal } from '../lib/load-env-local.mjs';
@@ -31,22 +30,6 @@ const SALES_ROSTER = ['Adam', 'Amy', 'Jared', 'Ashley'];
 const tenant = getArg('--tenant', 'new');
 const ZOHO_API_DOMAIN = process.env.ZOHO_API_DOMAIN || 'https://www.zohoapis.com';
 
-function parseYmd(s) {
-  const m = String(s || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return null;
-  const [_, y, mo, d] = m;
-  // Interpret “date-only” as end of that local day to avoid over-penalizing.
-  const dt = new Date(`${y}-${mo}-${d}T23:59:59`);
-  return Number.isFinite(dt.getTime()) ? dt : null;
-}
-
-function maxDate(a, b) {
-  if (!a && !b) return null;
-  if (!a) return b;
-  if (!b) return a;
-  return a > b ? a : b;
-}
-
 function hoursSince(dt, now) {
   if (!dt) return Infinity;
   return (now.getTime() - dt.getTime()) / 36e5;
@@ -60,7 +43,6 @@ function bucketLabel(h) {
 }
 
 function fmtRows(rows) {
-  const cols = ['rep', '<24h', '24–48h', '2–7d', '>7d', 'total'];
   const width = {
     rep: Math.max('Rep'.length, ...rows.map(r => r.rep.length)),
     '<24h': 5,
@@ -95,13 +77,18 @@ async function postToRingCentralChat({ chatId, text }) {
   return ringcentralPostJson(`/restapi/v1.0/glip/chats/${chatId}/posts`, { text }, { tenant });
 }
 
-function isActiveStage(stage) {
-  const s = String(stage || '').toLowerCase();
-  if (!s) return true;
-  // Conservative exclusions: remove terminal/paused buckets.
-  if (s.includes('lost')) return false;
-  if (s.includes('service complete')) return false;
-  if (s.includes('service paused')) return false;
+function normRep(ownerName) {
+  const n = String(ownerName || '');
+  return SALES_ROSTER.find(r => n.toLowerCase().includes(r.toLowerCase())) || null;
+}
+
+function isActiveLeadStatus(status) {
+  const s = String(status || '').toLowerCase();
+  // Conservative exclusions only.
+  if (s.includes('junk')) return false;
+  if (s.includes('dead')) return false;
+  if (s.includes('do not call')) return false;
+  if (s.includes('opt')) return false;
   return true;
 }
 
@@ -113,46 +100,39 @@ function isActiveStage(stage) {
   }
 
   const dryRun = process.argv.includes('--dry-run');
+  const maxPages = Number(getArg('--maxPages', '10'));
 
   const now = new Date();
   const accessToken = await getZohoAccessToken();
 
-  // Pull a broad slice of “active” deals and bucket locally.
-  // NOTE: COQL limits; we keep select small and page via offset.
+  // COQL requires a WHERE clause.
   const pageSize = 200;
-  const maxPages = 10; // up to 2000 rows
-
-  let deals = [];
+  let leads = [];
   for (let page = 0; page < maxPages; page++) {
     const offset = page * pageSize;
-    const q = `select id, Deal_Name, Stage, Owner, Last_Activity_Time, Last_Time_Contacted, Modified_Time from Deals where Modified_Time is not null order by Modified_Time desc limit ${pageSize} offset ${offset}`;
+    const q = `select id, Full_Name, Lead_Status, Owner, Last_Activity_Time, Created_Time, Modified_Time from Leads where Modified_Time is not null order by Modified_Time desc limit ${pageSize} offset ${offset}`;
     const res = await zohoCrmCoql({ accessToken, apiDomain: ZOHO_API_DOMAIN, selectQuery: q });
     const rows = res?.data || [];
-    deals.push(...rows);
+    leads.push(...rows);
     if (rows.length < pageSize) break;
   }
 
-  function normRep(ownerName) {
-    const n = String(ownerName || '');
-    // Common Zoho owner names are full names (e.g., "Adam Ayotte").
-    return SALES_ROSTER.find(r => n.toLowerCase().includes(r.toLowerCase())) || null;
-  }
-
-  // Filter to sales-owned + active-ish stages.
-  deals = deals.filter(d => normRep(d?.Owner?.name) && isActiveStage(d?.Stage));
+  // Filter to sales-owned + active statuses.
+  leads = leads.filter(l => normRep(l?.Owner?.name) && isActiveLeadStatus(l?.Lead_Status));
 
   const byRep = new Map();
   for (const rep of SALES_ROSTER) {
     byRep.set(rep, { rep, '<24h': 0, '24–48h': 0, '2–7d': 0, '>7d': 0, total: 0 });
   }
 
-  for (const d of deals) {
-    const rep = normRep(d?.Owner?.name);
+  for (const l of leads) {
+    const rep = normRep(l?.Owner?.name);
     if (!rep) continue;
 
-    const lastAct = d?.Last_Activity_Time ? new Date(d.Last_Activity_Time) : null;
-    const lastTxt = parseYmd(d?.Last_Time_Contacted);
-    const lastTouch = maxDate(lastAct, lastTxt);
+    const lastAct = l?.Last_Activity_Time ? new Date(l.Last_Activity_Time) : null;
+    const created = l?.Created_Time ? new Date(l.Created_Time) : null;
+    const lastTouch = lastAct || created;
+
     const h = hoursSince(lastTouch, now);
     const b = bucketLabel(h);
 
@@ -164,8 +144,8 @@ function isActiveStage(stage) {
   const rows = SALES_ROSTER.map(r => byRep.get(r)).filter(Boolean);
   const table = fmtRows(rows);
 
-  const header = `Lead buckets (as of ${now.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit' })} ET)`;
-  const footer = `Goal: keep >7d at ~0 and 24–48h trending down. Update notes + next steps in Zoho.`;
+  const header = `Lead buckets (Zoho Leads) — as of ${now.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit' })} ET`;
+  const footer = `Goal: keep >7d near 0; clear 24–48h daily. Update next steps + notes in Zoho.`;
 
   const text = [header, '```', table, '```', footer].join('\n');
 
