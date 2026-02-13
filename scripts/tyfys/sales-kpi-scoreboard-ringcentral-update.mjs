@@ -5,13 +5,18 @@
  * Posts a rep-facing KPI snapshot into the RingCentral Sales Team chat to drive accountability.
  *
  * Metrics (per rep):
- * - Outbound calls + outbound SMS (today)
+ * - Outbound calls + outbound SMS (previous business day by default)
  * - Connected calls (>=30s) + contact rate
  * - Meetings booked today (Zoho Bookings preferred; falls back to Zoho CRM Events)
  * - Meetings on calendar today (Zoho Bookings preferred; falls back to Zoho CRM Events)
- * - Deals created (today / WTD / MTD)
- * - Lead bucket health (Zoho Leads): total, attempted (Last_Activity_Time present), never touched
- * - Call quota progress vs 25/day
+ * - Deals created (previous business day / WTD / MTD)
+ * - Lead bucket health (Zoho Leads): total, attempted (touched), never touched
+ *
+ * Options:
+ *   --window previousBusinessDay|today   (default: previousBusinessDay)
+ *
+ * Notes:
+ * - Even in previousBusinessDay mode, meetings shown are for TODAY (prep load).
  *
  * Usage:
  *   node scripts/tyfys/sales-kpi-scoreboard-ringcentral-update.mjs --chatId 156659499014 --tenant new
@@ -339,12 +344,29 @@ async function fetchLeadTouchCounts({ accessToken, days = 365, pages = 10, perPa
   const weekStart = startOfLocalWeek(now);
   const monthStart = startOfLocalMonth(now);
 
+  // Use previous business day by default (Mon–Fri) so the morning scoreboard reflects yesterday’s performance.
+  const windowMode = getArg('--window', 'previousBusinessDay');
+  if (!['previousBusinessDay', 'today'].includes(windowMode)) {
+    console.error("Invalid --window. Use 'previousBusinessDay' or 'today'.");
+    process.exit(1);
+  }
+
+  const previousBusinessDayStart = (() => {
+    const d = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
+    while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  })();
+
+  const perfFrom = windowMode === 'today' ? todayStart : previousBusinessDayStart;
+  const perfTo = windowMode === 'today' ? now : todayStart;
+
   const accessToken = await getZohoAccessToken();
 
-  const [rc, meetings, dealsToday, dealsWtd, dealsMtd, leadTouch] = await Promise.all([
-    getRcDailyActivity({ from: todayStart, to: now }),
+  const [rc, meetings, dealsPerfDay, dealsWtd, dealsMtd, leadTouch] = await Promise.all([
+    getRcDailyActivity({ from: perfFrom, to: perfTo }),
     fetchMeetings({ accessToken, todayStart, tomorrowStart, now }),
-    fetchDealsCreatedCounts({ accessToken, start: todayStart, end: now }),
+    fetchDealsCreatedCounts({ accessToken, start: perfFrom, end: perfTo }),
     fetchDealsCreatedCounts({ accessToken, start: weekStart, end: now }),
     fetchDealsCreatedCounts({ accessToken, start: monthStart, end: now }),
     fetchLeadTouchCounts({ accessToken, days: 365, pages: 10, perPage: 200 }),
@@ -370,14 +392,18 @@ async function fetchLeadTouchCounts({ accessToken, days = 365, pages = 10, perPa
     meetingsBookedToday.set(rep, meetingsBookedToday.get(rep) + 1);
   }
 
+  const perfLabel = windowMode === 'today'
+    ? `today (through ${fmtTimeET(now)} ET)`
+    : 'previous business day';
+
   const header = `Sales KPI scoreboard — ${todayStart.toLocaleDateString('en-US')} (as of ${fmtTimeET(now)} ET)`;
-  const sub = `Connected = >=${CONNECTED_SEC}s | Call quota = ${CALL_QUOTA}/day | Meetings source: ${meetings.used}`;
+  const sub = `Performance window: ${perfLabel} | Connected >=${CONNECTED_SEC}s | Call quota ${CALL_QUOTA}/day | Meetings source: ${meetings.used}`;
 
   const lines = [header, sub, ''];
 
   for (const rep of SALES_ROSTER) {
     const a = rc.get(rep) || { callsOut: 0, smsOut: 0, connected: 0, contactRate: 0 };
-    const dToday = dealsToday.get(rep) || 0;
+    const dPerf = dealsPerfDay.get(rep) || 0;
     const dWtd = dealsWtd.get(rep) || 0;
     const dMtd = dealsMtd.get(rep) || 0;
 
@@ -402,7 +428,7 @@ async function fetchLeadTouchCounts({ accessToken, days = 365, pages = 10, perPa
       `meetings: booked ${mbToday} (rate ${bookingRateText}) | today on calendar ${mtToday} ${busy}`.trim(),
     );
     lines.push(
-      `deals created: today ${dToday} | WTD ${dWtd} | MTD ${dMtd}`,
+      `deals created (${windowMode === 'today' ? 'today' : 'prev biz day'}): ${dPerf} | WTD ${dWtd} | MTD ${dMtd}`,
     );
     lines.push(
       `lead bucket: total ${lt.total} | attempted ${lt.attempted} (${Math.round(attemptRate * 100)}%) | never touched ${lt.neverTouched}`,
