@@ -132,8 +132,14 @@ function isActiveStage(stage) {
     if (rows.length < pageSize) break;
   }
 
+  function normRep(ownerName) {
+    const n = String(ownerName || '');
+    // Common Zoho owner names are full names (e.g., "Adam Ayotte").
+    return SALES_ROSTER.find(r => n.toLowerCase().includes(r.toLowerCase())) || null;
+  }
+
   // Filter to sales-owned + active-ish stages.
-  deals = deals.filter(d => SALES_ROSTER.includes(d?.Owner?.name) && isActiveStage(d?.Stage));
+  deals = deals.filter(d => normRep(d?.Owner?.name) && isActiveStage(d?.Stage));
 
   const byRep = new Map();
   for (const rep of SALES_ROSTER) {
@@ -141,8 +147,8 @@ function isActiveStage(stage) {
   }
 
   for (const d of deals) {
-    const rep = d?.Owner?.name;
-    if (!byRep.has(rep)) continue;
+    const rep = normRep(d?.Owner?.name);
+    if (!rep) continue;
 
     const lastAct = d?.Last_Activity_Time ? new Date(d.Last_Activity_Time) : null;
     const lastTxt = parseYmd(d?.Last_Time_Contacted);
