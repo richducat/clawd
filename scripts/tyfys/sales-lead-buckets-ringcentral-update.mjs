@@ -5,7 +5,7 @@
  * Posts a simple “lead aging buckets by rep” snapshot into the Sales Team chat.
  * Goal: accountability on speed-to-lead + stale follow-ups.
  *
- * Source of truth: Zoho CRM **Leads** (not Deals).
+ * Source of truth: Zoho CRM Leads via REST list API (COQL is not available for Leads in this org).
  * Bucket is based on Leads.Last_Activity_Time when present; otherwise fall back to Created_Time.
  *
  * Usage:
@@ -13,7 +13,7 @@
  */
 
 import { loadEnvLocal } from '../lib/load-env-local.mjs';
-import { getZohoAccessToken, zohoCrmCoql } from '../lib/zoho.mjs';
+import { getZohoAccessToken, zohoCrmGet } from '../lib/zoho.mjs';
 import { ringcentralPostJson } from '../lib/ringcentral.mjs';
 
 loadEnvLocal();
@@ -28,7 +28,7 @@ function getArg(name, def) {
 
 const SALES_ROSTER = ['Adam', 'Amy', 'Jared', 'Ashley'];
 const tenant = getArg('--tenant', 'new');
-const ZOHO_API_DOMAIN = process.env.ZOHO_API_DOMAIN || 'https://www.zohoapis.com';
+const apiDomain = process.env.ZOHO_API_DOMAIN || 'https://www.zohoapis.com';
 
 function hoursSince(dt, now) {
   if (!dt) return Infinity;
@@ -92,6 +92,25 @@ function isActiveLeadStatus(status) {
   return true;
 }
 
+async function listLeadsPage({ accessToken, page, perPage, days }) {
+  const fields = [
+    'id',
+    'Owner',
+    'Lead_Status',
+    'Created_Time',
+    'Modified_Time',
+    'Last_Activity_Time',
+  ].join(',');
+
+  const since = new Date(Date.now() - days * 24 * 3600 * 1000);
+  const sinceYmd = since.toISOString().slice(0, 10);
+  const criteria = `(Modified_Time:after:${sinceYmd})`;
+
+  const pathAndQuery = `/crm/v2/Leads?fields=${encodeURIComponent(fields)}&page=${page}&per_page=${perPage}&criteria=${encodeURIComponent(criteria)}`;
+  const res = await zohoCrmGet({ accessToken, apiDomain, pathAndQuery });
+  return { leads: res?.data || [], info: res?.info || {} };
+}
+
 (async function main() {
   const chatId = getArg('--chatId', null);
   if (!chatId) {
@@ -100,21 +119,18 @@ function isActiveLeadStatus(status) {
   }
 
   const dryRun = process.argv.includes('--dry-run');
-  const maxPages = Number(getArg('--maxPages', '10'));
+  const days = Number(getArg('--days', '365'));
+  const perPage = Number(getArg('--perPage', '200'));
+  const maxPages = Number(getArg('--pages', '10'));
 
   const now = new Date();
   const accessToken = await getZohoAccessToken();
 
-  // COQL requires a WHERE clause.
-  const pageSize = 200;
   let leads = [];
-  for (let page = 0; page < maxPages; page++) {
-    const offset = page * pageSize;
-    const q = `select id, Full_Name, Lead_Status, Owner, Last_Activity_Time, Created_Time, Modified_Time from Leads where Modified_Time is not null order by Modified_Time desc limit ${pageSize} offset ${offset}`;
-    const res = await zohoCrmCoql({ accessToken, apiDomain: ZOHO_API_DOMAIN, selectQuery: q });
-    const rows = res?.data || [];
+  for (let page = 1; page <= maxPages; page++) {
+    const { leads: rows, info } = await listLeadsPage({ accessToken, page, perPage, days });
     leads.push(...rows);
-    if (rows.length < pageSize) break;
+    if (!info?.more_records || rows.length === 0) break;
   }
 
   // Filter to sales-owned + active statuses.
