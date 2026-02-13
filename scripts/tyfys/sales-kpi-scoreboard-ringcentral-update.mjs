@@ -387,16 +387,19 @@ async function fetchLeadTouchCounts({ accessToken, days = 365, pages = 10, perPa
     const lt = leadTouch.get(rep) || { total: 0, attempted: 0, neverTouched: 0, buckets: { '<24h': 0, '24–48h': 0, '2–7d': 0, '>7d': 0 } };
 
     const attemptRate = lt.total ? (lt.attempted / lt.total) : 0;
-    const bookingRate = a.callsOut ? (mbToday / a.callsOut) : 0;
+    const bookingRate = a.callsOut ? (mbToday / a.callsOut) : null;
 
     const quotaHit = a.callsOut >= CALL_QUOTA ? '✅' : '❌';
     const busy = mtToday > 3 ? '⚠️ busy (3+ mtgs)' : '';
 
+    const contactRateText = a.callsOut ? `${Math.round(a.contactRate * 100)}%` : 'n/a';
+    const bookingRateText = bookingRate == null ? 'n/a' : `${Math.round(bookingRate * 100)}%`;
+
     lines.push(
-      `*${rep}* ${quotaHit} calls ${a.callsOut}/${CALL_QUOTA} | conn ${a.connected} (${Math.round(a.contactRate * 100)}%) | sms ${a.smsOut}`,
+      `*${rep}* ${quotaHit} calls ${a.callsOut}/${CALL_QUOTA} | conn ${a.connected} (${contactRateText}) | sms ${a.smsOut}`,
     );
     lines.push(
-      `meetings: booked ${mbToday} (rate ${Math.round(bookingRate * 100)}%) | today on calendar ${mtToday} ${busy}`.trim(),
+      `meetings: booked ${mbToday} (rate ${bookingRateText}) | today on calendar ${mtToday} ${busy}`.trim(),
     );
     lines.push(
       `deals created: today ${dToday} | WTD ${dWtd} | MTD ${dMtd}`,
