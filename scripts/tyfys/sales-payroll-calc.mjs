@@ -82,8 +82,19 @@ async function ensureDir(p) {
   await fs.mkdir(p, { recursive: true });
 }
 
-function computeWindow({ end }) {
-  // end is a Date at which period ends (exclusive). Default: most recent Wednesday 00:00.
+function computeWindow({ end, fromArg, toArg }) {
+  // If user provides explicit from/to, honor it.
+  if (fromArg && toArg) {
+    const from = new Date(`${fromArg}T00:00:00-05:00`);
+    const to = new Date(`${toArg}T23:59:59-05:00`);
+    if (!Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime())) {
+      throw new Error('Invalid --from/--to. Use YYYY-MM-DD.');
+    }
+    // COQL end is exclusive; add 1s.
+    return { periodStart: from, periodEnd: new Date(to.getTime() + 1000) };
+  }
+
+  // Default: Wed→Wed biweekly. end is a Date at which period ends (exclusive). Default: most recent Wednesday 00:00.
   const endDay = etStartOfDay(end);
   // Walk back to Wednesday.
   const d = new Date(endDay);
@@ -206,12 +217,17 @@ function computeWeeklyCallBonus({ outboundByDay, from, to }) {
 
 (async function main() {
   const endArg = getArg('--end', null);
+  const fromArg = getArg('--from', null);
+  const toArg = getArg('--to', null);
+
   const end = endArg ? new Date(endArg) : new Date();
-  const { periodStart, periodEnd } = computeWindow({ end });
+  const { periodStart, periodEnd } = computeWindow({ end, fromArg, toArg });
 
   const outDir = path.resolve('memory/tyfys');
   await ensureDir(outDir);
-  const outBase = `sales-payroll-${fmtDateET(periodEnd)}`;
+  const outBase = fromArg && toArg
+    ? `sales-payroll_${fromArg}_to_${toArg}`
+    : `sales-payroll-${fmtDateET(periodEnd)}`;
   const outJson = path.join(outDir, `${outBase}.json`);
   const outMd = path.join(outDir, `${outBase}.md`);
 
