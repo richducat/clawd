@@ -433,16 +433,7 @@ async function fetchLeadTouchCounts({ accessToken, days = 365, pages = 10, perPa
     : 'previous business day';
 
   const header = `Sales KPI scoreboard — ${todayStart.toLocaleDateString('en-US')} (as of ${fmtTimeET(now)} ET)`;
-  const sub = `Performance window: ${perfLabel} | Connected >=${CONNECTED_SEC}s | Call quota ${CALL_QUOTA}/day | Meetings source: ${meetings.used}`;
-  const defs = [
-    `Definitions:`,
-    `- conn% = connected calls / outbound calls (in performance window)`,
-    `- booked = meetings created today (Zoho Bookings; fallback = CRM Events created today)`,
-    `- today on calendar = meetings happening today (prep load)`,
-    `- future scheduled = meetings on calendar next 30 days (excluding today)`,
-  ].join('\n');
-
-  const lines = [header, sub, defs, ''];
+  const lines = [header, ''];
 
   for (const rep of SALES_ROSTER) {
     const a = rc.get(rep) || { callsOut: 0, smsOut: 0, connected: 0, contactRate: 0 };
@@ -478,7 +469,7 @@ async function fetchLeadTouchCounts({ accessToken, days = 365, pages = 10, perPa
       `lead bucket: total ${lt.total} | attempted ${lt.attempted} (${Math.round(attemptRate * 100)}%) | never touched ${lt.neverTouched}`,
     );
     lines.push(
-      `aging: <24h ${lt.buckets['<24h']} | 24–48h ${lt.buckets['24–48h']} | 2–7d ${lt.buckets['2–7d']} | >7d ${lt.buckets['>7d']}`,
+      `Aging leads by last time contacted: <24h ${lt.buckets['<24h']} | 24–48h ${lt.buckets['24–48h']} | 2–7d ${lt.buckets['2–7d']} | >7d ${lt.buckets['>7d']}`,
     );
     lines.push('');
   }
