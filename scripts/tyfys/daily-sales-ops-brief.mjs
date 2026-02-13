@@ -6,6 +6,8 @@
  *
  * Usage:
  *   node scripts/tyfys/daily-sales-ops-brief.mjs --hours 24 --connectedSec 30 --fewMin 2
+ *   node scripts/tyfys/daily-sales-ops-brief.mjs --hours 24 --redact
+ *   node scripts/tyfys/daily-sales-ops-brief.mjs --selftest --redact
  */
 
 import { loadEnvLocal } from '../lib/load-env-local.mjs';
@@ -26,6 +28,9 @@ const hours = Number(getArg('--hours', '24'));
 const connectedSec = Number(getArg('--connectedSec', '30'));
 const fewMin = Number(getArg('--fewMin', '2'));
 const fewMinSec = Math.round(fewMin * 60);
+
+const redact = process.argv.includes('--redact');
+const selftest = process.argv.includes('--selftest');
 
 const now = new Date();
 const from = new Date(now.getTime() - hours * 60 * 60 * 1000);
@@ -61,6 +66,32 @@ function fmtLocal(dt) {
   } catch {
     return String(dt);
   }
+}
+
+function maskPhone(phoneLike) {
+  const s = String(phoneLike || '').trim();
+  if (!s) return 'Redacted';
+  const digits = s.replace(/\D/g, '');
+  if (digits.length < 4) return 'Redacted';
+  const last4 = digits.slice(-4);
+  return `***-***-${last4}`;
+}
+
+function redactParty(v) {
+  if (!redact) return v || 'Unknown';
+
+  // RingCentral sometimes returns either phoneNumber or name.
+  // Both can be client PII, so we redact aggressively.
+  const s = String(v || '').trim();
+  if (!s) return 'Redacted';
+
+  const hasDigit = /\d/.test(s);
+  if (hasDigit) return maskPhone(s);
+
+  // If it's a rep name, keep it.
+  if (SALES_ROSTER.includes(s)) return s;
+
+  return 'Redacted';
 }
 
 function formatDuration(sec) {
@@ -181,7 +212,18 @@ function briefHeader() {
 (async function main() {
   const lines = [];
   lines.push(briefHeader());
-  lines.push(`Window: last ${hours}h | connected≥${connectedSec}s | long≥${fewMin}m`);
+  lines.push(`Window: last ${hours}h | connected≥${connectedSec}s | long≥${fewMin}m${redact ? ' | redact:on' : ''}`);
+
+  if (selftest) {
+    lines.push('');
+    lines.push('SELFTEST');
+    lines.push(`maskPhone(+1 (321) 555-1212) => ${maskPhone('+1 (321) 555-1212')}`);
+    lines.push(`redactParty("+1 555 000 9999") => ${redactParty('+1 555 000 9999')}`);
+    lines.push(`redactParty("Some Client") => ${redactParty('Some Client')}`);
+    lines.push(`redactParty("Adam") => ${redactParty('Adam')}`);
+    process.stdout.write(lines.join('\n') + '\n');
+    return;
+  }
 
   // RingCentral activity
   const callLog = await ringcentralGetJson(`/restapi/v1.0/account/~/extension/~/call-log?dateFrom=${encodeURIComponent(iso(from))}&dateTo=${encodeURIComponent(iso(now))}&perPage=1000`);
@@ -203,8 +245,8 @@ function briefHeader() {
     .slice(0, 10)
     .map(r => ({
       when: r.startTime,
-      from: r.from?.phoneNumber || r.from?.name || 'Unknown',
-      to: r.to?.phoneNumber || r.to?.name || 'Unknown',
+      from: redactParty(r.from?.phoneNumber || r.from?.name),
+      to: redactParty(r.to?.phoneNumber || r.to?.name),
     }));
 
   if (missedInbound.length) {
@@ -221,7 +263,7 @@ function briefHeader() {
     lines.push('');
     lines.push('Who texted you (inbound SMS top):');
     for (const [num, count] of topInboundSms) {
-      lines.push(`- ${num}: ${count}`);
+      lines.push(`- ${redactParty(num)}: ${count}`);
     }
   }
 
