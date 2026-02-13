@@ -1,0 +1,7 @@
+{
+  "version": 2,
+  "installCommand": "cd labstudio-app && npm ci",
+  "buildCommand": "cd labstudio-app && npm run build",
+  "devCommand": "cd labstudio-app && npm run dev",
+  "outputDirectory": "labstudio-app/.next"
+}
