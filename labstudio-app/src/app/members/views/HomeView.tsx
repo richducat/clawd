@@ -60,23 +60,33 @@ export default function HomeView({
     agenda?: Array<{ id: string; title: string; time: string | null; type: string; action: string; completed: boolean }>;
   } | null>(null);
 
+  const [homeError, setHomeError] = useState<string | null>(null);
+
+  const loadHome = async () => {
+    try {
+      setHomeError(null);
+      const r = await fetch('/api/lab/home');
+      const data = await r.json().catch(() => ({}));
+
+      if (!r.ok || !data?.ok) {
+        const msg = String(data?.error || `Failed to load home data (${r.status})`);
+        setHomeData(null);
+        setHomeError(msg);
+        return;
+      }
+
+      setHomeData(data.home);
+    } catch {
+      setHomeData(null);
+      setHomeError('Failed to load home data. Please try again.');
+    }
+  };
+
   useEffect(() => {
-    let mounted = true;
-    fetch('/api/lab/home')
-      .then((r) => r.json())
-      .then((data) => {
-        if (!mounted) return;
-        if (data?.ok) setHomeData(data.home);
-      })
-      .catch(() => {
-        // ignore
-      });
-    return () => {
-      mounted = false;
-    };
+    void loadHome();
   }, []);
 
-  const homeLoaded = homeData !== null;
+  const homeLoaded = homeData !== null && !homeError;
 
   // Avoid “default looks-real” values before /api/lab/home returns.
   const todaysCals = homeLoaded ? (homeData?.nutrition?.calories ?? 0) : null;
@@ -185,13 +195,7 @@ export default function HomeView({
     setPhotoNote('');
     setShowQuickLog(false);
     // refresh home data
-    try {
-      const r = await fetch('/api/lab/home');
-      const data = await r.json();
-      if (data?.ok) setHomeData(data.home);
-    } catch {
-      // ignore
-    }
+    await loadHome();
   };
 
   const bfText = useMemo(() => {
@@ -219,7 +223,6 @@ export default function HomeView({
 
   useEffect(() => {
     void loadCoach();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const generateCoach = async () => {
@@ -504,7 +507,18 @@ export default function HomeView({
               </div>
             </div>
 
-            {homeLoaded ? (
+            {homeError ? (
+              <Card className="p-4">
+                <div className="text-xs text-red-400 font-semibold">Home data failed to load</div>
+                <div className="text-xs text-zinc-500 mt-1">{homeError}</div>
+                <button
+                  onClick={() => loadHome()}
+                  className="mt-3 text-xs font-bold text-white bg-violet-600 hover:bg-violet-500 px-3 py-1.5 rounded-full"
+                >
+                  Retry
+                </button>
+              </Card>
+            ) : homeLoaded ? (
               homeData?.agenda && homeData.agenda.length ? (
                 <div className="space-y-2">
                   {homeData.agenda.map((item) => {
