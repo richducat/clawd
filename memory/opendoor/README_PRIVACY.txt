@@ -1,0 +1,1 @@
+Note: Reports generated for external partners should be de-identified unless you have explicit client consent and a data-sharing agreement. Remove names, emails, phone numbers, CRM owner/status, and any internal IDs.

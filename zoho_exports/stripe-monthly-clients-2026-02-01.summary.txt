@@ -1,0 +1,17 @@
+Stripe monthly subs: 46
+Status counts: past_due=11, trialing=6, active=29
+Total monthly MRR (monthly items only): $14,500.00
+CSV: /Users/richardducat/clawd/zoho_exports/stripe-monthly-clients-2026-02-01.csv
+
+Top risk (past_due/unpaid):
+- Kenneth Whitehead | past_due | MRR $500.00 | period_end 2026-02-18 | last_err The payment failed.
+- Gael Polanco | past_due | MRR $250.00 | period_end 2026-02-19 | last_err open
+- Helen  Evans  | past_due | MRR $250.00 | period_end 2026-02-24 | last_err The payment failed.
+- Brandon Guerra | past_due | MRR $250.00 | period_end 2026-02-03 | last_err Your card has insufficient funds.
+- Robert Eugene Ellerd | past_due | MRR $250.00 | period_end 2026-02-27 | last_err open
+- Robert mclean | past_due | MRR $250.00 | period_end 2026-02-22 | last_err Invalid account.
+- Steven C Ebbe | past_due | MRR $250.00 | period_end 2026-02-19 | last_err The payment failed.
+- Christopher Terell Morton | past_due | MRR $250.00 | period_end 2026-02-17 | last_err The payment failed.
+- William h brown | past_due | MRR $250.00 | period_end 2026-02-28 | last_err The payment failed.
+- Eric Arden Lozano | past_due | MRR $250.00 | period_end 2026-02-28 | last_err open
+- AnthonyWHardy | past_due | MRR $250.00 | period_end 2026-02-13 | last_err The customer has insufficient funds with the payment provider. Retry attempts might succeed after the customer takes action to resolve the issue with their account.

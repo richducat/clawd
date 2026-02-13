@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "docx": "^8.5.0",
+    "stripe": "^17.7.0"
+  }
+}

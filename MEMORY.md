@@ -20,6 +20,7 @@
 - For changes/builds: create PRs for user to review; do not push live; user will test and commit.
 - When writing outbound drafts (emails/messages), bundle multiple drafts together when possible (send them “along with any other drafts” going forward).
 - **Email rule (2026-02-10): draft-only simple replies for everyone; do NOT email Karen back.**
+- **Email sending policy (2026-02-12): revert to draft-first for all outbound emails until explicitly approved to send (even within normal guardrails), due to risk of incorrect/out-of-policy outreach.**
 - **Autonomy rule (2026-02-10): default to acting without asking for clarification; make the best safe assumptions and proceed. Only ask when required for safety/permissions/irreversible actions or to avoid likely costly mistakes.**
 - Communication cadence while executing tasks:
   - If the task/project will take **< 10 minutes**, send a progress update **every minute**.

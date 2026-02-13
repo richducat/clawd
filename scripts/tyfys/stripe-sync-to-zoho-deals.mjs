@@ -143,6 +143,15 @@ function centsToDollars(cents) {
   return Math.round(Number(cents)) / 100;
 }
 
+function zohoDateTime(iso) {
+  if (!iso) return null;
+  // Zoho CRM datetime expects ISO-8601 WITHOUT milliseconds, with explicit offset.
+  // Example: 2026-02-11T23:48:04+00:00
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().replace(/\.\d{3}Z$/, '+00:00');
+}
+
 async function upsertDealStripeFields({ accessToken, dealId, fields }) {
   if (dryRun) return { dryRun: true };
   return zohoCrmPut({
@@ -247,7 +256,7 @@ async function main() {
       Stripe_Status: status,
       ...(mrrCents != null ? { Stripe_MRR: centsToDollars(mrrCents) } : {}),
       Stripe_Lifetime_Paid: centsToDollars(totals.lifetimePaidCents),
-      ...(totals.lastPaidAt ? { Stripe_Last_Payment_Date: totals.lastPaidAt } : {}),
+      ...(totals.lastPaidAt ? { Stripe_Last_Payment_Date: zohoDateTime(totals.lastPaidAt) } : {}),
       ...(totals.lastInvoiceAmountCents != null ? { Stripe_Last_Invoice_Amount: centsToDollars(totals.lastInvoiceAmountCents) } : {}),
       Stripe_Refunded_Total: centsToDollars(totals.refundedTotalCents),
     };

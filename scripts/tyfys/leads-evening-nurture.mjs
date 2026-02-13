@@ -54,21 +54,44 @@ function tokenKey(userKey) {
   return tenant ? `${tenant}:${userKey}` : userKey;
 }
 
+const TOKENS_PATH = path.resolve('memory/ringcentral-refresh-tokens.json');
+
+async function readTokens() {
+  try {
+    return JSON.parse(await fs.readFile(TOKENS_PATH, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+async function writeTokens(obj) {
+  await fs.mkdir(path.dirname(TOKENS_PATH), { recursive: true });
+  await fs.writeFile(TOKENS_PATH, JSON.stringify(obj, null, 2) + '\n', 'utf8');
+}
+
 async function loadRepRefreshTokens() {
   // Stored locally (not in git) at memory/ringcentral-refresh-tokens.json
-  const p = path.resolve('memory/ringcentral-refresh-tokens.json');
-  const raw = await fs.readFile(p, 'utf8');
-  const j = JSON.parse(raw);
+  const j = await readTokens();
   return {
-    'Adam Ayotte': j[tokenKey('adam')],
-    'Amy Cagle': j[tokenKey('amy')],
-    'Jared Maxwell': j[tokenKey('jared')],
+    tokens: j,
+    repTokens: {
+      'Adam Ayotte': j[tokenKey('adam')],
+      'Amy Cagle': j[tokenKey('amy')],
+      'Jared Maxwell': j[tokenKey('jared')],
+    },
   };
 }
 
-async function ringcentralSendSmsViaRefreshToken({ refreshToken, fromNumber, toNumber, text }) {
+async function ringcentralSendSmsViaRefreshToken({ tokens, repKey, refreshToken, fromNumber, toNumber, text }) {
   const apiServer = process.env[(tenant ? `RINGCENTRAL_${tenant.toUpperCase()}_API_SERVER` : '')] || process.env.RINGCENTRAL_API_SERVER || 'https://platform.ringcentral.com';
   const refreshed = await ringcentralRefreshToken({ refreshToken, tenant });
+
+  // RingCentral rotates refresh tokens; persist the newest token so the next run doesn't break.
+  if (refreshed?.refresh_token && refreshed.refresh_token !== refreshToken) {
+    tokens[tokenKey(repKey)] = refreshed.refresh_token;
+    await writeTokens(tokens);
+  }
+
   const accessToken = refreshed?.access_token;
   if (!accessToken) throw new Error('RingCentral refresh did not return access_token');
 
@@ -167,7 +190,7 @@ function iso(d) {
 
 async function main() {
   const state = await readState();
-  const repTokens = await loadRepRefreshTokens();
+  const { tokens, repTokens } = await loadRepRefreshTokens();
   const docText = await fetchDocText();
   const eveningTemplate = pickDay1EveningSms(docText);
   if (!eveningTemplate) throw new Error('Could not find Day 1 evening SMS template in doc export');
@@ -211,7 +234,8 @@ async function main() {
     } else {
       const refreshToken = repTokens[ownerName];
       if (!refreshToken) throw new Error(`Missing refresh token for rep: ${ownerName}`);
-      await ringcentralSendSmsViaRefreshToken({ refreshToken, fromNumber, toNumber: phone, text });
+      const repKey = ownerName.toLowerCase().includes('adam') ? 'adam' : ownerName.toLowerCase().includes('amy') ? 'amy' : 'jared';
+      await ringcentralSendSmsViaRefreshToken({ tokens, repKey, refreshToken, fromNumber, toNumber: phone, text });
       state.sent[leadId] = { at: new Date().toISOString(), to: phone, from: fromNumber, owner: ownerName };
       sentCount += 1;
     }

@@ -1,0 +1,28 @@
+dealId,dealName,tag,provider,appointmentStatus,appointmentDate,modifiedTime,nextStep,category
+6748611000004681070,Conor Marshall,sent to suntree,No Provider Assigned,No Appointment Scheduled,,2026-01-06 14:14:45,,needs booking
+6748611000007970423,Eric Lozano Jr.,STRS RECEIVED - READY,Alina,No Appointment Scheduled,,2026-01-06 14:14:45,still “awaiting final DBQs from Alina.”,needs booking
+6748611000009646793,Samuel Cuaron,"READY FOR PROVIDER,Sent to alina",Alina,No Appointment Scheduled,,2026-01-06 14:14:45,ankle ROMs must be added to MDBQ.,needs booking
+6748611000010070352,Christopher Morton,"sent to suntree,APPT-IN-PROGRESS",Suntree,No Appointment Scheduled,,2026-01-06 14:14:45,must upload STRs + DD214 and ensure diagnosis language in opinion.,needs booking
+6748611000015913012,Brandon Guerra,"Sent to alina,sent to suntree,APPT-IN-PROGRESS",Suntree,No Appointment Scheduled,,2026-01-06 14:14:45,"confirm diagnoses included in opinion, then move to claim‑prep.",needs booking
+6748611000004686054,Kent Broecker,"APPT-IN-PROGRESS,AWAITING DOCS,Awaiting STRs,sent to suntree",NeuraHealth,No Appointment Scheduled,,2026-01-08 20:30:23,still need knee surgery records,needs booking
+6748611000002918028,Frances Lee,"Sent to alina,unresponsive,attempting to schedule",No Provider Assigned,No Appointment Scheduled,,2026-01-09 09:56:02,Sent email stating we need to get an eval w/ provider,needs booking
+6748611000005161013,Christopher Roberts,"PAUSED - NO PAYMENT,NEED PAYMENT ON FILE",Alina,No Appointment Scheduled,,2026-01-09 10:12:28,Follow up for payment,needs booking
+6748611000018116278,Charles Maven,"READY FOR PROVIDER,sent to suntree,SUNTREE APT COMPLETE",Alina;NeuraHealth;Suntree,No Appointment Scheduled,,2026-01-12 11:38:29,Follow up Manually Dec 17th,needs booking
+6748611000023511117,Dairious Johnson,sent to suntree,Suntree,,,2026-01-14 09:46:10,,needs booking
+6748611000016303524,Richard Horvatis,DBQ-COMPLETE,No Provider Assigned,No Appointment Scheduled,,2026-01-14 09:49:47,PENDING - Follow up with medical review provider for completion status,needs booking
+6748611000016132010,Joseph Scott birchell,"sent to suntree,PROVIDER-FILES-RECEIVED",Suntree,No Appointment Scheduled,,2026-01-14 10:13:00,Will wait for new providers,needs booking
+6748611000005174005,John Wright,"MDBQ IN PREPARATION,sent to suntree",Suntree,No Appointment Scheduled,,2026-01-14 10:21:16,Waiting for completed assessment back from Suntree,needs booking
+6748611000021483191,Mark Jamison,sent to suntree,NeuraHealth;Suntree,,,2026-01-20 16:26:43,Need to submit client to provider for PTSD,needs booking
+6748611000020107075,Jared Maxwell Binder,"MDBQS SENT,sent to suntree,SUNTREE APT COMPLETE",Suntree,No Appointment Scheduled,,2026-01-27 13:08:02,"send to suntree for ptsd, nh for tbi.headaches/migraines",needs booking
+6748611000017907538,Dawson Conaghan,"DBQ MINIS SENT,NOT-RATED,AWAIT-DOCS:STR,AWAIT-DOCS:BLUE-BUTTON,AWAIT-DOCS:PRIVATE-RECENT,AWAIT-DOCS:C-FILE,STR-ORDER",Alina;Suntree,ST - Appointment In Progress,,2026-01-06 14:14:45,"Wait for Suntree, Find providers for other DBQs.",in progress
+6748611000022630089,Keir D.Ulmer,sent to suntree,NeuraHealth;Suntree,ST - Sent for Scheduling,,2026-01-06 14:58:54,Follow up for records 1/8/26,in progress
+6748611000020704021,Francisco Perez,"MDBQS SENT,READY FOR PROVIDER,AWAITING DOCS,sent to suntree",Suntree,Appointments in progress,,2026-01-08 20:31:48,"Retrieve MDBQs, Replace NH with Zocdoc",in progress
+6748611000018267066,Jon Hall,"sent to suntree,PROVIDER-APPT-CONFIRMED",Alina;Suntree,Appointments scheduled,,2026-01-13 14:56:22,DONE - Toxic exposure will be marked on final submission documents,in progress
+6748611000009577051,Angel Polanco,APPT-IN-PROGRESS,NeuraHealth;Rivers of Hope,ROH - Sent for Scheduling,,2026-01-14 10:24:00,Send to ROH and NH,in progress
+6748611000022991053,Nathaniel Shields-Koszarek,"READY FOR PROVIDER,sent to suntree,intake complete",NeuraHealth;Suntree,Appointments in progress,,2026-01-20 16:44:07,Follow up with suntree on 1/23/26 for apt status and update Nathaniel,in progress
+6748611000002625138,Jason McGehee,APPT-IN-PROGRESS,Alina;NeuraHealth;Suntree,Not Scheduled,,2026-01-22 09:34:39,Schedule psych appt,in progress
+6748611000002625149,James Barker,"AWAIT-DOC,PRIORITY",No Provider Assigned,Not Scheduled,,2026-01-29 09:05:54,,in progress
+6748611000003017004,Dana Stevenson,PRIORITY,Alina;Rivers of Hope,ROH - Appointment In Progress,,2026-01-29 09:07:29,Psych Eval w/ ROH,in progress
+6748611000006944007,Kenneth Whitehead,"PROVIDER-FILES-RECEIVED,READY FOR CLAIM COMP.,PAUSED - NO PAYMENT",Suntree,Appointments complete,,2026-01-06 14:14:45,Collect next payment before moving forward.,complete
+6748611000014077030,Robert mclean,"Sent to alina,APPT-IN-PROGRESS,sent to suntree,SUNTREE APT COMPLETE",Alina;Suntree,ST - Appointments Complete,,2026-01-15 14:47:34,finalize opinion with diagnoses and complete billing.,complete
+6748611000002625127,Eric Kraft,appointments complete,No Provider Assigned,Scheduling,,2026-01-22 09:33:34,PENDING - Follow up with Euclid for final provider documentation; complete and send claim packet,complete

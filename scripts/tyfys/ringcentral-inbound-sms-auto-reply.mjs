@@ -39,7 +39,7 @@ function getArg(name, def) {
   return v;
 }
 
-const tenant = getArg('--tenant', '');
+const tenant = getArg('--tenant', 'new');
 
 const apiDomain = process.env.ZOHO_API_DOMAIN || 'https://www.zohoapis.com';
 const zohoToken = await getZohoAccessToken();

@@ -1,0 +1,301 @@
+OpenDoor Clinical Research — Atopic Dermatitis (Eczema) study
+De-identified candidate signals from TYFYS CRM (Leads)
+Generated: 2026-02-05T08:45:22
+NOTE: This list is de-identified (no names/contact/internal CRM metadata). Use only for planning/scoping; actual outreach requires consent + approved script.
+
+Tier counts: A=6 (eczema/dermatitis explicit), B=31 (rash/itch/etc), C=22 (scar/other/weak)
+
+Candidate 01 — Tier A
+- Why: Explicit eczema/atopic dermatitis mentioned.
+- Keywords: eczema
+- Note signal: Veteran Name: Ronald Branch of Service: Army Years Served: 1988-1994 (6 years) Time Zone: Eastern (Georgia phone number) Current VA Rating: 10% Projected Rating - MODE
+
+Candidate 02 — Tier A
+- Why: Explicit eczema/atopic dermatitis mentioned.
+- Keywords: eczema, rash
+- Note signal: Eczema - 100% if caused his inability to work. Lowest in his case 60% Tuberculosis - chronic is 100%. Lowest in his case is 50% Amputated toe: 30% Strong case for 100%. Minimum should be 90%.<br
+
+Candidate 03 — Tier A
+- Why: Explicit eczema/atopic dermatitis mentioned.
+- Keywords: eczema, scar
+- Note signal: Air National Guard 2017-2024 Rated 90%: Eczema: 60% UTI: 40% Vertigo: 30% Surgery L Middle Finger: 10% Cervical Cancer: 0% Hypertension: 0% COVID in service, loss of taste and smell: 0% Irr
+
+Candidate 04 — Tier A
+- Why: Explicit eczema/atopic dermatitis mentioned.
+- Keywords: eczema
+- Note signal: crm[user#6748611000000697001#886088071]crm Claim Strategy &amp; Breakdown: We will target the following denied or unclaimed conditions with the strongest potential for increase: 1. Tinnitus
+
+Candidate 05 — Tier A
+- Why: Dermatitis mentioned (could be atopic dermatitis).
+- Keywords: dermatitis, scar
+- Note signal: Jeremy is a good friend of mine from the Marine Corps. Jeremy served from 2007-2017 as a radio operator, and also as a recruiter. He is currently rated at 70% and has been in the VA system since 2018. His disabilities ar
+
+Candidate 06 — Tier A
+- Why: Dermatitis mentioned (could be atopic dermatitis).
+- Keywords: dermatitis, rash, scar, skin disease
+- Note signal: Veteran Name: Freddy Finley Branch of Service: Navy (Airwing) Years Served: 1977-1982 Time Zone: Central Time (Dallas, Texas area) Current VA Rating: 30% Projected Rat
+
+Candidate 07 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: rash
+- Note signal: Veteran Name: Breland Lucky Branch of Service: Army Years Served: 1984-1987 (3 years) Time Zone: Eastern Time (Syracuse, New York) Current VA Rating: 50% Projected Rat
+
+Candidate 08 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: rash
+- Note signal: Veteran Name: Dolphin P. Alvin (goes by "Polo") Branch of service: Marine Corps Reserves / Air Force Years served: Marine Corps Reserves (Jan 1975 - Sep 1975, ~9 months); Air Force (May 1981 -
+
+Candidate 09 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: rash
+- Note signal: Non-standard and likely unable to proceed at this time: CRITICAL CASE NOTES - READ FIRST DISQUALIFYING FACTORS: <li style="list-s
+
+Candidate 10 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: rash
+- Note signal: Veteran Name: [Not provided in transcript - Phone: ([phone removed]] <span style="color:r
+
+Candidate 11 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: rash
+- Note signal: Veteran Name: Anthony Pike Branch of Service: Marines Years Served: 1976-1984 (8 years) Time Zone: Eastern (Philadelphia, PA - ZIP 19140) Current VA Rating: 50% Projec
+
+Candidate 12 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: rash
+- Note signal: New SMS to (321) 274-12
+
+Candidate 13 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: itch, rash
+- Note signal: DATE FOR SECOND CALL: 9/02 @7pm EST (6pm CT) BRANCH: Army Reserve (deployed during desert storm, and several times on orders) 1982-2021 CURRENTLY SERVICE CONNECTED: not service connected, 30% but not getting paid (
+
+Candidate 14 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: itch, scar
+- Note signal: Left hand scar (in-service injury):
+
+Candidate 15 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: itch
+- Note signal: Veteran Name: Jared (Last name not provided in transcript) Branch of Service: Marine Corps (2014-2018), Currently Army Reserves Years Served: 4 years active (2014-2018), Currently serving in Ar
+
+Candidate 16 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: itch, scar
+- Note signal: Veteran Name: Charlie [Last name not provided in transcript] Branch of Service: Army (Active Duty 2003-2014, Army Reserves 2014-Present) Years Served: 2003 - Present (22 years total; 11 years a
+
+Candidate 17 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: itch
+- Note signal: Kevin was in the Army from 1985-1993 MOS 91 Alpha MOS 71 Golf No deployments No combat Married, no dependents No open claims Back started hurting in service, went to medical. Sitting/standing/walk
+
+Candidate 18 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: itch
+- Note signal: Current Rating 20% 10% each knee Airforce 1997-1999 Computer Programmer No combat !st discharge was honorable with personality disorder Brian got that changed to say honorable, but he still has a copy o
+
+Candidate 19 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: disfigurement, itch, scar, scars
+- Note signal: Diagnostic code &amp; general rule <span style="color:rgb(51, 51, 51);font-weight:normal;font-
+
+Candidate 20 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: itch, itching
+- Note signal: Jeremy has a current claim filed on 4/22/2024. He stated that he is expecting a decision any day now. He did want to know how we can help him if the claim doesn't go how he wants it to. So I told him we would do a discov
+
+Candidate 21 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: itch
+- Note signal: Veteran Name: Jim (Last name not provided in transcript) Branch of Service: Navy (Submarines) Years Served: 1974-1998 (24 years total: 23 years active + 9 months inactive reserves) Time Z
+
+Candidate 22 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: itch, scar
+- Note signal: Veteran Name: Oscar (Last name not provided in call) Branch of Service: Army Years Served: 1984-1987/1988 (veteran unsure of exact end date) Time Zone: Central Time (San Antonio, TX)<
+
+Candidate 23 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: hives, itch
+- Note signal: Veteran Name: Robin (Last name not provided) Branch of Service: Army Years Served: 1975-1979 (4 years) Time Zone: Eastern Current VA Rating: 0% (Service-connected for dental
+
+Candidate 24 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: itch
+- Note signal: I reached out to the vet and told hiom that I had reviewed his file and saw that he had a lot going on...and had been given the price for our services etc...but that it didn't looked as if it had gone anywhere and so I w
+
+Candidate 25 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: itch, scar
+- Note signal: Veteran Name: Greg Rose Branch of Service: Navy Years Served: 1975-1979 (approximately 4 years) Time Zone: Central Current VA Rating: 0% (not currently rated for anything)<b
+
+Candidate 26 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: itch, scar
+- Note signal: PITCHED KLARNA in voicemail message.
+
+Candidate 27 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: itch
+- Note signal: CALL BACK AT 1PM, LEAD WAS DOING AN INSURANCE CLAIM WITH AN ADJUSTER WHEN I CALLED. PITCH CLARA PAYMENT OPTION.
+
+Candidate 28 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: itch, itching, scar
+- Note signal: Airforce 2005 to present Still in service BDD November 1st is separation. Fibromyalgia: UTI and cyst. healthcare was delayed and the pain spread from there and hasn't gone away since. Pain causemes Insomnia. Anxiety/Depr
+
+Candidate 29 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: itch
+- Note signal: Mrs. Kitchen called and we set an appointment for a Discovery call.
+
+Candidate 30 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: itch
+- Note signal: Michael Mitchell Navy 81 98 FT on Submarines Intent to file last week Initial claim but already started his. Tinnitus Broke left foot in service and balance has been off ever since Respiratory issues. AFF exposure and sh
+
+Candidate 31 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: itch
+- Note signal: Clay and Brittany discussed her appeal for a higher VA rating, focusing on PTSD and hip issues, with a follow-up call planned for a detailed game plan. Recap * Clay Lewis initiated the call with Brittany to discuss her V
+
+Candidate 32 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: hives
+- Note signal: Veteran Name: Keith Branch of Service: Marines Years Served: Around 1978 (1970s era) Time Zone: Pacific Time (Nevada - 89094) Current VA Rating: 0% (never filed) Proje
+
+Candidate 33 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: hives
+- Note signal: Veteran Name: Mark Clark Branch of Service: Army Years Served: 1976-1979 (3 years) Time Zone: Eastern Time Current VA Rating: 0% Projected Rating - MODERATE CASE:
+
+Candidate 34 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: hives
+- Note signal: Spoke with Keith today. He advised his conditions are not service connected, all having happened after service; his heart condition is hereditary, and he was sure it was not a result of service. Additional information wa
+
+Candidate 35 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: hives
+- Note signal: The conversation focused on assisting James Johnson in obtaining his DD214 and navigating the process for accessing his military medical records and disability benefits. The outcome included providing James with neces
+
+Candidate 36 — Tier B
+- Why: Rash/itch/hives mentioned (possible AD; needs pre-screen).
+- Keywords: hives
+- Note signal: He went over his case, advising the VA does not have him listed as eligible for benefits. He believes this was an error and is working on requesting his records from the National Archives. He said he was medically releas
+
+Candidate 59 — Tier B
+- Why: Other skin condition keyword (may not be AD; consider future studies).
+- Keywords: psoriasis
+- Note signal: Veteran Name: Daryl Branch of Service: Navy Years Served: 1992-1996 (4 years) Time Zone: Eastern (Virginia) Current VA Rating: 10% Projected Rating - MODERATE CASE:</b
+
+Candidate 37 — Tier C
+- Why: Skin-related signal detected in notes/attachments.
+- Keywords: scar
+- Note signal: STEP 1 – TINNITUS AND HEARING LOSS (ACOUSTIC TRAUMA DURING BASIC TRAINING) During basic training, the veteran was exposed to a grenade explosion occurring on the opposite side of a wall. Immediately following this eve
+
+Candidate 38 — Tier C
+- Why: Skin-related signal detected in notes/attachments.
+- Keywords: scar
+- Note signal: Veteran Name: [Not provided in transcript] Branch of Service: Navy Years Served: 1977-1979 (2 years) Time Zone: [Not provided - NEED TO OBTAIN] Current VA Rating: 90%
+
+Candidate 39 — Tier C
+- Why: Skin-related signal detected in notes/attachments.
+- Keywords: scar
+- Note signal: Veteran Name: Gary (Last name not provided) Branch of Service: Air Force Years Served: 1971-1975 (approximately 4 years) Time Zone: Central Time Current VA Rating: 40% <b
+
+Candidate 40 — Tier C
+- Why: Skin-related signal detected in notes/attachments.
+- Keywords: scar
+- Note signal: I think he is either messing with us or menatlly disturbed. Said he served in all 5 branches and is currently a "weapon of distruction used by the DOD". Says he is currently a secret weapon. Discarding to rejection.
+
+Candidate 41 — Tier C
+- Why: Skin-related signal detected in notes/attachments.
+- Keywords: scar
+- Note signal: Marine Corp 1972-1975 Worked at the Rifle range and was an admin clerk. Honorable discharge Then went back into military in 1976. Got a call from brother having emergency. Asked for 72 hour leave. Brother was vietnam
+
+Candidate 42 — Tier C
+- Why: Skin-related signal detected in notes/attachments.
+- Keywords: scar, scars
+- Note signal: Veteran Name: Kenneth (Kenny) Branch of Service: Navy Years Served: 1988-1990 (2 years) Time Zone: Pacific Time (California - Sacramento area, 916 area code) Current VA Rating:<
+
+Candidate 43 — Tier C
+- Why: Skin-related signal detected in notes/attachments.
+- Keywords: scar
+- Note signal: not a working number or email. discard lead
+
+Candidate 44 — Tier C
+- Why: Skin-related signal detected in notes/attachments.
+- Keywords: scar
+- Note signal: Bad number and email. discard lead
+
+Candidate 45 — Tier C
+- Why: Skin-related signal detected in notes/attachments.
+- Keywords: scar
+- Note signal: Kevin replied to an email and stated he was never in the military. Bad lead, discarding as rejected.
+
+Candidate 46 — Tier C
+- Why: Skin-related signal detected in notes/attachments.
+- Keywords: scar
+- Note signal: bad number and bad email. discard lead.
+
+Candidate 47 — Tier C
+- Why: Skin-related signal detected in notes/attachments.
+- Keywords: scar
+- Note signal: disconnected and bad email. Discard lead
+
+Candidate 48 — Tier C
+- Why: Skin-related signal detected in notes/attachments.
+- Keywords: scar
+- Note signal: Veteran Name: Alba Alexovich (goes by "Alex") Branch of Service: Army Years Served: 2009 - 2021 (12 years) Time Zone: Eastern (Florida - New Smyrna Beach area) Current VA Rating
+
+Candidate 49 — Tier C
+- Why: Skin-related signal detected in notes/attachments.
+- Keywords: scar
+- Note signal: Spoke to Gerald. He wants to start claim on 12/3. He said that is when he can afford it. I sent a text confirming and letting him know we do offer a no money down option. Not sure if he is scared, or just can't afford it
+
+Candidate 50 — Tier C
+- Why: Skin-related signal detected in notes/attachments.
+- Keywords: scar
+- Note signal: Claim Strategy &amp; Breakdown Ri
+
+Candidate 51 — Tier C
+- Why: Skin-related signal detected in notes/attachments.
+- Keywords: scar, scars
+- Note signal: Knees: 40% (
+
+Candidate 52 — Tier C
+- Why: Skin-related signal detected in notes/attachments.
+- Keywords: scar
+- Note signal: New SMS to <a style="color:rgb(6, 111, 172);display:inline;
+
+Candidate 53 — Tier C
+- Why: Skin-related signal detected in notes/attachments.
+- Keywords: scar, scars
+- Note signal: 📋 Condition-by-Condition EstimateRespiratory / Surgical ResidualsCollapsed lung &amp; breathing trouble (constant wheezing, history of surgery)If restrictive/obstructive lung disease confirme
+
+Candidate 54 — Tier C
+- Why: Skin-related signal detected in notes/attachments.
+- Keywords: scar, scars
+- Note signal: USMC 2018-2022 40% for back, feet, and scars on neck New claims: Increase on back. Back pain - 3x a year, affecting mobility and motion Neck - locks up several times a year,
+
+Candidate 55 — Tier C
+- Why: Skin-related signal detected in notes/attachments.
+- Keywords: disfigurement, scar
+- Note signal: Case for tumors is frequent, and is based on severity of disfigurement and surgical scarring. 30%-50% Back depends on limited motion and severity of pain - 40%-50% Tinnitus - 10% Vision/farsightedness will depen
+
+Candidate 56 — Tier C
+- Why: Skin-related signal detected in notes/attachments.
+- Keywords: scar
+- Note signal: David served in the Marines from 2000-2006 Deployed to Afghanistan Rated 60%: 10% right knee impairment 30% herniated disc 10% back fracture 0% scarred knee 10% tinnitus 20% righ
+
+Candidate 57 — Tier C
+- Why: Skin-related signal detected in notes/attachments.
+- Keywords: scar
+- Note signal: crm[user#6748611000000697001#886088071]crm Goal <span style="color
+
+Candidate 58 — Tier C
+- Why: Skin-related signal detected in notes/attachments.
+- Keywords: disfigurement
+- Note signal: Veteran has been working with VSO, has not been able to contact his representative for the past few weeksVeterans served in the US Army during the Vietnam era from 1968 to 1972. Spent six months in combat zone

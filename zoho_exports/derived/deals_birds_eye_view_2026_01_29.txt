@@ -1,0 +1,85 @@
+BIRDS-EYE (Deals_2026_01_29.csv)
+
+Total deals exported: 134
+
+STAGE COUNTS:
+- Lost: 42
+- Sent to Provider: 27
+- Intake (Document Collection): 18
+- Service Complete: 14
+- Claim Compilation: 12
+- Ready for Provider: 9
+- Evaluation: 3
+- Service Paused: 3
+- Appointments Complete: 2
+- Contract Signed: 2
+- Awaiting DBQS: 1
+- 30 days non response: 1
+
+NEEDS BOOKING (hard unbooked + scheduling) — COUNT BY STAGE:
+- Lost: 41
+- Sent to Provider: 20
+- Intake (Document Collection): 16
+- Service Complete: 10
+- Ready for Provider: 8
+- Claim Compilation: 4
+- Evaluation: 3
+- Service Paused: 3
+- Appointments Complete: 2
+- Contract Signed: 2
+- Awaiting DBQS: 1
+- 30 days non response: 1
+
+ALINA PLANNED BUT NEVER BOOKED (Appointment Status blank/Not Scheduled/No Appointment Scheduled) — COUNT BY STAGE:
+- Sent to Provider: 9
+- Lost: 4
+- Intake (Document Collection): 4
+- Evaluation: 2
+- Service Paused: 2
+- Awaiting DBQS: 1
+- Claim Compilation: 1
+- Service Complete: 1
+- Ready for Provider: 1
+- Appointments Complete: 1
+
+INTAKE + READY FOR PROVIDER — NEEDS BOOKING LIST:
+- Carlos Acosta | Intake (Document Collection) | Appt Status: Not Scheduled | Provider: No Provider Assigned | Medical Provider: (blank)
+- Detrick Lewis | Intake (Document Collection) | Appt Status: (blank) | Provider: No Provider Assigned | Medical Provider: (blank)
+- Devin Taylor | Intake (Document Collection) | Appt Status: Scheduling | Provider: No Provider Assigned | Medical Provider: Alina Health
+- James Buffington | Intake (Document Collection) | Appt Status: Not Scheduled | Provider: No Provider Assigned | Medical Provider: (blank)
+- James Jones | Intake (Document Collection) | Appt Status: (blank) | Provider: No Provider Assigned | Medical Provider: (blank)
+- John Paul San Nicolas | Intake (Document Collection) | Appt Status: Not Scheduled | Provider: No Provider Assigned | Medical Provider: (blank)
+- Liela Bryant | Intake (Document Collection) | Appt Status: No Appointment Scheduled | Provider: NeuraHealth | Medical Provider: (blank)
+- Mark LaLonde | Intake (Document Collection) | Appt Status: (blank) | Provider: No Provider Assigned | Medical Provider: (blank)
+- Melissa Ramirez | Intake (Document Collection) | Appt Status: Not Scheduled | Provider: No Provider Assigned | Medical Provider: Alina Health
+- Nathaniel Hardy | Intake (Document Collection) | Appt Status: No Appointment Scheduled | Provider: No Provider Assigned | Medical Provider: (blank)
+- Scott R Johnston | Intake (Document Collection) | Appt Status: (blank) | Provider: No Provider Assigned | Medical Provider: (blank)
+- Stephen Pressley | Intake (Document Collection) | Appt Status: No Appointment Scheduled | Provider: Alina | Medical Provider: (blank)
+- Thomas Michael Gorence | Intake (Document Collection) | Appt Status: No Appointment Scheduled | Provider: No Provider Assigned | Medical Provider: Alina
+- Tony Chambers | Intake (Document Collection) | Appt Status: (blank) | Provider: No Provider Assigned | Medical Provider: (blank)
+- Tyler Richardson | Intake (Document Collection) | Appt Status: Not Scheduled | Provider: No Provider Assigned | Medical Provider: Alina Health, Rivers of Hope (ROH)
+- Wendale McCray Tubbs | Intake (Document Collection) | Appt Status: (blank) | Provider: No Provider Assigned | Medical Provider: (blank)
+- Jason Manning | Ready for Provider | Appt Status: No Appointment Scheduled | Provider: No Provider Assigned | Medical Provider: (blank)
+- John Aleman | Ready for Provider | Appt Status: No Appointment Scheduled | Provider: No Provider Assigned | Medical Provider: (blank)
+- John Rensel | Ready for Provider | Appt Status: Not Scheduled | Provider: No Provider Assigned | Medical Provider: Alina Health
+- Mark Hayes | Ready for Provider | Appt Status: Scheduling | Provider: NeuraHealth | Medical Provider: Alina Health
+- Michael Toon | Ready for Provider | Appt Status: Scheduling | Provider: Suntree | Medical Provider: NeuroHealth (NH), Alina Health
+- Robert Ellerd | Ready for Provider | Appt Status: No Appointment Scheduled | Provider: No Provider Assigned | Medical Provider: (blank)
+- Robert Haskill | Ready for Provider | Appt Status: No Appointment Scheduled | Provider: No Provider Assigned | Medical Provider: (blank)
+- Weston Crosley | Ready for Provider | Appt Status: No Appointment Scheduled | Provider: NeuraHealth | Medical Provider: (blank)
+
+ALINA PLANNED BUT NEVER BOOKED — ACTIONABLE (Intake/Ready/Sent to Provider):
+- Melissa Ramirez | Intake (Document Collection) | Appt Status: Not Scheduled | Provider: No Provider Assigned | Medical Provider: Alina Health
+- Stephen Pressley | Intake (Document Collection) | Appt Status: No Appointment Scheduled | Provider: Alina | Medical Provider: (blank)
+- Thomas Michael Gorence | Intake (Document Collection) | Appt Status: No Appointment Scheduled | Provider: No Provider Assigned | Medical Provider: Alina
+- Tyler Richardson | Intake (Document Collection) | Appt Status: Not Scheduled | Provider: No Provider Assigned | Medical Provider: Alina Health, Rivers of Hope (ROH)
+- John Rensel | Ready for Provider | Appt Status: Not Scheduled | Provider: No Provider Assigned | Medical Provider: Alina Health
+- Charles Maven | Sent to Provider | Appt Status: No Appointment Scheduled | Provider: Alina;NeuraHealth;Suntree | Medical Provider: (blank)
+- Christopher Roberts | Sent to Provider | Appt Status: No Appointment Scheduled | Provider: Alina | Medical Provider: (blank)
+- Eric Lozano Jr. | Sent to Provider | Appt Status: No Appointment Scheduled | Provider: Alina | Medical Provider: (blank)
+- Frances Lee | Sent to Provider | Appt Status: No Appointment Scheduled | Provider: No Provider Assigned | Medical Provider: Alina Health
+- James Barker | Sent to Provider | Appt Status: Not Scheduled | Provider: No Provider Assigned | Medical Provider: Alina Health, Rivers of Hope (ROH)
+- Jason McGehee | Sent to Provider | Appt Status: Not Scheduled | Provider: Alina;NeuraHealth;Suntree | Medical Provider: Alina Health
+- Kent Broecker | Sent to Provider | Appt Status: No Appointment Scheduled | Provider: NeuraHealth | Medical Provider: Alina Health
+- Richard Horvatis | Sent to Provider | Appt Status: No Appointment Scheduled | Provider: No Provider Assigned | Medical Provider: Alina
+- Samuel Cuaron | Sent to Provider | Appt Status: No Appointment Scheduled | Provider: Alina | Medical Provider: (blank)

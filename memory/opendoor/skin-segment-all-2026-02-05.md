@@ -1,0 +1,261 @@
+# Skin / Eczema Segment — Leads + Deals (generated 2026-02-05T13:31:11.509Z)
+PRIVATE (Richard only)
+
+## Leads (n=59)
+Tier A=6 | Tier B=31 | Tier C=22
+
+### Tier A
+- Freddie Finley (Lead 6748611000016796006) — finleyfreddie826@gmail.com / +14696017745 — Owner:Jared Maxwell — Status:Rejected
+  - Why: Dermatitis mentioned (could be atopic dermatitis).
+  - Evidence: note: <b>Veteran Name:</b> Freddy Finley<br><b>Branch of Service:</b> Navy (Airwing)<br><b>Years Served:</b> 1977-1982<br><b>Time Zone:</b> Central Time (Dallas, Texas area)<br><b>Current VA Rating:</b> 30%<br><b>Projected Rat
+- Julious McCallum (Lead 6748611000008348001) — juliousmccallum@yahoo.com / +14128891964 — Owner:Jared Maxwell — Status:Missed Follow‑Up Call
+  - Why: Explicit eczema/atopic dermatitis mention.
+  - Evidence: note: Eczema - 100% if caused his inability to work. Lowest in his case 60%<br>Tuberculosis - chronic is 100%. Lowest in his case is 50%<br>Amputated toe: 30%<br><span><br></span>Strong case for 100%. Minimum should be 90%.<br
+- Raymond Kennedy (Lead 6748611000004602001) — Raykennedy64@outlook.com / 3346489794 — Owner:Jared Maxwell — Status:Working
+  - Why: Explicit eczema/atopic dermatitis mention.
+  - Evidence: note: crm[user#6748611000000697001#886088071]crm <br><b>Claim Strategy &amp; Breakdown:</b><br>We will target the following <b>denied or unclaimed conditions</b> with the strongest potential for increase:<br><br>1. <b>Tinnitus
+- Ronald Sudduth (Lead 6748611000016603051) — ronsudduth1962@gmail.com / +16789339962 — Owner:Amy Cagle — Status:Rejected
+  - Why: Explicit eczema/atopic dermatitis mention.
+  - Evidence: note: <b>Veteran Name:</b> Ronald<br><b>Branch of Service:</b> Army<br><b>Years Served:</b> 1988-1994 (6 years)<br><b>Time Zone:</b> Eastern (Georgia phone number)<br><b>Current VA Rating:</b> 10%<br><b>Projected Rating - MODE
+- Clarissa Mafnas (Lead 6748611000008017035) — clairecmafnas@gmail.com / +16197011040 — Owner:Jared Maxwell — Status:Follow‑Up Call Completed
+  - Why: Explicit eczema/atopic dermatitis mention.
+  - Evidence: note: Air National Guard 2017-2024<br><br>Rated 90%:<br>Eczema: 60%<br>UTI: 40%<br>Vertigo: 30%<br>Surgery L Middle Finger: 10%<br>Cervical Cancer: 0%<br>Hypertension: 0%<br>COVID in service, loss of taste and smell: 0%<br>Irr
+- Jeremy Johns (Lead 6748611000027497001) — Sgtjohns1987@gmail.com / 352-396-1626 — Owner:Adam Ayotte — Status:Long Term Follow Up
+  - Why: Dermatitis mentioned (could be atopic dermatitis).
+  - Evidence: note: Jeremy is a good friend of mine from the Marine Corps. Jeremy served from 2007-2017 as a radio operator, and also as a recruiter. He is currently rated at 70% and has been in the VA system since 2018. His disabilities ar
+
+### Tier B
+- Augustus Brooks (Lead 6748611000007869001) — augustus_brooks@yahoo.com / +13149158432 — Owner:Amy Cagle — Status:Long Term Follow Up
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: DATE FOR SECOND CALL: 9/02 @7pm EST (6pm CT)<br>BRANCH: Army Reserve (deployed during desert storm, and several times on orders) 1982-2021<br>CURRENTLY SERVICE CONNECTED: not service connected, 30% but not getting paid (
+- Jeremy Tuck (Lead 6748611000017492001) — jeremytuck517@gmail.com / +12055703053 — Owner:Amy Cagle — Status:Pricing Strategy Call
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: Jeremy has a current claim filed on 4/22/2024. He stated that he is expecting a decision any day now. He did want to know how we can help him if the claim doesn't go how he wants it to. So I told him we would do a discov
+- Robin Kimps (Lead 6748611000016658002) — robinkimps@yahoo.com / 3016432565 — Owner:Adam Ayotte — Status:Discovery Call Completed
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: <b>Veteran Name:</b> Robin (Last name not provided)<br><b>Branch of Service:</b> Army<br><b>Years Served:</b> 1975-1979 (4 years)<br><b>Time Zone:</b> Eastern<br><b>Current VA Rating:</b> 0% (Service-connected for dental
+- Chiquita Sims (Lead 6748611000003833001) — rejected@gmail.com / 0 — Owner:Amy Cagle — Status:Rejected
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: Airforce 2005 to present Still in service BDD November 1st is separation. Fibromyalgia: UTI and cyst. healthcare was delayed and the pain spread from there and hasn't gone away since. Pain causemes Insomnia. Anxiety/Depr
+- Aaron Fellhoelter (Lead 6748611000007609069) — aaf21763@gmail.com / 2282632400 — Owner:Jared Maxwell — Status:Rejected
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: <span style="color:rgb(18, 18, 18);background-color:rgba(243, 243, 243, 0.7);">New SMS to </span><a style="color:rgb(6, 111, 172);background-color:rgba(243, 243, 243, 0.7);display:inline;" target="_blank"><u>(321) 274-12
+- Adam Moss (Lead 6748611000009562001) — 00@g.com / 000 — Owner:Jared Maxwell — Status:Archive
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: He went over his case, advising the VA does not have him listed as eligible for benefits. He believes this was an error and is working on requesting his records from the National Archives. He said he was medically releas
+- alvin polo (Lead 6748611000022373001) — polosalsa@yahoo.com / +14078108178 — Owner:Adam Ayotte — Status:Discovery Call Completed
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: <b>Veteran Name:</b> Dolphin P. Alvin (goes by "Polo")<br><b>Branch of service:</b> Marine Corps Reserves / Air Force<br><b>Years served:</b> Marine Corps Reserves (Jan 1975 - Sep 1975, ~9 months); Air Force (May 1981 - 
+- Anthony Pike (Lead 6748611000013302041) — anthonyppike3@gmail.com / +14453057112 — Owner:Jared Maxwell — Status:Pricing Strategy Call
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: <b>Veteran Name:</b> Anthony Pike<br><b>Branch of Service:</b> Marines<br><b>Years Served:</b> 1976-1984 (8 years)<br><b>Time Zone:</b> Eastern (Philadelphia, PA - ZIP 19140)<br><b>Current VA Rating:</b> 50%<br><b>Projec
+- ArTyanna Kitchen (Lead 6748611000000853001) — rejected@gmail.com / 0 — Owner:Tyler Richardson — Status:Sales Ready
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: Mrs. Kitchen called and we set an appointment for a Discovery call.
+- Brian Witt (Lead 6748611000017728035) — briankeith.witt@outlook.com / +17274532013 — Owner:Amy Cagle — Status:Rejected
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: Current Rating 20%<br>10% each knee<br>Airforce 1997-1999<br>Computer Programmer<br>No combat<br>!st discharge was honorable with personality disorder<br>Brian got that changed to say honorable, but he still has a copy o
+- Brittney Dominguez (Lead 6748611000001457054) — brittney.dominguez@gmail.com / +17209992159 — Owner:Adam Ayotte — Status:Sales Ready
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: Clay and Brittany discussed her appeal for a higher VA rating, focusing on PTSD and hip issues, with a follow-up call planned for a detailed game plan. Recap * Clay Lewis initiated the call with Brittany to discuss her V
+- Burleigh Sanford (Lead 6748611000008679001) — sanfordburt0@gmail.com / +18327213995 — Owner:Jared Maxwell — Status:Rejected
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: CALL BACK AT 1PM, LEAD WAS DOING AN INSURANCE CLAIM WITH AN ADJUSTER WHEN I CALLED. PITCH CLARA PAYMENT OPTION.
+- Darrell L Perry (Lead 6748611000016793001) — dbzy2k8@aol.com / +14343191734 — Owner:Amy Cagle — Status:Pricing Strategy Call
+  - Why: Skin-related keyword(s): psoriasis
+  - Evidence: note: <b>Veteran Name:</b> Daryl<br><b>Branch of Service:</b> Navy<br><b>Years Served:</b> 1992-1996 (4 years)<br><b>Time Zone:</b> Eastern (Virginia)<br><b>Current VA Rating:</b> 10%<br><b>Projected Rating - MODERATE CASE:</b
+- James Johnson Jr (Lead 6748611000017600051) — james12071955@gmail.com / +18042951316 — Owner:Jared Maxwell — Status:Rejected
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: <b>The conversation focused on assisting James Johnson in obtaining his DD214 and navigating the process for accessing his military medical records and disability benefits. The outcome included providing James with neces
+- Jared Davidson (Lead 6748611000022051001) — davidsonjared11@yahoo.com / +19724008011 — Owner:Jared Maxwell — Status:Pricing Strategy Call
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: <b>Veteran Name:</b> Jared (Last name not provided in transcript)<br><b>Branch of Service:</b> Marine Corps (2014-2018), Currently Army Reserves<br><b>Years Served:</b> 4 years active (2014-2018), Currently serving in Ar
+- Jim hill (Lead 6748611000015366006) — fjhill99@gmail.com / +18472195387 — Owner:Adam Ayotte — Status:Rejected
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: <b>Veteran Name:</b> Jim (Last name not provided in transcript)<br><b>Branch of Service:</b> Navy (Submarines)<br><b>Years Served:</b> 1974-1998 (24 years total: 23 years active + 9 months inactive reserves)<br><b>Time Z
+- Keith Bennett (Lead 6748611000016574016) — 6262misyer@gmail.com / +13105601878 — Owner:Jared Maxwell — Status:Missed Follow‑Up Call
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: <b>Veteran Name:</b> Keith<br><b>Branch of Service:</b> Marines<br><b>Years Served:</b> Around 1978 (1970s era)<br><b>Time Zone:</b> Pacific Time (Nevada - 89094)<br><b>Current VA Rating:</b> 0% (never filed)<br><b>Proje
+- Keith. Thompson (Lead 6748611000017059035) — rasoolkt62@yahoo.com / 2155203994 — Owner:Jared Maxwell — Status:Rejected
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: Spoke with Keith today. He advised his conditions are not service connected, all having happened after service; his heart condition is hereditary, and he was sure it was not a result of service. Additional information wa
+- KEVIN IBARRA (Lead 6748611000017508035) — montyknight2097@gmail.com / +16787487382 — Owner:Amy Cagle — Status:Pricing Strategy Call
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: Kevin was in the Army from 1985-1993<br>MOS 91 Alpha<br>MOS 71 Golf <br>No deployments <br>No combat<br>Married, no dependents <br>No open claims<br>Back started hurting in service, went to medical. Sitting/standing/walk
+- Lee Mathis (Lead 6748611000016346007) — kakiila@icloud.com / +18123446117 — Owner:Jared Maxwell — Status:Missed Follow‑Up Call
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: <b>Veteran Name:</b> [Not provided in transcript - Phone: (812) 344-6117]<br><ul style="list-style-type:disc;list-style-position:inside;"><li style="list-style-image:none;"><p style="display:inline;"><span style="color:r
+- LEROY JR (Lead 6748611000017266001) — leroyjenkins14@yahoo.com / +19162848572 — Owner:Amy Cagle — Status:Long Term Follow Up
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: <b>Non-standard and likely unable to proceed</b> at this time:<br><br>CRITICAL CASE NOTES - READ FIRST<br><b>DISQUALIFYING FACTORS:</b><br><ol style="list-style-type:decimal;list-style-position:inside;"><li style="list-s
+- Lucky Breland (Lead 6748611000006476001) — brelandlucky@gmail.com / +13154161713 — Owner:Amy Cagle — Status:Rejected
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: <b>Veteran Name:</b> Breland Lucky<br><b>Branch of Service:</b> Army<br><b>Years Served:</b> 1984-1987 (3 years)<br><b>Time Zone:</b> Eastern Time (Syracuse, New York)<br><b>Current VA Rating:</b> 50%<br><b>Projected Rat
+- Mark Clark (Lead 6748611000017266035) — marcnugums2000@yahoo.com / +13472854609 — Owner:Amy Cagle — Status:Pricing Strategy Call
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: <b>Veteran Name:</b> Mark Clark<br><b>Branch of Service:</b> Army<br><b>Years Served:</b> 1976-1979 (3 years)<br><b>Time Zone:</b> Eastern Time<br><b>Current VA Rating:</b> 0%<br><b>Projected Rating - MODERATE CASE:</b> 
+- Michael Mitchell (Lead 6748611000002204001) — mitch279@hotmail.com / 9018275823 — Owner:Adam Ayotte — Status:Working
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: Michael Mitchell Navy 81 98 FT on Submarines Intent to file last week Initial claim but already started his. Tinnitus Broke left foot in service and balance has been off ever since Respiratory issues. AFF exposure and sh
+- Tyler Jackson (Lead 6748611000004772016) — mr.tsmiles@gmail.com / 7077128880 — Owner:Amy Cagle — Status:Rejected
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: I reached out to the vet and told hiom that I had reviewed his file and saw that he had a lot going on...and had been given the price for our services etc...but that it didn't looked as if it had gone anywhere and so I w
+- Greg Rose (Lead 6748611000008536035) — grose0354@gmail.com / +17155188433 — Owner:Adam Ayotte — Status:Discovery Call Completed
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: <b>Veteran Name:</b> Greg Rose<br><b>Branch of Service:</b> Navy<br><b>Years Served:</b> 1975-1979 (approximately 4 years)<br><b>Time Zone:</b> Central<br><b>Current VA Rating:</b> 0% (not currently rated for anything)<b
+- James Alan Wells (Lead 6748611000017274001) — jim1951wells@gmail.com / +915154900559 — Owner:Amy Cagle — Status:Pricing Strategy Call
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: <b>Veteran Name:</b> Charlie [Last name not provided in transcript]<br><b>Branch of Service:</b> Army (Active Duty 2003-2014, Army Reserves 2014-Present)<br><b>Years Served:</b> 2003 - Present (22 years total; 11 years a
+- Mr.DanaF.York (Lead 6748611000001053002) — danayorkman@gmail.com / +13152093251 — Owner:Amy Cagle — Status:Rejected
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: <ul style="list-style-type:disc;list-style-position:inside;"><li style="list-style-image:none;"><p style="display:inline;"><span style="color:rgb(51, 51, 51);font-style:normal;"><b>Left hand scar (in-service injury):</b>
+- Oscar Pacheco (Lead 6748611000017033001) — oscpac1106@gmail.com / +18303213365 — Owner:Amy Cagle — Status:Pricing Strategy Call
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: <b>Veteran Name:</b> Oscar (Last name not provided in call)<br><b>Branch of Service:</b> Army<br><b>Years Served:</b> 1984-1987/1988 (veteran unsure of exact end date)<br><b>Time Zone:</b> Central Time (San Antonio, TX)<
+- William Lehr (Lead 6748611000008109001) — yluj0591@yahoo.com / +18036288352 — Owner:Adam Ayotte — Status:Working
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: PITCHED KLARNA in voicemail message.
+- Robert Bailey (Lead 6748611000017814001) — rebmeister1@gmail.com / +17757717178 — Owner:Amy Cagle — Status:Rejected
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: Diagnostic code &amp; general rule<br><ul style="list-style-type:disc;list-style-position:inside;"><li style="list-style-image:none;"><p style="display:inline;"><span style="color:rgb(51, 51, 51);font-weight:normal;font-
+
+### Tier C
+- Alba Alexovich (Lead 6748611000008712002) — flight1w_me@hotmail.com / +19842224282 — Owner:Amy Cagle — Status:Rejected
+  - Why: Skin-related keyword(s): scar
+  - Evidence: note: <b>Veteran Name:</b> Alba Alexovich (goes by "Alex")<br><b>Branch of Service:</b> Army<br><b>Years Served:</b> 2009 - 2021 (12 years)<br><b>Time Zone:</b> Eastern (Florida - New Smyrna Beach area)<br><b>Current VA Rating
+- David Bradley (Lead 6748611000007581003) — davidgrantbradley@gmail.com / 4045386182 — Owner:Jared Maxwell — Status:Archive
+  - Why: Skin-related keyword(s): scar
+  - Evidence: note: David served in the Marines from 2000-2006<br>Deployed to Afghanistan<br><span><br></span>Rated 60%: <br>10% right knee impairment<br>30% herniated disc<br>10% back fracture<br>0% scarred knee<br>10% tinnitus<br>20% righ
+- Dianne Hydes (Lead 6748611000017511035) — dhydes@peoplepc.com / 9797091157 — Owner:Amy Cagle — Status:Rejected
+  - Why: Skin-related keyword(s): scar
+  - Evidence: note: not a working number or email. discard lead
+- Gary Price (Lead 6748611000020440002) — price385gary@gmail.com / +13346234701 — Owner:Amy Cagle — Status:Rejected
+  - Why: Skin-related keyword(s): scar
+  - Evidence: note: <b>Veteran Name:</b> Gary (Last name not provided)<br><b>Branch of Service:</b> Air Force<br><b>Years Served:</b> 1971-1975 (approximately 4 years)<br><b>Time Zone:</b> Central Time<br><b>Current VA Rating:</b> 40%<br><b
+- Gerald Semere (Lead 6748611000001001001) — gsemere66@gmail.com / +12255865935 — Owner:Amy Cagle — Status:Pricing Strategy Call
+  - Why: Skin-related keyword(s): scar
+  - Evidence: note: Spoke to Gerald. He wants to start claim on 12/3. He said that is when he can afford it. I sent a text confirming and letting him know we do offer a no money down option. Not sure if he is scared, or just can't afford it
+- jamie carson (Lead 6748611000014314001) — jamielcarson@yahoo.com / 8157417723 — Owner:Amy Cagle — Status:Rejected
+  - Why: Skin-related keyword(s): scar
+  - Evidence: note: bad number and bad email. discard lead.
+- Jessica Guevara (Lead 6748611000005869001) — jm.guevara@yahoo.com / 5139130392 — Owner:Amy Cagle — Status:Rejected
+  - Why: Skin-related keyword(s): scar
+  - Evidence: note: crm[user#6748611000000697001#886088071]crm <br><span><br></span><b>Goal</b><br><ul style="list-style-type:disc;list-style-position:inside;"><li style="list-style-image:none;"><p style="display:inline;"><span style="color
+- Jose Prieto-Feurtado (Lead 6748611000017674001) — joeprieto2024@gmail.com / +17865647057 — Owner:Amy Cagle — Status:Pricing Strategy Call
+  - Why: Skin-related keyword(s): scar
+  - Evidence: note: Marine Corp 1972-1975 Worked at the Rifle range and was an admin clerk. Honorable discharge<br>Then went back into military in 1976. Got a call from brother having emergency. Asked for 72 hour leave. Brother was vietnam 
+- Kathleen Martin (Lead 6748611000007890070) — katsi1639@gmail.com / 2069206648 — Owner:Tyler Richardson — Status:Sales Ready
+  - Why: Skin-related keyword(s): scar
+  - Evidence: note: <p style="display:inline-block;background-color:rgba(243, 243, 243, 0.7);"><span style="color:rgb(18, 18, 18);background-color:rgba(243, 243, 243, 0.7);">New SMS to </span><a style="color:rgb(6, 111, 172);display:inline;
+- Kevin Lanciotti (Lead 6748611000016656001) — KLANCEJR31@GMAIL.COM / 7247184827 — Owner:Amy Cagle — Status:Rejected
+  - Why: Skin-related keyword(s): scar
+  - Evidence: note: Kevin replied to an email and stated he was never in the military. Bad lead, discarding as rejected.
+- LUCIOUS GUYTON (Lead 6748611000017494035) — guyton_lucious@yahoo.com / 8505397275 — Owner:Amy Cagle — Status:Rejected
+  - Why: Skin-related keyword(s): scar
+  - Evidence: note: Bad number and email. discard lead
+- Manuel Gonzales (Lead 6748611000014128002) — mgonzales6484@yahoo.com / 5626398963 — Owner:Amy Cagle — Status:Rejected
+  - Why: Skin-related keyword(s): scar
+  - Evidence: note: disconnected and bad email. Discard lead
+- Mr. Mr. RONALD LOPP (Lead 6748611000007613036) — rlopp21061@yahoo.com / +14103024570 — Owner:Adam Ayotte — Status:Discovery Call Completed
+  - Why: Skin-related keyword(s): disfigurement
+  - Evidence: note: <p>Veteran has been working with VSO, has not been able to contact his representative for the past few weeks</p><p>Veterans served in the US Army during the Vietnam era from 1968 to 1972. Spent six months in combat zone 
+- RC Jr. (Lead 6748611000008109105) — rcn4801@gmail.com / +14056506548 — Owner:Amy Cagle — Status:Rejected
+  - Why: Skin-related keyword(s): scar
+  - Evidence: note: Claim Strategy &amp; Breakdown<br><ol style="list-style-type:decimal;list-style-position:inside;"><li style="list-style-image:none;"><p style="display:inline;"><span style="color:rgb(51, 51, 51);font-style:normal;"><b>Ri
+- Reginald Smith (Lead 6748611000021749012) — regibassman57@gmail.com / +16196351094 — Owner:Amy Cagle — Status:Pricing Strategy Call
+  - Why: Skin-related keyword(s): scar
+  - Evidence: note: <b>Veteran Name:</b> [Not provided in transcript]<br><b>Branch of Service:</b> Navy<br><b>Years Served:</b> 1977-1979 (2 years)<br><b>Time Zone:</b> [Not provided - NEED TO OBTAIN]<br><b>Current VA Rating:</b> 90%<br><b>
+- Stephen Barrett (Lead 6748611000007036001) — swbarrett323@gmail.com / +15572155565 — Owner:Amy Cagle — Status:Long Term Follow Up
+  - Why: Skin-related keyword(s): scar
+  - Evidence: note: STEP 1 – TINNITUS AND HEARING LOSS (ACOUSTIC TRAUMA DURING BASIC TRAINING)<br>During basic training, the veteran was exposed to a grenade explosion occurring on the opposite side of a wall. Immediately following this eve
+- Willard Hayhurst (Lead 6748611000017068001) — willinwv@gmail.com / 3045579639 — Owner:Amy Cagle — Status:Rejected
+  - Why: Skin-related keyword(s): scar
+  - Evidence: note: I think he is either messing with us or menatlly disturbed. Said he served in all 5 branches and is currently a "weapon of distruction used by the DOD". Says he is currently a secret weapon. Discarding to rejection.
+- Joseph Canales (Lead 6748611000008689001) — jcanalesjr@gmail.com / +19514172486 — Owner:Jared Maxwell — Status:Missed Follow‑Up Call
+  - Why: Skin-related keyword(s): scar, scars
+  - Evidence: note: Knees:<br><ul style="list-style-type:disc;list-style-position:inside;"><li style="list-style-image:none;"><p style="display:inline;"><span style="color:rgb(41, 49, 66);margin-inline-start:0px;font-style:normal;"><b>40% (
+- Kenneth Smith (Lead 6748611000017489069) — kennyrbr1514@gmail.com / +19165343340 — Owner:Amy Cagle — Status:Pricing Strategy Call
+  - Why: Skin-related keyword(s): scar, scars
+  - Evidence: note: <b>Veteran Name:</b> Kenneth (Kenny)<br><b>Branch of Service:</b> Navy<br><b>Years Served:</b> 1988-1990 (2 years)<br><b>Time Zone:</b> Pacific Time (California - Sacramento area, 916 area code)<br><b>Current VA Rating:<
+- Oscar molina (Lead 6748611000007869110) — marine619999@gmail.com / +16195301660 — Owner:Jared Maxwell — Status:Missed Follow‑Up Call
+  - Why: Skin-related keyword(s): scar, disfigurement
+  - Evidence: note: Case for tumors is frequent, and is based on severity of disfigurement and surgical scarring. 30%-50%<br>Back depends on limited motion and severity of pain - 40%-50%<br>Tinnitus - 10%<br>Vision/farsightedness will depen
+- Sheldon Hudson (Lead 6748611000008138108) — hudsonsheldon19@yahoo.com / 7023449217 — Owner:Adam Ayotte — Status:Rejected
+  - Why: Skin-related keyword(s): scar, scars
+  - Evidence: note: <br><p>📋 Condition-by-Condition Estimate</p><p>Respiratory / Surgical Residuals</p><p>Collapsed lung &amp; breathing trouble (constant wheezing, history of surgery)</p><p>If restrictive/obstructive lung disease confirme
+- Travis Nunnally (Lead 6748611000008608001) — nunnallywelding@gmail.com / +18047317815 — Owner:Jared Maxwell — Status:Missed Follow‑Up Call
+  - Why: Skin-related keyword(s): scar, scars
+  - Evidence: note: USMC 2018-2022<br><span><br></span>40% for back, feet, and scars on neck<br><span><br></span>New claims:<br>Increase on back. Back pain - 3x a year, affecting mobility and motion<br>Neck - locks up several times a year, 
+
+---
+## Deals/Clients (n=21)
+Tier A=1 | Tier B=10 | Tier C=10
+
+### Tier A
+- Ceasar Funes (Deal 6748611000002625121) — cfunes1995@gmail.com / 2407720221 — Owner:Richard Ducat — Stage:Service Complete
+  - Why: Explicit eczema/atopic dermatitis mention.
+  - Evidence: attachment: Eczema.pdf
+
+### Tier B
+- Dawson Conaghan (Deal 6748611000017907538) — dawsoncon@gmail.com / 14066401446 — Owner:Richard Ducat — Stage:Sent to Provider
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: Client: Dawson Conaghan<br>Claim Type: Initial (recently separated; no prior VA rating)<br><br>Evidence:<br>- STRs: Not yet in file. Veteran has VA login and submitted a request via National Archives/MyHealtheVet last we
+- Eric Lozano Jr. (Deal 6748611000007970423) — ericlozano11@gmail.com / +17209395508 — Owner:Edward Mayes — Stage:Sent to Provider
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: crm[user#6748611000003492001#893030951]crm <br><span><br></span><span style="color:rgb(51, 51, 51);">This veteran has a </span><span style="color:rgb(51, 51, 51);"><b>documented service crash and tremor treatment</b></sp
+- James (Neal) Stinson (Deal 6748611000005158049) — neal.stinson.60@gmail.com / 2706706324 — Owner:Tyler Richardson — Stage:Lost
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: <b>Hi James — this is Thank You For Your Service.</b><br>We just need your <b>Service Treatment Records (STRs)</b> to schedule your appointment.<br>You can request them online here:<br>👉 <a style="display:inline;" href=
+- Jason Manning (Deal 6748611000013378446) — — / 19366617823 — Owner:Richard Ducat — Stage:Ready for Provider
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: <b>Veteran Name:</b> Jason Manning<br><b>Branch of Service:</b> Marine Corps<br><b>Years Served:</b> 1989-1993 (4 years)<br><b>Time Zone:</b> Central<br><b>Current VA Rating:</b> 0% (Not currently rated)<br><b>Projected 
+- Melissa Ramirez (Deal 6748611000002625166) — Melissaarybella@gmail.com / 3213678577 — Owner:Richard Ducat — Stage:Intake (Document Collection)
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: <p style="display:flex;background-color:rgba(102, 102, 102, 0.08);"><span style="color:rgb(18, 18, 18);background-color:rgba(102, 102, 102, 0.08);">I have requested my records three times now. Is there a form other than 
+- Michael Dryer (Deal 6748611000026780188) — mdryer54@gmail.com / +15035731217 — Owner:Richard Ducat — Stage:Intake (Document Collection)
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: Having problem downloading DD214. It's not available on VA.gov. They had to create a new <a style="display:inline;" target="_blank" href="http://login.gov/"><u>login.gov</u></a> account and had to <br>verify his identity
+- Nathaniel Shields-Koszarek (Deal 6748611000022991053) — natetimshields57@gmail.com / 17156107239 — Owner:Richard Ducat — Stage:Sent to Provider
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: <b>Veteran Name:</b> Not provided (phone number: 715-610-7239)<br><b>Branch of Service:</b> Army National Guard<br><b>Years Served:</b> 2021 - Present (Still Active)<br><b>Time Zone:</b> Central<br><b>Current VA Rating:<
+- Charles Maven (Deal 6748611000018116278) — charlenemaven208@gmail.com / 17577095068 — Owner:Amy Cagle — Stage:Sent to Provider
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: Client: <b>Charles Maven</b><br>Claim Type: <b>Initial</b> (no current SC ratings; prior claims denied)<br>STRs / DD214:<br><ul style="list-style-type:disc;list-style-position:inside;"><li style="list-style-image:none;">
+- charley mccoy (Deal 6748611000023511034) — hawka85@yahoo.com / 17203664620 — Owner:Admin Account — Stage:Ready for Provider
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: <b>Veteran Name:</b> Charlie [Last name not provided in transcript]<br><b>Branch of Service:</b> Army (Active Duty 2003-2014, Army Reserves 2014-Present)<br><b>Years Served:</b> 2003 - Present (22 years total; 11 years a
+- Mitchell Morrison (Deal 6748611000012181177) — — / 6036169331 — Owner:Richard Ducat — Stage:Lost
+  - Why: Skin symptom mention (rash/itch/hives) — possible AD; needs pre-screen.
+  - Evidence: note: <b>Mitchell Morrison — Intake Complete (10/23/2025).</b><br>Active Duty USAF; Eastern TZ; best times after 4:30 PM ET or Mon–Wed 12:45–2:00 PM. Weekly check-in set <b>Wednesdays 12:30 PM ET</b>.<br><b>Deposit:</b> $500 c
+
+### Tier C
+- Brandon Guerra (Deal 6748611000015913012) — brandonoguerra1@gmail.com / 12403058505 — Owner:Richard Ducat — Stage:Sent to Provider
+  - Why: Skin-related keyword(s): scar
+  - Evidence: note: ZOHO CRM INTAKE - BRANDON GUERRA<br>REQUIRED FIELDS<br><b>Veteran Name:</b> Brandon Guerra<br><b>Branch of Service:</b> Army (Army Reserves)<br><b>Years Served:</b> Active deployments 2022-2023, 2024-2025 (2 deployments 
+- Dondre Butler (Deal 6748611000007781006) — — / 228-731-6699 — Owner:Richard Ducat — Stage:Lost
+  - Why: Skin-related keyword(s): scar
+  - Evidence: note: US Army - 2019-2025<br>Not rated<br><span><br></span>Lower back spasms, medicated - severe, occurs every day, limited motion, dizziness, pain<br>Depression - medicated<br>Anxiety - medicated<br>bilateral pain, both shoul
+- George Davis (Deal 6748611000002625124) — george.m.davis@me.com / 5128000942 — Owner:Richard Ducat — Stage:Claim Compilation
+  - Why: Skin-related keyword(s): scar
+  - Evidence: attachment: SCARDISABILITYMiniDBQDisabilityBenefitsQuestionnai.pdf
+- Hunter Bernius (Deal 6748611000008583622) — — / (941-220-8840) — Owner:Edward Mayes — Stage:Claim Compilation
+  - Why: Skin-related keyword(s): scar
+  - Evidence: note: Rated 60% currently<br><span><br></span>Sleep apnea requiring CPAP is 50%<br>Radiculopathy, severe, affecting employment is 50%<br>Surgical scar depends on size - up to 40%<br><span><br></span>90%, but if radiculopathy i
+- Bradley Varner (Deal 6748611000009787802) — — / +15172608429 — Owner:Jared Maxwell — Stage:Lost
+  - Why: Skin-related keyword(s): scar, scars
+  - Evidence: note: US Army Reserves: 1980-2001<br><span><br></span>Rated 10% for tinnitus<br><span><br></span>New conditions:<br><span><br></span>PTSD - Served in combat, Gulf War, experiences daily paranoia, flashback episodes, triggering
+- Kent Broecker (Deal 6748611000004686054) — kdbrokes@gmail.com / 9412239642 — Owner:Richard Ducat — Stage:Sent to Provider
+  - Why: Skin-related keyword(s): scar, scars
+  - Evidence: note: crm[user#6748611000000697001#886088071]crm <br>The veteran is currently rated at <b>50% combined</b> but is <b>underrated</b> due to a denied <b>left knee replacement</b> and <b>scar claims</b>, despite the VA performing
+- Mark Jamison (Deal 6748611000021483191) — markjamison59@yahoo.com / 16606316791 — Owner:Amy Cagle — Stage:Sent to Provider
+  - Why: Skin-related keyword(s): scar, scars
+  - Evidence: note: <b>Veteran Name:</b> Mark [Last Name Unknown]<br><b>Branch of Service:</b> Navy<br><b>Years Served:</b> 1978-1979 (approximately 1 year)<br><b>Time Zone:</b> Central Time<br><b>Current VA Rating:</b> 50%<br><b>Projected 
+- Mark LaLonde (Deal 6748611000021490111) — marklalonde8@yahoo.com / 18329788727 — Owner:Ashley Wayne — Stage:Intake (Document Collection)
+  - Why: Skin-related keyword(s): scar, scars
+  - Evidence: note: <br><b>Veteran Details:</b><br><ul style="list-style-type:disc;list-style-position:inside;"><li style="list-style-image:none;"><p style="display:inline;"><span style="color:rgb(51, 51, 51);font-weight:normal;font-style:n
+- Richard Horvatis (Deal 6748611000016303524) — — / 17168974505 — Owner:Richard Ducat — Stage:Sent to Provider
+  - Why: Skin-related keyword(s): scar, scars
+  - Evidence: note: <b>Veteran Name:</b> Richard Horvatis<br><br><b>Branch of Service:</b> Marines (US Marine Corps)<br><br><b>Years Served:</b> January 1956 - January 1959 (3 years)<br><br><b>Time Zone:</b> Eastern<br><br><b>Current VA Rat | attachment: SCARDISABILITYMiniDBQDisabilityBenefitsQuestionnai.pdf
+- Frank Boisek (Deal 6748611000010392238) — frankboisek3@gmail.com / +17754441874 — Owner:Richard Ducat — Stage:Lost
+  - Why: Skin-related keyword(s): scar, scars, disfigurement
+  - Evidence: note: <b>Rating letters</b> (save into “Prior VA Decisions”):<br>• 07/12/2010 grant 50% → 30% from 7/1/2010.<br>• 12/09/2010 increase to 50% (effective 8/24/2010).<br>• 04/07/2016 continuation at 50%; narrative cites <b>pulmon
