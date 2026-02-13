@@ -41,7 +41,7 @@ function getArg(name, def) {
   return v;
 }
 
-const SALES_ROSTER = ['Adam', 'Amy', 'Jared', 'Ashley'];
+const SALES_ROSTER = ['Adam', 'Amy', 'Jared'];
 const CALL_QUOTA = 25;
 const CONNECTED_SEC = 30;
 
