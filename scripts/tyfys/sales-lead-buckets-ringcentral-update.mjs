@@ -42,35 +42,12 @@ function bucketLabel(h) {
   return '>7d';
 }
 
-function fmtRows(rows) {
-  const width = {
-    rep: Math.max('Rep'.length, ...rows.map(r => r.rep.length)),
-    '<24h': 5,
-    '24–48h': 7,
-    '2–7d': 5,
-    '>7d': 4,
-    total: 5,
-  };
-
-  const header = [
-    'Rep'.padEnd(width.rep),
-    '<24h'.padStart(width['<24h']),
-    '24–48h'.padStart(width['24–48h']),
-    '2–7d'.padStart(width['2–7d']),
-    '>7d'.padStart(width['>7d']),
-    'Total'.padStart(width.total),
-  ].join('  ');
-
-  const lines = rows.map(r => [
-    r.rep.padEnd(width.rep),
-    String(r['<24h']).padStart(width['<24h']),
-    String(r['24–48h']).padStart(width['24–48h']),
-    String(r['2–7d']).padStart(width['2–7d']),
-    String(r['>7d']).padStart(width['>7d']),
-    String(r.total).padStart(width.total),
-  ].join('  '));
-
-  return [header, ...lines].join('\n');
+function fmtBullets(rows) {
+  // RingCentral formatting is inconsistent with fixed-width tables.
+  // Use simple bullets + labeled counts for readability.
+  return rows
+    .map(r => `- ${r.rep}: <24h ${r['<24h']} | 24–48h ${r['24–48h']} | 2–7d ${r['2–7d']} | >7d ${r['>7d']} | total ${r.total}`)
+    .join('\n');
 }
 
 async function postToRingCentralChat({ chatId, text }) {
@@ -158,12 +135,12 @@ async function listLeadsPage({ accessToken, page, perPage, days }) {
   }
 
   const rows = SALES_ROSTER.map(r => byRep.get(r)).filter(Boolean);
-  const table = fmtRows(rows);
+  const bullets = fmtBullets(rows);
 
   const header = `Lead buckets (Zoho Leads) — as of ${now.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit' })} ET`;
-  const footer = `Goal: keep >7d near 0; clear 24–48h daily. Update next steps + notes in Zoho.`;
+  const footer = `Focus today: clear >7d first, then 24–48h. Keep Zoho notes + next steps current.`;
 
-  const text = [header, '```', table, '```', footer].join('\n');
+  const text = [header, bullets, footer].join('\n\n');
 
   if (dryRun) {
     process.stdout.write(`[dry-run] Would post to chatId=${chatId}:\n\n${text}\n`);
