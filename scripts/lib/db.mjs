@@ -4,9 +4,12 @@ import path from 'node:path';
 // Single source of truth for persistent DB storage.
 // Default: local Google Drive sync folder (set in .env.local as OPENCLAW_DB_ROOT).
 export function dbRoot() {
-  return process.env.OPENCLAW_DB_ROOT
-    ? String(process.env.OPENCLAW_DB_ROOT)
-    : path.resolve('db');
+  if (!process.env.OPENCLAW_DB_ROOT) return path.resolve('db');
+  let p = String(process.env.OPENCLAW_DB_ROOT);
+  // Expand $HOME and unescape common shell escapes (\ ).
+  if (p.includes('$HOME')) p = p.replaceAll('$HOME', process.env.HOME || '');
+  p = p.replace(/\\ /g, ' ');
+  return p;
 }
 
 export function dbPath(name) {
