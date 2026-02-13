@@ -125,7 +125,7 @@ function isActiveStage(stage) {
   let deals = [];
   for (let page = 0; page < maxPages; page++) {
     const offset = page * pageSize;
-    const q = `select id, Deal_Name, Stage, Owner, Last_Activity_Time, Last_Time_Contacted, Modified_Time from Deals order by Modified_Time desc limit ${pageSize} offset ${offset}`;
+    const q = `select id, Deal_Name, Stage, Owner, Last_Activity_Time, Last_Time_Contacted, Modified_Time from Deals where Modified_Time is not null order by Modified_Time desc limit ${pageSize} offset ${offset}`;
     const res = await zohoCrmCoql({ accessToken, apiDomain: ZOHO_API_DOMAIN, selectQuery: q });
     const rows = res?.data || [];
     deals.push(...rows);
