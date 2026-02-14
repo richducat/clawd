@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Activity, Calendar, MessageSquare, Brain, ShoppingBag } from 'lucide-react';
+import { Activity, Calendar, MessageSquare, Brain, ShoppingBag, User } from 'lucide-react';
 
 import TobyCoachView from './TobyCoachView';
 import HomeView from './views/HomeView';
@@ -18,6 +18,7 @@ import LibraryView from './views/LibraryView';
 import GamesView from './views/GamesView';
 import MarketView from './views/MarketView';
 import ProgressView from './views/ProgressView';
+import ProfileView from './views/ProfileView';
 
 type Tab =
   | 'home'
@@ -25,6 +26,7 @@ type Tab =
   | 'coach'
   | 'games'
   | 'market'
+  | 'profile'
   | 'workout'
   | 'nutrition'
   | 'habits'
@@ -148,6 +150,7 @@ export default function TheLabUltimate({
         {tab === 'book' && <BookView />}
         {tab === 'games' && <GamesView />}
         {tab === 'market' && <MarketView />}
+        {tab === 'profile' && <ProfileView />}
 
         {tab === 'workout' && <WorkoutView onSelect={() => {}} />}
         {tab === 'nutrition' && <NutritionView />}
@@ -188,6 +191,7 @@ export default function TheLabUltimate({
 
           <NavBtn icon={Brain} label="Games" active={tab === 'games'} onClick={() => setTab('games')} />
           <NavBtn icon={ShoppingBag} label="Shop" active={tab === 'market'} onClick={() => setTab('market')} />
+          <NavBtn icon={User} label="Me" active={tab === 'profile'} onClick={() => setTab('profile')} />
         </div>
       </nav>
     </div>
