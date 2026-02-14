@@ -9,16 +9,20 @@
  *
  * Usage:
  *   node scripts/tyfys/morning-sales-team-ringcentral-update.mjs --chatId 144856375302
+ *   node scripts/tyfys/morning-sales-team-ringcentral-update.mjs --chatId 144856375302 --dry-run
+ *   node scripts/tyfys/morning-sales-team-ringcentral-update.mjs --selftest
  *
  * Options:
  *   --window previousBusinessDay|today   (default: previousBusinessDay)
+ *   --concurrency <n>                   (default: 3) max parallel RC requests (non-selftest)
  */
 
 import { loadEnvLocal } from '../lib/load-env-local.mjs';
 import { getZohoAccessToken, zohoCrmCoql, zohoBookingsReportGet } from '../lib/zoho.mjs';
 import { ringcentralGetJson, ringcentralPostJson } from '../lib/ringcentral.mjs';
 
-loadEnvLocal();
+const selftest = process.argv.includes('--selftest');
+if (!selftest) loadEnvLocal();
 
 function getArg(name, def) {
   const idx = process.argv.indexOf(name);
@@ -48,10 +52,37 @@ function fmtLocal(dt) {
 
 function formatTable(rows) {
   // WhatsApp-free / RC-friendly: simple aligned-ish lines.
-  const maxName = Math.max(...rows.map(r => r.name.length), 3);
-  return rows
-    .map(r => `${r.name.padEnd(maxName)}  calls:${String(r.calls).padStart(3)}  sms:${String(r.sms).padStart(3)}`)
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const maxName = Math.max(3, ...safeRows.map(r => (r?.name || '').length));
+  return safeRows
+    .map(r => `${String(r.name || '').padEnd(maxName)}  calls:${String(r.calls || 0).padStart(3)}  sms:${String(r.sms || 0).padStart(3)}`)
     .join('\n');
+}
+
+function pLimit(concurrency) {
+  const c = Math.max(1, Number(concurrency) || 1);
+  let active = 0;
+  const queue = [];
+
+  const next = () => {
+    if (active >= c) return;
+    const item = queue.shift();
+    if (!item) return;
+
+    active += 1;
+    Promise.resolve()
+      .then(item.fn)
+      .then(item.resolve, item.reject)
+      .finally(() => {
+        active -= 1;
+        next();
+      });
+  };
+
+  return (fn) => new Promise((resolve, reject) => {
+    queue.push({ fn, resolve, reject });
+    next();
+  });
 }
 
 const SALES_ROSTER = ['Adam', 'Amy', 'Jared'];
@@ -150,28 +181,29 @@ async function getRcExtensionsForRoster() {
 async function getOutboundPerf({ from, to }) {
   const rosterIds = await getRcExtensionsForRoster();
 
-  const rows = [];
-  for (const rep of SALES_ROSTER) {
-    const extId = rosterIds.get(rep);
-    if (!extId) {
-      rows.push({ name: rep, calls: 0, sms: 0, _missing: true });
-      continue;
-    }
+  // RingCentral APIs are fairly fast, but sequential per-rep calls can stack up.
+  // We parallelize with a small cap to avoid hammering the API / triggering throttles.
+  const limit = pLimit(Number(getArg('--concurrency', '3')));
 
-    const callLog = await ringcentralGetJson(
-      `/restapi/v1.0/account/~/extension/${extId}/call-log?dateFrom=${encodeURIComponent(isoNoMs(from))}&dateTo=${encodeURIComponent(isoNoMs(to))}&perPage=1000`,
-      { tenant },
-    );
-    const msgStore = await ringcentralGetJson(
-      `/restapi/v1.0/account/~/extension/${extId}/message-store?dateFrom=${encodeURIComponent(isoNoMs(from))}&dateTo=${encodeURIComponent(isoNoMs(to))}&perPage=1000`,
-      { tenant },
-    );
+  const tasks = SALES_ROSTER.map(rep => limit(async () => {
+    const extId = rosterIds.get(rep);
+    if (!extId) return { name: rep, calls: 0, sms: 0, _missing: true };
+
+    const dateFrom = encodeURIComponent(isoNoMs(from));
+    const dateTo = encodeURIComponent(isoNoMs(to));
+
+    const [callLog, msgStore] = await Promise.all([
+      ringcentralGetJson(`/restapi/v1.0/account/~/extension/${extId}/call-log?dateFrom=${dateFrom}&dateTo=${dateTo}&perPage=1000`, { tenant }),
+      ringcentralGetJson(`/restapi/v1.0/account/~/extension/${extId}/message-store?dateFrom=${dateFrom}&dateTo=${dateTo}&perPage=1000`, { tenant }),
+    ]);
 
     const calls = (callLog?.records || []).filter(r => r.direction === 'Outbound').length;
     const sms = (msgStore?.records || []).filter(r => r.type === 'SMS' && r.direction === 'Outbound').length;
 
-    rows.push({ name: rep, calls, sms });
-  }
+    return { name: rep, calls, sms };
+  }));
+
+  const rows = await Promise.all(tasks);
 
   // winner: calls primary, sms tiebreak
   const sorted = [...rows].sort((a, b) => (b.calls - a.calls) || (b.sms - a.sms));
@@ -187,13 +219,49 @@ async function postToRingCentralChat({ chatId, text }) {
 }
 
 (async function main() {
+  const dryRun = process.argv.includes('--dry-run');
+
+  if (selftest) {
+    const fakeMeetings = [
+      { Start_DateTime: new Date('2026-02-13T14:00:00Z').toISOString(), Event_Title: 'Intake — Adam' },
+      { Start_DateTime: new Date('2026-02-13T16:30:00Z').toISOString(), Event_Title: 'Follow-up — Jared' },
+    ];
+
+    const fakePerf = {
+      rows: [
+        { name: 'Adam', calls: 23, sms: 11 },
+        { name: 'Amy', calls: 18, sms: 9 },
+        { name: 'Jared', calls: 15, sms: 7 },
+      ],
+      winner: { name: 'Adam', calls: 23, sms: 11 },
+    };
+
+    const meetingLines = fakeMeetings.map(e => `- ${fmtLocal(e.Start_DateTime)} — ${e.Event_Title}`).join('\n');
+    const perfTable = formatTable(fakePerf.rows);
+    const winnerLine = `Top outbound yesterday: ${fakePerf.winner.name} (calls ${fakePerf.winner.calls}, sms ${fakePerf.winner.sms})`;
+
+    const text = [
+      `Good morning team — here’s today’s lineup (${new Date().toLocaleDateString('en-US')}):`,
+      '',
+      'Today’s booked meetings:',
+      meetingLines,
+      '',
+      'Previous business day outbound performance (calls + SMS):',
+      perfTable,
+      `\n${winnerLine}`,
+      '',
+      '(selftest) Let’s have a clean day: fast follow-ups, tight notes, no dropped balls.',
+    ].filter(Boolean).join('\n');
+
+    process.stdout.write(text + '\n');
+    return;
+  }
+
   const chatId = getArg('--chatId', null);
   if (!chatId) {
     console.error('Missing --chatId');
     process.exit(1);
   }
-
-  const dryRun = process.argv.includes('--dry-run');
 
   const windowMode = getArg('--window', 'previousBusinessDay');
   if (!['previousBusinessDay', 'today'].includes(windowMode)) {
