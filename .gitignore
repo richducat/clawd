@@ -47,3 +47,6 @@ tmp/backups/
 # Local databases (stored in Google Drive sync)
 db/*.sqlite
 db/*.db
+
+# Local clones of separate repos
+kickcraft/
