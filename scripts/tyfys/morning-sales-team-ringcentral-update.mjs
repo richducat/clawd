@@ -178,6 +178,52 @@ async function getRcExtensionsForRoster() {
   return roster;
 }
 
+function toAbsPath(basePath, maybeRelative) {
+  // Returns path+query, using a dummy origin.
+  try {
+    if (!maybeRelative) return null;
+    const abs = new URL(maybeRelative, `https://example.com${basePath || ''}`);
+    return abs.pathname + abs.search;
+  } catch {
+    return null;
+  }
+}
+
+async function ringcentralGetAllRecords(pathAndQuery, { tenant, maxPages = 25 } = {}) {
+  // Supports common RingCentral paging shapes:
+  //  - { records: [...], navigation: { nextPage: { uri } } }
+  //  - { records: [...], paging: { page, totalPages } }
+  const out = [];
+  let next = pathAndQuery;
+  let pages = 0;
+
+  while (next && pages < maxPages) {
+    pages += 1;
+    const json = await ringcentralGetJson(next, { tenant });
+    out.push(...(json?.records || []));
+
+    const nextUri = json?.navigation?.nextPage?.uri || json?.navigation?.nextPage?.href || null;
+    if (nextUri) {
+      next = toAbsPath('/restapi/v1.0', nextUri) || nextUri;
+      continue;
+    }
+
+    const page = Number(json?.paging?.page || 0);
+    const totalPages = Number(json?.paging?.totalPages || 0);
+    if (page && totalPages && page < totalPages) {
+      // Reconstruct URL with page+1.
+      const u = new URL('https://example.com' + next);
+      u.searchParams.set('page', String(page + 1));
+      next = u.pathname + u.search;
+      continue;
+    }
+
+    next = null;
+  }
+
+  return out;
+}
+
 async function getOutboundPerf({ from, to }) {
   const rosterIds = await getRcExtensionsForRoster();
 
@@ -192,13 +238,13 @@ async function getOutboundPerf({ from, to }) {
     const dateFrom = encodeURIComponent(isoNoMs(from));
     const dateTo = encodeURIComponent(isoNoMs(to));
 
-    const [callLog, msgStore] = await Promise.all([
-      ringcentralGetJson(`/restapi/v1.0/account/~/extension/${extId}/call-log?dateFrom=${dateFrom}&dateTo=${dateTo}&perPage=1000`, { tenant }),
-      ringcentralGetJson(`/restapi/v1.0/account/~/extension/${extId}/message-store?dateFrom=${dateFrom}&dateTo=${dateTo}&perPage=1000`, { tenant }),
+    const [callRecords, msgRecords] = await Promise.all([
+      ringcentralGetAllRecords(`/restapi/v1.0/account/~/extension/${extId}/call-log?dateFrom=${dateFrom}&dateTo=${dateTo}&perPage=1000&page=1`, { tenant }),
+      ringcentralGetAllRecords(`/restapi/v1.0/account/~/extension/${extId}/message-store?dateFrom=${dateFrom}&dateTo=${dateTo}&perPage=1000&page=1`, { tenant }),
     ]);
 
-    const calls = (callLog?.records || []).filter(r => r.direction === 'Outbound').length;
-    const sms = (msgStore?.records || []).filter(r => r.type === 'SMS' && r.direction === 'Outbound').length;
+    const calls = callRecords.filter(r => r.direction === 'Outbound').length;
+    const sms = msgRecords.filter(r => r.type === 'SMS' && r.direction === 'Outbound').length;
 
     return { name: rep, calls, sms };
   }));
