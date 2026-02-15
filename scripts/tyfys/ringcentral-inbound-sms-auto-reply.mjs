@@ -326,13 +326,36 @@ async function main() {
   // to that extension/line. Some records may not include a "to" phoneNumber that matches the public
   // direct line, so we do not gate on it.
 
-  for (const lineKey of ['richard', 'devin', 'adam', 'amy', 'jared']) {
+  const defaultLines = ['richard', 'devin', 'adam', 'amy', 'jared'];
+  const linesArg = getArg('--lines', null);
+  const linesEnv = process.env.RC_SMS_LINES;
+  const lines = (linesArg || linesEnv)
+    ? String(linesArg || linesEnv)
+        .split(',')
+        .map(s => s.trim().toLowerCase())
+        .filter(Boolean)
+    : defaultLines;
+
+  const lineFailures = {};
+
+  for (const lineKey of lines) {
     const refreshToken = refreshTokens[tokenKey(lineKey)];
-    const inbound = await fetchInboundSms({
-      refreshToken,
-      lookbackMinutes: LOOKBACK_MINUTES,
-      onRefreshTokenRotated: async (newTok) => persistRefreshToken({ tokens: refreshTokens, userKey: lineKey, newRefreshToken: newTok }),
-    });
+
+    let inbound = [];
+    try {
+      inbound = await fetchInboundSms({
+        refreshToken,
+        lookbackMinutes: LOOKBACK_MINUTES,
+        onRefreshTokenRotated: async (newTok) => persistRefreshToken({ tokens: refreshTokens, userKey: lineKey, newRefreshToken: newTok }),
+      });
+    } catch (err) {
+      // Don't crash the whole scanner if ONE line has an invalid/missing token.
+      // We still want to process the other lines.
+      lineFailures[lineKey] = String(err?.message || err);
+      state.lastRunAt = new Date().toISOString();
+      continue;
+    }
+
     scanned += inbound.length;
 
     // process oldest -> newest
@@ -410,10 +433,15 @@ async function main() {
   state.lastRunAt = new Date().toISOString();
   await writeJson(STATE_PATH, state);
 
+  const failuresSummary = Object.keys(lineFailures).length
+    ? ` line_failures=${Object.keys(lineFailures).length} (${Object.entries(lineFailures).map(([k,v]) => `${k}:${v.includes('invalid_grant') ? 'invalid_grant' : 'error'}`).join(', ')})`
+    : '';
+
   process.stdout.write(
     `Done. dryRun=${dryRun} scanned=${scanned} considered=${considered} replied=${replied} ` +
     `skipped_not_status=${skippedNotStatus} skipped_throttle=${skippedThrottle} skipped_opt_out=${skippedOptOut} ` +
-    `skipped_no_deal=${skippedNoDeal} skipped_processed=${skippedProcessed}\n`,
+    `skipped_no_deal=${skippedNoDeal} skipped_processed=${skippedProcessed}` +
+    `${failuresSummary}\n`,
   );
 }
 
