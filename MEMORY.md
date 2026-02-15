@@ -45,3 +45,22 @@
   - `cd labstudio-app && npx vercel link` (scope: EB28 LLC's projects, project: labstudio-app)
   - Deploy + alias to production: `npx vercel --prod --yes` (should print `Aliased: https://app.labstudio.fit`)
 - Always write the next-day plan into `memory/YYYY-MM-DD.md` to avoid context loss.
+
+## OpenClaw — dual MacBooks setup (learned 2026-02-15)
+- Goal: use two MacBook Pros without one instance overriding/breaking the other.
+- Root causes seen:
+  - Multiple OpenClaw LaunchAgents on one machine fighting over ports/config.
+  - Profile config missing `gateway.mode=local` causing gateway to exit immediately (`Gateway start blocked…`).
+  - Copying/duplicating OpenClaw state/identity between machines/users leads to “device override” behavior.
+- Rules of the road:
+  - Office/home Mac = always-on "brain". Use `openclaw --profile office ...` (state dir `~/.openclaw-office`).
+  - Travel Mac = "cockpit". Use default profile (`~/.openclaw`) or a separate `--profile travel`.
+  - Never copy/sync `~/.openclaw*` between machines (don’t migrate/restore those folders across Macs).
+  - Run exactly ONE gateway LaunchAgent per Mac.
+- Office Mac validated-good state:
+  - `~/.openclaw-office/openclaw.json` has `gateway.mode=local` and `gateway.bind=loopback`.
+  - Only LaunchAgent present/loaded: `ai.openclaw.office`.
+  - Gateway reachable on loopback (port may vary; verify with `openclaw --profile office gateway probe`).
+- Quick health checks:
+  - Office: `openclaw --profile office gateway probe` + `launchctl list | grep -i openclaw`
+  - Travel: `openclaw gateway probe` + `launchctl list | grep -i openclaw`
