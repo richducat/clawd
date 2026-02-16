@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Card from '../components/Card';
+import { addToCart, cartTotals, clearCart, readCart, setLineQty, type CartState } from '@/lib/cart';
 
 type ShopProduct = {
   slug: string;
@@ -25,6 +26,11 @@ type CafeItem = {
 export default function MarketView() {
   const [data, setData] = useState<{ products: ShopProduct[]; entitlements: string[] } | null>(null);
   const [cafe, setCafe] = useState<CafeItem[] | null>(null);
+
+  // Cart (local-only for now)
+  const [cart, setCart] = useState<CartState>(() => readCart());
+  const [cartOpen, setCartOpen] = useState(false);
+
   const [checkoutProduct, setCheckoutProduct] = useState<ShopProduct | null>(null);
 
   useEffect(() => {
@@ -51,8 +57,112 @@ export default function MarketView() {
     return `$${(checkoutProduct.price_cents / 100).toFixed(2)}`;
   }, [checkoutProduct?.price_cents]);
 
+  const totals = useMemo(() => cartTotals(cart), [cart]);
+
+  const checkoutCart = async () => {
+    try {
+      const res = await fetch('/api/lab/shop/checkout-cart', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ lines: cart.lines.map((l) => ({ price_id: l.price_id, quantity: l.quantity })) }),
+      });
+      const j = await res.json();
+      if (j?.ok && j.url) {
+        window.location.href = String(j.url);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   return (
     <div className="space-y-4 pb-20">
+      {/* Cart */}
+      {cartOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 p-3"
+          onClick={() => setCartOpen(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-3xl border border-white/10 bg-zinc-950 p-4"
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Cart</div>
+                <div className="text-lg font-black italic mt-1">{totals.item_count} item(s)</div>
+              </div>
+              <button
+                type="button"
+                className="text-xs font-black text-zinc-200 bg-white/10 hover:bg-white/15 px-3 py-2 rounded-xl"
+                onClick={() => setCartOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+
+            {cart.lines.length ? (
+              <div className="mt-3 space-y-2">
+                {cart.lines.map((l) => (
+                  <div key={l.price_id} className="flex items-center justify-between gap-3 text-sm">
+                    <div className="min-w-0">
+                      <div className="font-bold truncate">{l.name}</div>
+                      <div className="text-xs text-zinc-500">${(l.unit_amount_cents / 100).toFixed(2)} each</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="px-2 py-1 rounded-lg bg-zinc-800"
+                        onClick={() => setCart(setLineQty(l.price_id, l.quantity - 1))}
+                      >
+                        -
+                      </button>
+                      <div className="w-8 text-center font-mono">{l.quantity}</div>
+                      <button
+                        type="button"
+                        className="px-2 py-1 rounded-lg bg-zinc-800"
+                        onClick={() => setCart(setLineQty(l.price_id, l.quantity + 1))}
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-4 text-xs text-zinc-500">Cart is empty.</div>
+            )}
+
+            <div className="mt-4 flex items-center justify-between">
+              <div className="text-sm font-black">Subtotal</div>
+              <div className="text-sm font-black">${(totals.subtotal_cents / 100).toFixed(2)}</div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                className="text-xs font-black text-zinc-200 bg-white/10 hover:bg-white/15 px-3 py-3 rounded-xl"
+                onClick={() => setCart(clearCart())}
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                disabled={!cart.lines.length}
+                className="text-xs font-black text-zinc-950 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-50 px-3 py-3 rounded-xl"
+                onClick={checkoutCart}
+              >
+                Checkout
+              </button>
+            </div>
+
+            <div className="mt-2 text-[11px] text-zinc-500">Note: cart can’t mix subscriptions + one-time items yet.</div>
+          </div>
+        </div>
+      ) : null}
+
       {checkoutProduct ? (
         <div
           className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 p-3"
@@ -131,9 +241,19 @@ export default function MarketView() {
         </div>
       ) : null}
 
-      <div className="px-1">
-        <h1 className="text-2xl font-black italic uppercase">Shop</h1>
-        <div className="text-xs text-zinc-500 mt-1">Memberships, passes, and Studio Cafe.</div>
+      <div className="px-1 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-black italic uppercase">Shop</h1>
+          <div className="text-xs text-zinc-500 mt-1">Memberships, passes, and Studio Cafe.</div>
+        </div>
+
+        <button
+          type="button"
+          className="shrink-0 text-xs font-black text-zinc-950 bg-yellow-400 hover:bg-yellow-300 px-3 py-2 rounded-xl"
+          onClick={() => setCartOpen(true)}
+        >
+          Cart ({totals.item_count})
+        </button>
       </div>
 
       {!data ? (
@@ -186,17 +306,44 @@ export default function MarketView() {
                   </div>
 
                   {clickable ? (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setCheckoutProduct(p);
-                      }}
-                      className="inline-block text-xs font-black text-zinc-950 bg-yellow-400 hover:bg-yellow-300 px-3 py-2 rounded-xl"
-                    >
-                      Checkout
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      {p.stripe_price_id ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const next = addToCart(
+                              {
+                                price_id: String(p.stripe_price_id),
+                                slug: p.slug,
+                                name: p.name,
+                                unit_amount_cents: p.price_cents ?? 0,
+                                image_url: p.image_url ?? null,
+                                mode: 'subscription',
+                              },
+                              1,
+                            );
+                            setCart(next);
+                          }}
+                          className="inline-block text-xs font-black text-zinc-950 bg-yellow-400 hover:bg-yellow-300 px-3 py-2 rounded-xl"
+                        >
+                          Add
+                        </button>
+                      ) : null}
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setCheckoutProduct(p);
+                        }}
+                        className="inline-block text-xs font-black text-zinc-200 bg-white/10 hover:bg-white/15 px-3 py-2 rounded-xl"
+                      >
+                        Checkout
+                      </button>
+                    </div>
                   ) : (
                     <div className="text-xs text-zinc-500">Not available right now.</div>
                   )}
