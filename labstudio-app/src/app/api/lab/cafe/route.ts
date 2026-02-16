@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { neon } from '@neondatabase/serverless';
+import Stripe from 'stripe';
 import { dbConfigured, ensureSchema, getOrCreateUser } from '@/lib/db';
+import { getStripe } from '@/lib/stripe';
 
 export const runtime = 'nodejs';
 
@@ -73,19 +75,76 @@ export async function GET() {
       price_cents integer not null,
       product_url text,
       image_url text,
+      stripe_product_id text,
+      stripe_price_id text,
       active boolean not null default true,
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
     );
   `;
 
+  // Backfill older schemas.
+  await q`alter table lab_cafe_items add column if not exists image_url text;`;
+  await q`alter table lab_cafe_items add column if not exists stripe_product_id text;`;
+  await q`alter table lab_cafe_items add column if not exists stripe_price_id text;`;
+
   const count = (await q`select count(*)::int as c from lab_cafe_items;`) as any[];
   if (Number(count?.[0]?.c ?? 0) === 0) {
     await seedDefaultCafeItems();
   }
 
+  // Hydrate Stripe ids from the existing Stripe store (no new products).
+  // Strategy: pull active Stripe products once and match by normalized name.
+  try {
+    const stripe = getStripe();
+    const products = await stripe.products.list({ active: true, limit: 100 });
+    const byName = new Map<string, Stripe.Product>();
+
+    const norm = (s: string) =>
+      String(s || '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, ' ');
+
+    for (const p of products.data) {
+      if (!p?.name) continue;
+      byName.set(norm(p.name), p);
+    }
+
+    const rowsToHydrate = (await q`
+      select slug, name, category, price_cents, product_url, image_url, stripe_product_id, stripe_price_id
+      from lab_cafe_items
+      where active = true
+      order by category asc, price_cents asc, name asc;
+    `) as any[];
+
+    for (const r of rowsToHydrate) {
+      if (r?.stripe_price_id) continue;
+      const p = byName.get(norm(String(r?.name || '')));
+      if (!p) continue;
+
+      const defaultPriceId = typeof p.default_price === 'string' ? p.default_price : p.default_price?.id;
+      if (!defaultPriceId) continue;
+
+      const price = await stripe.prices.retrieve(defaultPriceId);
+      if (price.type !== 'one_time') continue;
+
+      const imageUrl = r?.image_url || p.images?.[0] || null;
+
+      await q`
+        update lab_cafe_items
+        set stripe_product_id = ${p.id},
+            stripe_price_id = ${price.id},
+            image_url = ${imageUrl}
+        where slug = ${String(r.slug)};
+      `;
+    }
+  } catch {
+    // best-effort; cafe still works without Stripe hydration
+  }
+
   const items = (await q`
-    select slug, name, category, price_cents, product_url, image_url
+    select slug, name, category, price_cents, product_url, image_url, stripe_price_id
     from lab_cafe_items
     where active = true
     order by category asc, price_cents asc, name asc;

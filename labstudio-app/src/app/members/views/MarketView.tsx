@@ -21,6 +21,7 @@ type CafeItem = {
   price_cents: number;
   product_url: string | null;
   image_url?: string | null;
+  stripe_price_id?: string | null;
 };
 
 export default function MarketView() {
@@ -387,6 +388,44 @@ export default function MarketView() {
                       <div className="text-sm font-black">${(it.price_cents / 100).toFixed(2)}</div>
                     </div>
                   </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2">
+                  {it.stripe_price_id ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = addToCart(
+                          {
+                            price_id: String(it.stripe_price_id),
+                            slug: it.slug,
+                            name: it.name,
+                            unit_amount_cents: it.price_cents,
+                            image_url: it.image_url ?? null,
+                            mode: 'one_time',
+                          },
+                          1,
+                        );
+                        setCart(next);
+                      }}
+                      className="inline-block text-xs font-black text-zinc-950 bg-yellow-400 hover:bg-yellow-300 px-3 py-2 rounded-xl"
+                    >
+                      Add
+                    </button>
+                  ) : (
+                    <div className="text-xs text-zinc-500">(Not in Stripe yet)</div>
+                  )}
+
+                  {it.product_url ? (
+                    <a
+                      href={it.product_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-block text-xs font-black text-zinc-200 bg-white/10 hover:bg-white/15 px-3 py-2 rounded-xl"
+                    >
+                      View
+                    </a>
+                  ) : null}
                 </div>
               </Card>
             ))}
