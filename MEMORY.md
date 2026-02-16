@@ -22,6 +22,7 @@
 - **Email rule (2026-02-10): draft-only simple replies for everyone; do NOT email Karen back.**
 - **Email sending policy (2026-02-12): revert to draft-first for all outbound emails until explicitly approved to send (even within normal guardrails), due to risk of incorrect/out-of-policy outreach.**
 - **Autonomy rule (2026-02-10): default to acting without asking for clarification; make the best safe assumptions and proceed. Only ask when required for safety/permissions/irreversible actions or to avoid likely costly mistakes.**
+- **Friction rule (2026-02-16): avoid creating friction. If ≥70% sure what to do, decide and proceed without asking clarifying questions. Only ask when needed for safety/permissions/irreversibility, or when uncertainty is likely to waste time/money or break production.**
 - Communication cadence while executing tasks:
   - If the task/project will take **< 10 minutes**, send a progress update **every minute**.
   - If the task/project will take **≥ 10 minutes**, send a progress update **every 3 minutes** (and immediately when major milestones/blocks happen).
