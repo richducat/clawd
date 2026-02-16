@@ -25,6 +25,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: 'Missing price_id' }, { status: 400 });
   }
 
+  if (!process.env.STRIPE_SECRET_KEY) {
+    return NextResponse.json({ ok: false, error: 'STRIPE_SECRET_KEY not configured' }, { status: 400 });
+  }
+
   const stripe = getStripe();
   const price = await stripe.prices.retrieve(priceId);
   const mode = price.type === 'recurring' ? 'subscription' : 'payment';

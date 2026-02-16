@@ -42,6 +42,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: 'Cart is empty' }, { status: 400 });
   }
 
+  if (!process.env.STRIPE_SECRET_KEY) {
+    return NextResponse.json({ ok: false, error: 'STRIPE_SECRET_KEY not configured' }, { status: 400 });
+  }
+
   const stripe = getStripe();
 
   const cafeLines = lines.filter((l) => l.price_id.startsWith('cafe:'));
