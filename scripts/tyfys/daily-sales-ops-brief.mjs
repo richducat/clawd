@@ -6,7 +6,8 @@
  *
  * Usage:
  *   node scripts/tyfys/daily-sales-ops-brief.mjs --hours 24 --connectedSec 30 --fewMin 2
- *   node scripts/tyfys/daily-sales-ops-brief.mjs --hours 24 --redact
+ *   node scripts/tyfys/daily-sales-ops-brief.mjs --window previousBusinessDay
+ *   node scripts/tyfys/daily-sales-ops-brief.mjs --window today --redact
  *   node scripts/tyfys/daily-sales-ops-brief.mjs --selftest --redact
  */
 
@@ -14,7 +15,8 @@ import { loadEnvLocal } from '../lib/load-env-local.mjs';
 import { getZohoAccessToken, zohoCrmCoql } from '../lib/zoho.mjs';
 import { ringcentralGetJson } from '../lib/ringcentral.mjs';
 
-loadEnvLocal();
+const selftest = process.argv.includes('--selftest');
+if (!selftest) loadEnvLocal();
 
 function getArg(name, def) {
   const idx = process.argv.indexOf(name);
@@ -30,10 +32,10 @@ const fewMin = Number(getArg('--fewMin', '2'));
 const fewMinSec = Math.round(fewMin * 60);
 
 const redact = process.argv.includes('--redact');
-const selftest = process.argv.includes('--selftest');
+
+const windowMode = getArg('--window', 'rolling'); // rolling|today|previousBusinessDay
 
 const now = new Date();
-const from = new Date(now.getTime() - hours * 60 * 60 * 1000);
 
 // Sales roster (Zoho Owner.name matching)
 const SALES_ROSTER = ['Adam', 'Amy', 'Jared', 'Ashley'];
@@ -47,6 +49,33 @@ function startOfLocalDay(d) {
 const todayStart = startOfLocalDay(now);
 const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
 const plus48h = new Date(todayStart.getTime() + 48 * 60 * 60 * 1000);
+
+function previousBusinessDayStart(anchorStartOfDay) {
+  // anchorStartOfDay must be at local 00:00.
+  const day = anchorStartOfDay.getDay();
+  // 0 Sun, 1 Mon, ..., 6 Sat
+  let backDays = 1;
+  if (day === 1) backDays = 3; // Mon -> Fri
+  if (day === 0) backDays = 2; // Sun -> Fri
+  if (day === 6) backDays = 1; // Sat -> Fri (yesterday)
+  const out = new Date(anchorStartOfDay.getTime() - backDays * 24 * 60 * 60 * 1000);
+  out.setHours(0, 0, 0, 0);
+  return out;
+}
+
+const windowFrom = (() => {
+  if (windowMode === 'today') return todayStart;
+  if (windowMode === 'previousBusinessDay') return previousBusinessDayStart(todayStart);
+  // rolling
+  return new Date(now.getTime() - hours * 60 * 60 * 1000);
+})();
+
+const windowTo = (() => {
+  if (windowMode === 'previousBusinessDay') {
+    return new Date(windowFrom.getTime() + 24 * 60 * 60 * 1000);
+  }
+  return now;
+})();
 
 const RC_API_SERVER = process.env.RINGCENTRAL_API_SERVER || 'https://platform.ringcentral.com';
 const RC_CLIENT_ID = process.env.RINGCENTRAL_CLIENT_ID;
@@ -164,11 +193,11 @@ function topBy(arr, keyFn, limit = 5) {
 async function zohoFetchDealMovement({ accessToken }) {
   // Deals modified in the last window (includes stage changes + any edits)
   // NOTE: field API names can vary; we’ll request common ones.
-  const q = `select id, Deal_Name, Stage, Amount, Closing_Date, Owner, Modified_By, Modified_Time, Created_Time from Deals where Modified_Time >= '${iso(from)}' and Modified_Time <= '${iso(now)}' order by Modified_Time desc limit 200`;
+  const q = `select id, Deal_Name, Stage, Amount, Closing_Date, Owner, Modified_By, Modified_Time, Created_Time from Deals where Modified_Time >= '${iso(windowFrom)}' and Modified_Time <= '${iso(windowTo)}' order by Modified_Time desc limit 200`;
   const res = await zohoCrmCoql({ accessToken, apiDomain: ZOHO_API_DOMAIN, selectQuery: q });
   const deals = res?.data || [];
 
-  const createdToday = deals.filter(d => d.Created_Time && new Date(d.Created_Time) >= from);
+  const createdToday = deals.filter(d => d.Created_Time && new Date(d.Created_Time) >= windowFrom);
   const closedWon = deals.filter(d => String(d.Stage || '').toLowerCase().includes('closed won'));
   const closedLost = deals.filter(d => String(d.Stage || '').toLowerCase().includes('closed lost'));
 
@@ -178,7 +207,7 @@ async function zohoFetchDealMovement({ accessToken }) {
 async function zohoFetchMeetingsBooked({ accessToken }) {
   // Events created during the window, and occurring in the future.
   // This approximates “meetings booked today” (created_time window), regardless of meeting date.
-  const q = `select id, Event_Title, Start_DateTime, End_DateTime, Owner, Created_Time, Modified_By, What_Id from Events where Created_Time >= '${iso(from)}' and Created_Time <= '${iso(now)}' order by Created_Time desc limit 200`;
+  const q = `select id, Event_Title, Start_DateTime, End_DateTime, Owner, Created_Time, Modified_By, What_Id from Events where Created_Time >= '${iso(windowFrom)}' and Created_Time <= '${iso(windowTo)}' order by Created_Time desc limit 200`;
   const res = await zohoCrmCoql({ accessToken, apiDomain: ZOHO_API_DOMAIN, selectQuery: q });
   const events = (res?.data || []).filter(e => e.Start_DateTime && new Date(e.Start_DateTime) >= now);
   return { events };
@@ -212,7 +241,10 @@ function briefHeader() {
 (async function main() {
   const lines = [];
   lines.push(briefHeader());
-  lines.push(`Window: last ${hours}h | connected≥${connectedSec}s | long≥${fewMin}m${redact ? ' | redact:on' : ''}`);
+  const windowLabel = windowMode === 'rolling'
+    ? `last ${hours}h`
+    : windowMode;
+  lines.push(`Window: ${windowLabel} (${fmtLocal(windowFrom)} → ${fmtLocal(windowTo)}) | connected≥${connectedSec}s | long≥${fewMin}m${redact ? ' | redact:on' : ''}`);
 
   if (selftest) {
     lines.push('');
@@ -226,8 +258,8 @@ function briefHeader() {
   }
 
   // RingCentral activity
-  const callLog = await ringcentralGetJson(`/restapi/v1.0/account/~/extension/~/call-log?dateFrom=${encodeURIComponent(iso(from))}&dateTo=${encodeURIComponent(iso(now))}&perPage=1000`);
-  const msgs = await ringcentralGetJson(`/restapi/v1.0/account/~/extension/~/message-store?dateFrom=${encodeURIComponent(iso(from))}&dateTo=${encodeURIComponent(iso(now))}&perPage=1000`);
+  const callLog = await ringcentralGetJson(`/restapi/v1.0/account/~/extension/~/call-log?dateFrom=${encodeURIComponent(iso(windowFrom))}&dateTo=${encodeURIComponent(iso(windowTo))}&perPage=1000`);
+  const msgs = await ringcentralGetJson(`/restapi/v1.0/account/~/extension/~/message-store?dateFrom=${encodeURIComponent(iso(windowFrom))}&dateTo=${encodeURIComponent(iso(windowTo))}&perPage=1000`);
 
   const callSummary = summarizeCalls(callLog.records);
   const msgSummary = summarizeMessages(msgs.records);
