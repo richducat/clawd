@@ -23,8 +23,53 @@ type BookingsResponse = {
   error?: string;
 };
 
+const LAB_TZ = 'America/New_York';
+
+function getZonedParts(timeZone: string, date: Date) {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+
+  const parts = dtf.formatToParts(date);
+  const pick = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+
+  return {
+    year: pick('year'),
+    month: pick('month'),
+    day: pick('day'),
+    hour: pick('hour'),
+    minute: pick('minute'),
+    second: pick('second'),
+  };
+}
+
+function tzOffsetMs(timeZone: string, date: Date) {
+  const p = getZonedParts(timeZone, date);
+  const asUTC = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  return asUTC - date.getTime();
+}
+
+function makeZonedDate(timeZone: string, wall: { year: number; month: number; day: number; hour: number; minute: number }) {
+  // Convert a wall-clock time in `timeZone` into an actual JS Date instant.
+  // Two-pass to survive DST boundaries.
+  const guessMs = Date.UTC(wall.year, wall.month - 1, wall.day, wall.hour, wall.minute, 0);
+  const guess = new Date(guessMs);
+  const first = guessMs - tzOffsetMs(timeZone, guess);
+  const secondGuess = new Date(first);
+  const second = guessMs - tzOffsetMs(timeZone, secondGuess);
+  return new Date(second);
+}
+
 function fmt(dt: Date) {
   return dt.toLocaleString(undefined, {
+    timeZone: LAB_TZ,
     weekday: 'short',
     month: 'short',
     day: 'numeric',
@@ -37,20 +82,24 @@ function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number) {
   return aStart < bEnd && aEnd > bStart;
 }
 
-function buildCandidateSlots(day: Date, opts: { startHour: number; endHour: number; durationMin: number; stepMin: number }) {
+function buildCandidateSlots(
+  day: Date,
+  opts: { startHour: number; endHour: number; durationMin: number; stepMin: number }
+) {
   const slots: Array<{ start: Date; end: Date }> = [];
-  const d = new Date(day);
-  d.setHours(0, 0, 0, 0);
+
+  // Build slots in LabStudio’s canonical timezone (ET) regardless of browser locale.
+  const { year, month, day: dd } = getZonedParts(LAB_TZ, day);
 
   const { startHour, endHour, durationMin, stepMin } = opts;
 
   for (let h = startHour; h < endHour; h++) {
     for (let m = 0; m < 60; m += stepMin) {
-      const start = new Date(d);
-      start.setHours(h, m, 0, 0);
-
+      const start = makeZonedDate(LAB_TZ, { year, month, day: dd, hour: h, minute: m });
       const end = new Date(start.getTime() + durationMin * 60_000);
-      if (end.getHours() > endHour || (end.getHours() === endHour && end.getMinutes() > 0)) continue;
+
+      const endParts = getZonedParts(LAB_TZ, end);
+      if (endParts.hour > endHour || (endParts.hour === endHour && endParts.minute > 0)) continue;
 
       slots.push({ start, end });
     }
@@ -72,18 +121,34 @@ export default function BookView() {
 
   const days = useMemo(() => {
     const out: Date[] = [];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+
+    const now = new Date();
+    const todayParts = getZonedParts(LAB_TZ, now);
+
+    // Use UTC date arithmetic for calendar day increments, then re-materialize
+    // each day at midnight ET to avoid DST-related 23/25-hour day glitches.
+    const base = new Date(Date.UTC(todayParts.year, todayParts.month - 1, todayParts.day));
+
     for (let i = 0; i < 14; i++) {
-      out.push(new Date(today.getTime() + i * 24 * 60 * 60_000));
+      const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() + i));
+      out.push(
+        makeZonedDate(LAB_TZ, {
+          year: d.getUTCFullYear(),
+          month: d.getUTCMonth() + 1,
+          day: d.getUTCDate(),
+          hour: 0,
+          minute: 0,
+        })
+      );
     }
+
     return out;
   }, []);
 
   const selectedDay = days[Math.min(Math.max(dayIndex, 0), days.length - 1)] ?? new Date();
 
   const slots = useMemo(() => {
-    // NOTE: generated in the browser timezone (members are expected to be ET).
+    // Generated in LabStudio’s canonical timezone (ET), not the browser timezone.
     const candidate = buildCandidateSlots(selectedDay, {
       startHour: 6,
       endHour: 20,
@@ -220,7 +285,7 @@ export default function BookView() {
         <div className="flex gap-2 overflow-x-auto pb-1">
           {days.map((d, idx) => {
             const active = idx === dayIndex;
-            const label = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+            const label = d.toLocaleDateString(undefined, { timeZone: LAB_TZ, weekday: 'short', month: 'short', day: 'numeric' });
             return (
               <button
                 key={d.toISOString()}
@@ -251,8 +316,8 @@ export default function BookView() {
                   onClick={() => setSlotIso(iso)}
                   className={`text-xs font-black px-3 py-3 rounded-xl border ${active ? 'bg-white text-zinc-950 border-white' : 'bg-zinc-900 text-zinc-200 border-white/10 hover:border-yellow-500/30'}`}
                 >
-                  {start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
-                  <div className="text-[10px] font-mono opacity-70">→ {end.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</div>
+                  {start.toLocaleTimeString(undefined, { timeZone: LAB_TZ, hour: 'numeric', minute: '2-digit' })}
+                  <div className="text-[10px] font-mono opacity-70">→ {end.toLocaleTimeString(undefined, { timeZone: LAB_TZ, hour: 'numeric', minute: '2-digit' })}</div>
                 </button>
               );
             })}
