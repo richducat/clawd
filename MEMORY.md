@@ -18,7 +18,8 @@
 - Be highly proactive: keep user organized and prepared; monitor business; take work off their plate.
 - Improve workflow and revenue where possible.
 - For changes/builds: create PRs for user to review; do not push live; user will test and commit.
-- PR autonomy (2026-02-17): I may open/post PRs without asking first (still draft-first for any outbound comms; and no pushing live / irreversible external actions without explicit approval).
+- PR autonomy (2026-02-17): I may open/post PRs without asking first (still draft-first for any outbound comms).
+- Deploy autonomy (2026-02-17): I may push live/deploy without asking **for low-risk changes** when there is an obvious rollback path (e.g., Vercel deploy/alias/rollback). Still escalate/ask first for high-risk or hard-to-reverse production changes (DB migrations, destructive data ops), secrets/security changes, billing/finance, legal-ish, cancellations/refunds/chargebacks, or angry/upset threads.
 - When writing outbound drafts (emails/messages), bundle multiple drafts together when possible (send them “along with any other drafts” going forward).
 - **Email rule (2026-02-10): draft-only simple replies for everyone; do NOT email Karen back.**
 - **Email sending policy (2026-02-12): revert to draft-first for all outbound emails until explicitly approved to send (even within normal guardrails), due to risk of incorrect/out-of-policy outreach.**
