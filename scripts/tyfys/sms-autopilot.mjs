@@ -7,7 +7,7 @@
  * - For leads: send Day-N followup sequence from Lead Owner line.
  * - For deals/clients: send from the line they last interacted with (RC history).
  * - Always appends booking link to every message.
- * - Quiet hours: 9pm–8am Pacific (hard-coded for now per Richard).
+ * - Quiet hours + send windows: configurable (defaults: 9pm–8am PT; windows 9am–12pm + 4pm–8:30pm PT).
  *
  * This script is safe-ish but still powerful. It will SEND SMS.
  * Run with --dry-run first.
@@ -15,6 +15,7 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { loadEnvLocal } from '../lib/load-env-local.mjs';
 import { getZohoAccessToken, zohoCrmCoql, zohoCrmGet } from '../lib/zoho.mjs';
@@ -77,8 +78,13 @@ function lineToUserKey(fromNumber) {
   return null;
 }
 
-const QUIET_START_PT_HOUR = 21; // 9pm PT
-const QUIET_END_PT_HOUR = 8; // 8am PT
+const DEFAULT_TIME_ZONE = "America/Los_Angeles";
+
+const DEFAULT_QUIET_START = "21:00";
+const DEFAULT_QUIET_END = "08:00";
+
+const DEFAULT_MORNING_WINDOW = "09:00-12:00";
+const DEFAULT_EVENING_WINDOW = "16:00-20:30";
 
 function getArg(name, def) {
   const idx = process.argv.indexOf(name);
@@ -92,6 +98,16 @@ const dryRun = process.argv.includes('--dry-run');
 const lookbackMin = Number(getArg('--lookbackMin', '60'));
 const mode = getArg('--mode', 'schedule'); // schedule | reactive
 const tenant = getArg('--tenant', 'new'); // RingCentral tenant/app namespace (default: new)
+
+const timeZone = getArg('--tz', DEFAULT_TIME_ZONE);
+const quietStart = parseHm(getArg('--quietStart', DEFAULT_QUIET_START), DEFAULT_QUIET_START);
+const quietEnd = parseHm(getArg('--quietEnd', DEFAULT_QUIET_END), DEFAULT_QUIET_END);
+const morningWindow = parseWindow(getArg('--morningWindow', DEFAULT_MORNING_WINDOW), DEFAULT_MORNING_WINDOW);
+const eveningWindow = parseWindow(getArg('--eveningWindow', DEFAULT_EVENING_WINDOW), DEFAULT_EVENING_WINDOW);
+
+const nowIsoArg = getArg('--nowIso', '');
+const now = nowIsoArg ? new Date(nowIsoArg) : new Date();
+if (!Number.isFinite(now.getTime())) throw new Error(`Invalid --nowIso: ${JSON.stringify(nowIsoArg)}`);
 
 // New: proactive lead SLA outreach (owner-based) for leads untouched for N hours.
 // Enabled by default in schedule mode (per Richard request), can be disabled with --no-lead-sla.
@@ -118,35 +134,60 @@ function normalizePhone(v) {
   return s;
 }
 
-function nowPtParts() {
-  const d = new Date();
+export function getZonedHourMinute({ date = new Date(), timeZone }) {
   const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Los_Angeles',
+    timeZone,
     hour: 'numeric',
     minute: 'numeric',
     hour12: false,
-  }).formatToParts(d);
+  }).formatToParts(date);
   const hour = Number(parts.find(p => p.type === 'hour')?.value ?? '0');
   const minute = Number(parts.find(p => p.type === 'minute')?.value ?? '0');
   return { hour, minute };
 }
 
-function inQuietHours() {
-  const { hour } = nowPtParts();
-  // quiet if hour >= 21 OR hour < 8
-  return hour >= QUIET_START_PT_HOUR || hour < QUIET_END_PT_HOUR;
+function parseHm(v, def) {
+  const s = String(v || '').trim() || String(def || '').trim();
+  const m = s.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) throw new Error(`Invalid time value: ${JSON.stringify(v)} (expected HH:MM)`);
+  const hour = Number(m[1]);
+  const minute = Number(m[2]);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+    throw new Error(`Invalid time value: ${JSON.stringify(v)} (expected 00:00–23:59)`);
+  }
+  return { hour, minute };
 }
 
-function inMorningWindowPt() {
-  const { hour } = nowPtParts();
-  // 9:00–12:00 PT
-  return hour >= 9 && hour < 12;
+function parseWindow(v, def) {
+  const s = String(v || '').trim() || String(def || '').trim();
+  const m = s.match(/^(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})$/);
+  if (!m) throw new Error(`Invalid window value: ${JSON.stringify(v)} (expected HH:MM-HH:MM)`);
+  return { start: parseHm(m[1]), end: parseHm(m[2]) };
 }
 
-function inEveningWindowPt() {
-  const { hour } = nowPtParts();
-  // 16:00–20:30 PT
-  return hour >= 16 && hour < 20;
+function hmToMinutes({ hour, minute }) {
+  return hour * 60 + minute;
+}
+
+export function inDailyWindow({ date = new Date(), timeZone, window }) {
+  const { hour, minute } = getZonedHourMinute({ date, timeZone });
+  const cur = hmToMinutes({ hour, minute });
+  const start = hmToMinutes(window.start);
+  const end = hmToMinutes(window.end);
+  // Note: windows are treated as [start, end) on the same day.
+  return cur >= start && cur < end;
+}
+
+export function inQuietHours({ date = new Date(), timeZone, quietStart, quietEnd }) {
+  const { hour, minute } = getZonedHourMinute({ date, timeZone });
+  const cur = hmToMinutes({ hour, minute });
+  const start = hmToMinutes(quietStart);
+  const end = hmToMinutes(quietEnd);
+
+  // Quiet hours may wrap midnight (e.g. 21:00 -> 08:00).
+  if (start === end) return true; // degenerate: always quiet
+  if (start < end) return cur >= start && cur < end;
+  return cur >= start || cur < end;
 }
 
 async function readState() {
@@ -435,10 +476,10 @@ async function main() {
     if (!c.day0At && isInbound) c.day0At = rec.creationTime || new Date().toISOString();
   }
 
-  if (inQuietHours()) {
-    state.lastRunAt = new Date().toISOString();
+  if (inQuietHours({ date: now, timeZone, quietStart, quietEnd })) {
+    state.lastRunAt = now.toISOString();
     await writeState(state);
-    process.stdout.write('Quiet hours active (PT). No sends.\n');
+    process.stdout.write(`Quiet hours active (${timeZone}). No sends.\n`);
     return;
   }
 
@@ -477,8 +518,8 @@ async function main() {
       if (!fromNumberAllowed(fromNumber)) continue;
 
       // In schedule mode, only send during the windows; prefer morning template in AM window and evening template in PM window.
-      const wantMorning = inMorningWindowPt();
-      const wantEvening = inEveningWindowPt();
+      const wantMorning = inDailyWindow({ date: now, timeZone, window: morningWindow });
+      const wantEvening = inDailyWindow({ date: now, timeZone, window: eveningWindow });
       if (!wantMorning && !wantEvening) continue;
 
       const day = chooseDayNumber({ day0At: c.day0At });
@@ -504,7 +545,7 @@ async function main() {
         await ringcentralSendSms({ fromNumber, toNumber: l.phone, text, tenant, userKey: ADMIN_USER_KEY, extensionId });
       }
 
-      const nowIso2 = new Date().toISOString();
+      const nowIso2 = now.toISOString();
       if (shouldSendMorning) sentMeta.morningAt = nowIso2;
       if (shouldSendEvening) sentMeta.eveningAt = nowIso2;
       c.lastOutboundAt = nowIso2;
@@ -512,9 +553,9 @@ async function main() {
     }
   }
 
-  const nowIso = new Date().toISOString();
-  const sendMorning = mode === 'reactive' ? true : inMorningWindowPt();
-  const sendEvening = mode === 'schedule' ? inEveningWindowPt() : false;
+  const nowIso = now.toISOString();
+  const sendMorning = mode === 'reactive' ? true : inDailyWindow({ date: now, timeZone, window: morningWindow });
+  const sendEvening = mode === 'schedule' ? inDailyWindow({ date: now, timeZone, window: eveningWindow }) : false;
 
   for (const [phone, c] of Object.entries(state.contacts)) {
     if (c.stopped) continue;
@@ -574,12 +615,24 @@ async function main() {
     c.lastOutboundAt = nowIso;
   }
 
-  state.lastRunAt = new Date().toISOString();
+  state.lastRunAt = now.toISOString();
   await writeState(state);
   process.stdout.write(`Done. dryRun=${dryRun}\n`);
 }
 
-main().catch((err) => {
-  console.error(err?.stack || String(err));
-  process.exit(1);
-});
+const isCli = (() => {
+  try {
+    const me = fileURLToPath(import.meta.url);
+    const invoked = process.argv[1] ? path.resolve(process.argv[1]) : '';
+    return invoked && path.resolve(invoked) === path.resolve(me);
+  } catch {
+    return true;
+  }
+})();
+
+if (isCli) {
+  main().catch((err) => {
+    console.error(err?.stack || String(err));
+    process.exit(1);
+  });
+}
