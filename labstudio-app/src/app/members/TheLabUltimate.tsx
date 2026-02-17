@@ -77,7 +77,17 @@ export default function TheLabUltimate({
 }) {
   const [tab, setTabState] = useState<Tab>('home');
   const [tabMeta, setTabMeta] = useState<Record<string, unknown> | null>(null);
-  const [checkoutNotice, setCheckoutNotice] = useState<null | { kind: 'success' | 'cancel' }>(null);
+  const [checkoutNotice, setCheckoutNotice] = useState<null | { kind: 'success' | 'cancel' }>(() => {
+    // Read once on mount (client-only) so we don't call setState inside an effect.
+    try {
+      if (typeof window === 'undefined') return null;
+      const sp = new URLSearchParams(window.location.search);
+      const checkout = sp.get('checkout');
+      return checkout === 'success' || checkout === 'cancel' ? { kind: checkout } : null;
+    } catch {
+      return null;
+    }
+  });
   const xp = initialUser?.xp ?? 0;
   const level = initialUser?.level ?? 1;
   const name =
@@ -92,11 +102,12 @@ export default function TheLabUltimate({
   };
 
   useEffect(() => {
+    // If we showed a checkout notice, remove the query param (pure side-effect).
     try {
+      if (!checkoutNotice) return;
       const sp = new URLSearchParams(window.location.search);
       const checkout = sp.get('checkout');
       if (checkout === 'success' || checkout === 'cancel') {
-        setCheckoutNotice({ kind: checkout });
         sp.delete('checkout');
         const next = `${window.location.pathname}${sp.toString() ? `?${sp.toString()}` : ''}${window.location.hash || ''}`;
         window.history.replaceState({}, '', next);
@@ -104,7 +115,7 @@ export default function TheLabUltimate({
     } catch {
       // ignore
     }
-  }, []);
+  }, [checkoutNotice]);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white font-sans selection:bg-violet-500/30 pb-24 relative overflow-hidden">
