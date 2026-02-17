@@ -53,8 +53,29 @@ const KAREN_ID = '6748611000000782001';
 const STATE_PATH = path.resolve('memory/tyfys-fulfillment-tasker.json');
 
 async function readState() {
-  try { return JSON.parse(await fs.readFile(STATE_PATH,'utf8')); }
-  catch { return { createdTasks: {} }; }
+  try {
+    const s = JSON.parse(await fs.readFile(STATE_PATH, 'utf8'));
+
+    // Back-compat migration:
+    // Old format: createdTasks[`${dealId}:${dayKey}`] = ...
+    if (!s.createdTasksByDeal) s.createdTasksByDeal = {};
+    if (s.createdTasks && typeof s.createdTasks === 'object') {
+      for (const [k, v] of Object.entries(s.createdTasks)) {
+        const dealId = String(k).split(':')[0];
+        if (!dealId) continue;
+        // Keep the most recent entry we see (file is chronological-ish).
+        s.createdTasksByDeal[dealId] = v;
+      }
+    }
+
+    return s;
+  } catch {
+    return {
+      // createdTasksByDeal: dealId -> { taskId, at, ownerId, missing }
+      // We track by deal (not by day) to avoid creating repeat tasks day-after-day.
+      createdTasksByDeal: {},
+    };
+  }
 }
 async function writeState(s) {
   if (dryRun) return; // never persist dry-run output
@@ -140,6 +161,15 @@ async function main() {
   const isoZoho = (d) => d.toISOString().replace(/\.\d{3}Z$/, '+00:00');
   const sinceIso = isoZoho(new Date(Date.now() - sinceDays * 24 * 3600 * 1000));
 
+  async function findExistingOpenTopFieldsTask(dealId) {
+    // Prevent redundant tasks even if local state was lost or the script ran elsewhere.
+    // Zoho COQL: keep narrow + safe.
+    const q = `select id, Subject, Status, Owner, Created_Time from Tasks where What_Id = '${dealId}' and Subject like 'Fill required top fields (%' and Status != 'Completed' order by Created_Time desc limit 1`;
+    const r = await zohoCrmCoql({ accessToken: zohoToken, apiDomain, selectQuery: q }).catch(() => null);
+    const t = r?.data?.[0];
+    return t ? { id: String(t.id), status: t.Status, subject: t.Subject } : null;
+  }
+
   // Zoho COQL has strict limits; keep this query narrow.
   const q = `select id, Deal_Name, Stage, Modified_Time, Last_Activity_Time, Veteran_Live_Status, Next_Step, Last_Time_Contacted, Appointment_Status, Provider from Deals where Modified_Time >= '${sinceIso}' order by Modified_Time desc limit ${Math.min(limit || 200, 200)}`;
   const res = await zohoCrmCoql({ accessToken: zohoToken, apiDomain, selectQuery: q });
@@ -154,6 +184,7 @@ async function main() {
 
   let created = 0;
   let skippedAlreadyCreated = 0;
+  let skippedZohoExisting = 0;
   const createdItems = [];
 
   for (const d of deals) {
@@ -163,10 +194,22 @@ async function main() {
     const ownerId = pickOwnerForDeal(d);
     const dealId = String(d.id);
 
-    // Avoid spamming: one “missing top fields” task per deal per day.
-    const key = `${dealId}:${dayKey}`;
-    if (state.createdTasks[key]) {
+    // Avoid spamming: only one open “missing top fields” task per deal.
+    if (state.createdTasksByDeal?.[dealId]) {
       skippedAlreadyCreated += 1;
+      continue;
+    }
+
+    const existing = await findExistingOpenTopFieldsTask(dealId);
+    if (existing?.id) {
+      state.createdTasksByDeal[dealId] = {
+        taskId: existing.id,
+        at: new Date().toISOString(),
+        ownerId,
+        missing: miss,
+        note: 'Found existing open task in Zoho (dedupe)'
+      };
+      skippedZohoExisting += 1;
       continue;
     }
 
@@ -179,7 +222,7 @@ async function main() {
     const desc = `Deal: ${d.Deal_Name}\nStage: ${d.Stage || ''}\nMissing: ${miss.join(', ')}\n\nRule: Always fill Veteran Live Status, Next Step, Last Time Contacted, Appointment Status.\n${providerRule}`;
 
     const t = await createTask({ subject: subj, dueDate: due, ownerId, whatId: dealId, description: desc });
-    state.createdTasks[key] = { taskId: t.id, at: new Date().toISOString(), ownerId, missing: miss };
+    state.createdTasksByDeal[dealId] = { taskId: t.id, at: new Date().toISOString(), ownerId, missing: miss };
     createdItems.push({ dealName: d.Deal_Name, dealId, ownerId, missing: miss, taskId: t.id });
     created += 1;
   }
@@ -187,7 +230,7 @@ async function main() {
   await writeState(state);
 
   process.stdout.write(
-    `Done. dryRun=${dryRun} deals_scanned=${deals.length} tasks_created=${created} skipped_already_created=${skippedAlreadyCreated} day=${dayKey} sinceDays=${sinceDays}\n`
+    `Done. dryRun=${dryRun} deals_scanned=${deals.length} tasks_created=${created} skipped_already_created=${skippedAlreadyCreated} skipped_existing_open_task_in_zoho=${skippedZohoExisting} day=${dayKey} sinceDays=${sinceDays}\n`
   );
 
   for (const item of createdItems.slice(0, 25)) {
