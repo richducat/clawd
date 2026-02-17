@@ -34,11 +34,28 @@ for repo in "${REPOS[@]}"; do
   # Ensure we can talk to remote; avoid hanging forever.
   git -C "$repo" remote -v || true
 
-  # Pull first to minimize push conflicts.
-  if ! git -C "$repo" pull --rebase --autostash; then
-    echo "[fail] pull --rebase failed (leaving repo untouched): $repo"
-    failed=$((failed+1))
+  # Determine branch + upstream situation.
+  branch=$(git -C "$repo" rev-parse --abbrev-ref HEAD || echo "")
+  if [[ "$branch" == "HEAD" || -z "$branch" ]]; then
+    echo "[skip] detached HEAD (not safe to auto-pull/push): $repo"
+    skipped=$((skipped+1))
     continue
+  fi
+
+  # Pull first to minimize push conflicts.
+  # If upstream is missing, fall back to pulling from origin/<branch>.
+  if git -C "$repo" rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1; then
+    if ! git -C "$repo" pull --rebase --autostash; then
+      echo "[fail] pull --rebase failed (leaving repo untouched): $repo"
+      failed=$((failed+1))
+      continue
+    fi
+  else
+    if ! git -C "$repo" pull --rebase --autostash origin "$branch"; then
+      echo "[fail] pull --rebase (no upstream; tried origin/$branch) failed: $repo"
+      failed=$((failed+1))
+      continue
+    fi
   fi
 
   if [[ -z "$(git -C "$repo" status --porcelain)" ]]; then
@@ -59,11 +76,19 @@ for repo in "${REPOS[@]}"; do
   # Commit message is intentionally consistent for easy searching.
   git -C "$repo" commit -m "chore(backup): auto-sync $TS_UTC" --no-gpg-sign || true
 
-  # Push (uses repo's configured upstream).
-  if ! git -C "$repo" push; then
-    echo "[fail] push failed: $repo"
-    failed=$((failed+1))
-    continue
+  # Push (uses repo's configured upstream). If upstream is missing, set it.
+  if git -C "$repo" rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1; then
+    if ! git -C "$repo" push; then
+      echo "[fail] push failed: $repo"
+      failed=$((failed+1))
+      continue
+    fi
+  else
+    if ! git -C "$repo" push -u origin HEAD; then
+      echo "[fail] push -u origin HEAD failed: $repo"
+      failed=$((failed+1))
+      continue
+    fi
   fi
 
   echo "[ok] committed + pushed"
