@@ -204,6 +204,23 @@ export async function ensureSchema() {
     );
   `;
   await q`create index if not exists lab_agenda_items_user_day_idx on lab_agenda_items(user_id, day desc, sort_order, created_at desc);`;
+
+  // Member bookings (DB-backed) — powers self-serve booking flow.
+  await q`
+    create table if not exists lab_bookings (
+      id text primary key,
+      user_id text not null references lab_users(id) on delete cascade,
+      start_at timestamptz not null,
+      end_at timestamptz not null,
+      kind text not null default 'session',
+      status text not null default 'requested',
+      note text,
+      created_at timestamptz not null default now(),
+      canceled_at timestamptz
+    );
+  `;
+  await q`create index if not exists lab_bookings_user_start_idx on lab_bookings(user_id, start_at asc);`;
+  await q`create index if not exists lab_bookings_start_idx on lab_bookings(start_at asc);`;
 }
 
 
