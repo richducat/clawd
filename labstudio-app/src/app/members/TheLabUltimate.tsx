@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Activity, Calendar, MessageSquare, Brain, ShoppingBag, User } from 'lucide-react';
 
 import TobyCoachView from './TobyCoachView';
@@ -77,6 +77,7 @@ export default function TheLabUltimate({
 }) {
   const [tab, setTabState] = useState<Tab>('home');
   const [tabMeta, setTabMeta] = useState<Record<string, unknown> | null>(null);
+  const [checkoutNotice, setCheckoutNotice] = useState<null | { kind: 'success' | 'cancel' }>(null);
   const xp = initialUser?.xp ?? 0;
   const level = initialUser?.level ?? 1;
   const name =
@@ -89,6 +90,21 @@ export default function TheLabUltimate({
     setTabState(next as Tab);
     setTabMeta(meta ?? null);
   };
+
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const checkout = sp.get('checkout');
+      if (checkout === 'success' || checkout === 'cancel') {
+        setCheckoutNotice({ kind: checkout });
+        sp.delete('checkout');
+        const next = `${window.location.pathname}${sp.toString() ? `?${sp.toString()}` : ''}${window.location.hash || ''}`;
+        window.history.replaceState({}, '', next);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white font-sans selection:bg-violet-500/30 pb-24 relative overflow-hidden">
@@ -121,6 +137,33 @@ export default function TheLabUltimate({
 
       {/* Content */}
       <main className="max-w-md lg:max-w-6xl mx-auto p-4 relative z-10">
+        {checkoutNotice ? (
+          <div
+            className={`mb-4 rounded-2xl border p-4 flex items-start justify-between gap-4 ${
+              checkoutNotice.kind === 'success'
+                ? 'border-emerald-500/30 bg-emerald-500/10'
+                : 'border-zinc-500/30 bg-white/5'
+            }`}
+          >
+            <div>
+              <div className="text-xs font-bold tracking-widest uppercase text-zinc-400">
+                {checkoutNotice.kind === 'success' ? 'Payment complete' : 'Checkout canceled'}
+              </div>
+              <div className="text-sm text-zinc-200 mt-1">
+                {checkoutNotice.kind === 'success'
+                  ? 'You’re all set. Stripe will email a receipt, and any membership entitlements will activate automatically.'
+                  : 'No worries — your cart is still here.'}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="shrink-0 text-xs font-black text-zinc-200 bg-white/10 hover:bg-white/15 px-3 py-2 rounded-xl"
+              onClick={() => setCheckoutNotice(null)}
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : null}
         {needsOnboarding ? (
           <div className="mb-4 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-4 flex items-center justify-between gap-4">
             <div>
