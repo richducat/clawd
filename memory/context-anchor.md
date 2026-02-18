@@ -1,15 +1,12 @@
 # Context Anchor (internal)
 
-Last updated: 2026-02-17 21:02 ET
+Last updated: 2026-02-17 22:02 ET
 
 ## 1) Source refresh (internal summary)
 - **memory/goals-master.md:** MISSING (ENOENT)
   - Breakage risk: cron job **“Daily goals + deadlines post (PRIVATE)”** reads this path.
 - **memory/2026-02-16.md:** MISSING (ENOENT)
   - Continuity gap: daily notes present through `2026-02-15.md`.
-- **memory/2026-02-15.md (summary):** OpenClaw dual‑Mac stabilization rules:
-  - Office Mac: use `openclaw --profile office ...` with `gateway.mode=local` + `gateway.bind=loopback`; exactly one LaunchAgent (`ai.openclaw.office`).
-  - Travel Mac: default profile or `--profile travel`; **do not** copy/sync `~/.openclaw*` between machines.
 - **MEMORY.md (skim — operating rules/non‑negotiables):**
   - **Draft-first for ALL outbound comms** until explicitly approved.
   - **Do not email Karen back** (draft-only rule persists).
@@ -17,10 +14,10 @@ Last updated: 2026-02-17 21:02 ET
   - LabStudio: **NO mock data** in user-visible UI (must be real DB/integration-backed).
 
 ## 2) Top 10 commitments (current)
-1) Kids: Everett (11) + Berkeley (5) supported; schedule + routines stable.
+1) Kids stability: Everett (11) + Berkeley (5) supported; schedule + routines steady.
 2) Courts: monitor/respond to clerk/docket/hearing notices (no misses).
 3) School admin: Quest/Focal/SIS/IEP/speech comms + forms (keep inbox clean).
-4) Berkeley speech: home practice + keep aligned w/ SLP (Danielle Ryba).
+4) Berkeley speech: home practice + aligned w/ SLP (Danielle Ryba).
 5) Everett soccer: training plan + follow-through.
 6) TYFYS mission: deliver medical evidence (DBQs/nexus) reliably.
 7) TYFYS ops reliability: Zoho + RingCentral automations stay healthy (no silent failures).
@@ -29,11 +26,11 @@ Last updated: 2026-02-17 21:02 ET
 10) LabStudio: ship real, DB-backed member flows (cafe/booking/shop/checkout), PR-sized; **no prod deploy** without explicit approval.
 
 ## 3) Today’s non-negotiables (must stay green)
-- **Courts + school monitoring:** email-watch jobs must keep running; any replies are DRAFT-only.
+- **Courts + school:** email-watch jobs must keep running; any replies are DRAFT-only.
 - **Backups:**
   - Hourly: `scripts/backup/git-auto-sync-all.sh`
   - Nightly: OpenClaw state bundle → Drive + local sync
-- **RingCentral (RC) updates:** weekday AM posts (8:30 update, 8:32 buckets, 8:35 KPI) + 4:00pm day-cap; DriftGuard verifies output sanity.
+- **RC updates:** weekday AM posts (8:30 update, 8:32 buckets, 8:35 KPI) + 4:00pm day-cap; DriftGuard verifies output sanity.
 
 ## 4) Active workstreams + next actions
 ### A) Drift control / continuity
@@ -59,14 +56,15 @@ Last updated: 2026-02-17 21:02 ET
 - Periodic check: ensure only one LaunchAgent per Mac; office still `gateway.mode=local` + loopback bind; no copying of `~/.openclaw*`.
 
 ## 5) Cron health — lastStatus=error in last 24h (quick scan)
-- **Enabled jobs with lastStatus=error in last 24h:** none found.
-- **Notable disabled historical errors:** several one-shot/disabled jobs show `Unsupported channel: whatsapp` in `state.lastError`.
-  - This is a known failure mode: ensure any future jobs that need delivery set `delivery.channel=telegram` (or omit channel + rely on delivery default) and correct `delivery.to`.
+- **Enabled jobs with lastStatus=error in last 24h:** none observed.
+- **Any jobs with lastStatus=error in last 24h (incl disabled):**
+  - `LabStudio deploy: shop-on-prod-baseline once Vercel quota resets` (jobId `e69a0b5d-fb54-4b65-ac83-4aad62d55e60`) — **disabled**
+    - lastError: `Unsupported channel: whatsapp`
 
 ## 6) Detected breakages + queued fix (apply next work block)
 1) **Missing file:** `/Users/richardducat/clawd/memory/goals-master.md`
-   - Fix next: create the file with a stable structure so dependent cron jobs never crash.
+   - Fix next: create file with stable structure so dependent cron jobs never crash.
 2) **Missing file:** `/Users/richardducat/clawd/memory/2026-02-16.md`
    - Fix next: reconstruct retro daily note from git/PR drafts.
-3) **Delivery mismatch drift (historical):** `Unsupported channel: whatsapp`
+3) **Delivery mismatch drift (historical symptom):** `Unsupported channel: whatsapp`
    - Fix next: scan cron store for any *enabled* jobs whose delivery includes an explicit wrong channel; patch to Telegram (or `delivery.mode=none` for internal jobs).
