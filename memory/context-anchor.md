@@ -1,63 +1,72 @@
-# Context Anchor (internal)
+# Context Anchor (INTERNAL)
 
-Last updated: 2026-02-16 21:02 ET
+Last updated: 2026-02-18 12:02 ET
 
-## Source reads (internal summary)
-- ⚠️ Missing files:
-  - `/Users/richardducat/clawd/memory/goals-master.md` (not found)
-  - `/Users/richardducat/clawd/memory/2026-02-16.md` (not found)
-- MEMORY.md skim (operating rules / non-negotiables):
-  - Draft-first for *all* outbound emails until explicitly approved to send.
-  - Do **not** email Karen back (draft-only; no sending to Karen without explicit approval).
-  - Be proactive + low-friction: if ≥70% sure and safe/reversible, decide and proceed.
-  - For code/work: PR-sized changes; do not push live; Richard tests/commits.
-  - LabStudio: **no mock data** in user-visible UI.
-  - OpenClaw dual-Mac rules: one LaunchAgent per Mac; don’t copy `~/.openclaw*`; office uses `--profile office`.
+## 1) Internal summaries (inputs)
 
-## Top 10 commitments (current operating commitments)
-1) Draft-first for outbound comms; never send without explicit approval.
-2) Never email Karen back automatically (draft-only; wait for approval).
-3) Ship one tangible, testable deliverable (PR-sized) on a steady cadence.
-4) LabStudio: real DB/integration-backed UI only (no mock data).
-5) TYFYS: protect privacy (no client PII/PHI leakage; rep-safe where required).
-6) Keep RingCentral automations healthy (morning posts + verification + ops brief).
-7) Keep backup jobs healthy (hourly git autosync; nightly OpenClaw state backups).
-8) Maintain change-control: decisions shouldn’t live only in chat—anchor in memory files.
-9) Avoid drift collisions: detect/disable duplicates; minimize overlapping automations.
-10) Keep dual-Mac OpenClaw separation stable (office brain vs travel cockpit).
+### memory/goals-master.md
+- **MISSING FILE** at `/Users/richardducat/clawd/memory/goals-master.md` (ENOENT).
 
-## Today’s non-negotiables (template)
-- Courts/school watch: morning + afternoon email scans; draft-only replies.
-- Backups:
-  - Hourly git auto-sync (cron: `d43e5f81-...`) ✅ scheduled
-  - Nightly OpenClaw state backup to Drive + local sync ✅ scheduled
-- RingCentral updates:
-  - Morning Sales Team RC update + lead buckets + KPI scoreboard + verification ✅ scheduled (weekdays)
-  - Ops brief (Mon–Sat) ✅ scheduled
+### memory/2026-02-16.md
+- **MISSING FILE** at `/Users/richardducat/clawd/memory/2026-02-16.md` (ENOENT).
 
-## Active workstreams + next actions
-### 1) Context anchoring
-- Next action: create the missing anchor source files (or update cron paths) so this job is grounded in real goals + daily plan.
+### MEMORY.md (skim: operating rules + non-negotiables)
+- Operate proactively; minimize friction; if ≥70% sure, decide and proceed.
+- **Draft-first for all outbound** until explicitly approved to send.
+- **Do not email Karen back** (draft-only rule).
+- LabStudio: **no mock data** in user-visible UI.
+- OpenClaw dual-Macbook rules: don’t sync `~/.openclaw*`; one LaunchAgent per Mac; office vs travel profiles.
 
-### 2) LabStudio
-- Next action: be ready for `LabStudio deploy: shop-on-prod-baseline` (job `e69a0b5d-...` at 2026-02-17 02:55Z) once quota resets.
-- Guardrail: do not deploy to prod without explicit approval beyond the queued job; keep changes PR-sized.
+## 2) Top 10 commitments (current)
+1. Single-dad responsibilities: Everett (11) + Berkeley (5).
+2. School: Berkeley’s speech services continuity; weekly check-in with SLP Danielle Ryba.
+3. Courts: stay on top of clerk-of-courts / Brevard Court 18 / magistrate items (email watch).
+4. **Backups**: hourly git auto-sync; nightly OpenClaw state backups (Drive + local sync).
+5. TYFYS: keep RC sales-team updates posting reliably (AM posts + day-cap + lead buckets + KPI scoreboard).
+6. TYFYS: inbound SMS automation (auto-reply + forward-to-owner) reliability; avoid spamming; token health.
+7. TYFYS: provider pipeline hygiene (handoff tasker; fulfillment tasker; provider replies watch).
+8. LabStudio: ship member-usable end-to-end flows; keep work PR-sized; do not deploy without approval.
+9. Repo hygiene/drift control: audits, default branch sanity, PR aging.
+10. Change-control: record automation/cron changes in anchor files so decisions don’t live only in chat.
 
-### 3) TYFYS automations
-- Next action: keep an eye on RC/TYFYS jobs; if any start erroring, fix smallest safe issue (tokens, criteria paging, etc.).
+## 3) Today’s non-negotiables (must not slip)
+- **Courts + school monitoring**
+  - Email watch jobs (7:30am + 4:40pm ET) are the safety net.
+- **Backups**
+  - Hourly `git-auto-sync-all` (cron at :05) must keep running.
+  - Nightly OpenClaw state backups (2:30am + 2:40am) must keep running.
+- **RingCentral (RC) updates**
+  - Weekday AM series: 8:30 (morning update), 8:32 (lead buckets), 8:35 (KPI scoreboard), 8:40 (verification).
+  - 4:00pm ET day-cap update.
 
-### 4) DriftGuard / hygiene
-- Next action: ensure any automation edits within 24h are written into this file (preflight job will also append changes).
+## 4) Active workstreams + next actions
 
-## Cron health (last 24h)
-- Enabled jobs with `lastStatus=error` in last 24h: **none detected**.
-- Notable errors seen (disabled one-shots): Telegram topic pings failed with `Unsupported channel: whatsapp` (jobs `df8f1ae3-...`, `464cbf82-...`, `806bdedf-...`, `0338f6fa-...`).
+### A) Context + goals anchoring (THIS JOB)
+- Next action: **recreate missing files or repoint jobs**.
+  - Search for canonical goals doc location (maybe `second-brain/`, `docs/`, or renamed file).
+  - If missing permanently: create new `memory/goals-master.md` and backfill from recent daily notes + MEMORY.md.
+  - Ensure there is a `memory/2026-02-16.md` (if it existed, it may have been renamed); otherwise create a stub with recovered summary.
 
-## Detected breakages + queued fix
-1) **Missing anchor inputs**: goals-master + daily memory file paths don’t exist.
-   - Fix next work block:
-     - Create `memory/goals-master.md` (seed with current top priorities + quarterly goals).
-     - Create `memory/2026-02-16.md` (retro-log + next-day plan).
-     - OR update cron payload paths if the canonical filenames differ.
-2) **Disabled Telegram-topic one-shots misrouted**: historical jobs attempted Telegram deliveries but errored as whatsapp.
-   - Fix (low priority since disabled): delete old one-shot jobs or correct delivery channel defaults when creating future telegram posts.
+### B) Cron/automation reliability
+- Next action: investigate and clean up **disabled jobs** that still show `lastStatus=error` due to `Unsupported channel: whatsapp` (Cool Cat test pings; LabStudio deploy one-shot).
+  - Likely fix: ensure delivery channel is explicitly `telegram` for those jobs or remove/garbage-collect expired disabled one-shots to reduce noise.
+
+### C) TYFYS ops
+- Next action: keep an eye on token health (RingCentral `invalid_grant` playbook exists) and Zoho paging/zeros for lead-buckets.
+
+### D) LabStudio
+- Next action: continue build blocks on active PR/branch (no mock data; PR-sized commits; pnpm build).
+
+## 5) Breakages detected + queued fix
+
+### Breakage: missing anchor inputs
+- `memory/goals-master.md` not found.
+- `memory/2026-02-16.md` not found.
+
+Queued fix (next work block):
+1) `find` for alternate locations/filenames and update cron/job instructions accordingly.
+2) If truly missing: create the files (stub + reconstructed content) and commit them.
+
+### Cron health (last 24h)
+- No **enabled** jobs observed in `lastStatus=error` within this snapshot.
+- However, several **disabled one-shot** jobs have `lastStatus=error` (historical) with `Unsupported channel: whatsapp`.
