@@ -30,7 +30,7 @@ export default function BookView() {
       <div className="px-1">
         <h1 className="text-2xl font-black italic uppercase">Book</h1>
         <div className="text-xs text-zinc-500 mt-1">
-          Backed by a real Google Calendar feed (richducat@gmail.com) for now.
+          Backed by a real Google Calendar feed for now.
         </div>
       </div>
 
