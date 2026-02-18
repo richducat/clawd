@@ -36,9 +36,20 @@ function esc(s) {
 function normalizeName(raw) {
   let s = String(raw || '').trim();
   s = s.replace(/\s+/g, ' ');
+  s = s.replace(/^\*+/, '').trim();
+  s = s.replace(/[“”]/g, '"');
+
   // Convert "Last, First" -> "First Last"
-  const m = s.match(/^([^,]+),\s*(.+)$/);
-  if (m) s = `${m[2]} ${m[1]}`.replace(/\s+/g, ' ').trim();
+  const comma = s.match(/^([^,]+),\s*(.+)$/);
+  if (comma) s = `${comma[2]} ${comma[1]}`.replace(/\s+/g, ' ').trim();
+
+  // Remove stray punctuation that breaks LIKE matching
+  s = s.replace(/[_]/g, ' ');
+  s = s.replace(/\s+/g, ' ').trim();
+
+  // Drop common suffixes when present
+  s = s.replace(/\b(jr\.?|sr\.?|ii|iii|iv)\b/gi, '').replace(/\s+/g, ' ').trim();
+
   return s;
 }
 
@@ -107,8 +118,17 @@ async function findDealByFolderName({ accessToken, folderName }) {
 const index = JSON.parse(await fs.readFile(indexPath, 'utf8'));
 const accessToken = await getZohoAccessToken();
 
+const onlyNoMatchFrom = argVal('--onlyNoMatchFrom', null);
+
+let onlyNoMatchSet = null;
+if (onlyNoMatchFrom) {
+  const prev = JSON.parse(await fs.readFile(onlyNoMatchFrom, 'utf8'));
+  onlyNoMatchSet = new Set((prev.foldersNoMatch || []).map((x) => String(x.folderName || '').trim()).filter(Boolean));
+}
+
 const folders = (index.folders || [])
   .filter((f) => (f.files?.length || 0) > 0)
+  .filter((f) => (onlyNoMatchSet ? onlyNoMatchSet.has(String(f.name || '').trim()) : true))
   .sort((a, b) => (b.mtimeMs || 0) - (a.mtimeMs || 0))
   .slice(0, limit);
 

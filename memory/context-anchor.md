@@ -1,67 +1,82 @@
 # Context Anchor (internal)
 
-Last updated: 2026-02-17 19:02 ET
+Last updated: 2026-02-17 20:02 ET
 
 ## 1) Source refresh (internal summary)
 - **memory/goals-master.md:** MISSING (ENOENT)
-  - Breakage: at least one enabled cron job (“Daily goals + deadlines post”) depends on it.
+  - Breakage: enabled cron job **“Daily goals + deadlines post (PRIVATE)”** reads this file daily.
 - **memory/2026-02-16.md:** MISSING (ENOENT)
-  - Continuity gap for yesterday’s work/decisions (last daily note present is 2026-02-15).
+  - Continuity gap: last daily note present is `2026-02-15.md`.
 - **MEMORY.md (skim — operating rules/non‑negotiables):**
-  - Draft-first for all outbound comms until explicitly approved.
+  - Draft-first for ALL outbound comms until explicitly approved.
   - **Do not email Karen back** (draft-only rule persists).
-  - Avoid friction: if ≥70% sure, decide and proceed; only ask when safety/permissions/irreversible.
+  - Friction rule: if ≥70% sure, decide and proceed; only ask when safety/permissions/irreversible.
   - LabStudio: **NO mock data** in user-visible UI (must be real DB/integration-backed).
-  - OpenClaw dual‑Mac: don’t copy `~/.openclaw*`; one LaunchAgent per Mac; office profile uses `~/.openclaw-office` with `gateway.mode=local` + loopback bind.
+  - OpenClaw dual‑Mac: don’t copy `~/.openclaw*`; exactly one LaunchAgent per Mac; office uses `--profile office` with `gateway.mode=local` + loopback bind.
 
 ## 2) Top 10 commitments (current)
-1) Single-dad ops: Everett (11) + Berkeley (5) supported and on-schedule.
-2) Courts: monitor/respond to clerk/docket/hearing notices.
-3) School admin: Quest/Focal/SIS/IEP/speech comms + forms.
-4) Berkeley speech: home practice + maintain SLP alignment (Danielle Ryba).
-5) Everett soccer: training plan + follow-through.
-6) TYFYS mission: medical evidence for VA disability claims.
-7) TYFYS sales/ops reliability: Zoho + RingCentral automations must stay healthy.
+1) Kids: Everett (11) + Berkeley (5) supported; schedule + routines stable.
+2) Courts: monitor/respond to clerk/docket/hearing notices (no misses).
+3) School admin: Quest/Focal/SIS/IEP/speech comms + forms (keep inbox clean).
+4) Berkeley speech: home practice + keep aligned w/ SLP (Danielle Ryba).
+5) Everett soccer: training plan + follow-through + playtest/feedback loops.
+6) TYFYS mission: deliver medical evidence (DBQs/nexus) reliably.
+7) TYFYS sales/ops reliability: Zoho + RingCentral automations stay healthy (no silent failures).
 8) TYFYS provider pipeline: provider replies watch + provider handoff + fulfillment tasking.
-9) Backups: hourly git auto-sync + nightly OpenClaw backups must succeed.
-10) LabStudio: ship real, DB-backed member flows; PR-sized; no prod deploy without explicit approval.
+9) Backups: hourly git auto-sync + nightly OpenClaw state bundles must succeed.
+10) LabStudio: ship real, DB-backed member flows (cafe/booking/shop/checkout), PR-sized; **no prod deploy** without explicit approval.
 
 ## 3) Today’s non-negotiables (must stay green)
-- **Courts + school:** email watch jobs must keep running reliably; any replies are draft-only.
+- **Courts + school monitoring:** email watch jobs must keep running; any replies are DRAFT-only.
 - **Backups:**
   - Hourly: `scripts/backup/git-auto-sync-all.sh`
   - Nightly: OpenClaw state bundle → Drive + local sync
-- **RingCentral (RC) updates:** weekday AM posts (8:30 update, 8:32 buckets, 8:35 KPI) + 4:00pm day-cap; verify outputs non-zero/sane.
+- **RingCentral (RC) updates:** weekday AM posts (8:30 update, 8:32 buckets, 8:35 KPI) + 4:00pm day-cap; DriftGuard verifies output sanity.
 
 ## 4) Active workstreams + next actions
 ### A) Drift control / continuity
-- Create missing `memory/goals-master.md` with minimal real structure:
-  - Top goals, deadlines, recurring commitments, “today non‑negotiables”, and “this week focus”.
-- Create `memory/2026-02-16.md` retro log reconstructed from:
-  - `git log --since '2026-02-16 00:00'` across key repos
-  - any `PR_DRAFT_` files / LabStudio branches
-  - cron job changes (job list updatedAtMs within 24h if relevant)
+- Create missing `memory/goals-master.md` (minimal but real):
+  - Top goals (personal + TYFYS + LabStudio)
+  - Deadlines/launch targets
+  - Recurring non-negotiables
+  - This-week focus
+- Create `memory/2026-02-16.md` retro-log reconstructed from:
+  - `git log --since '2026-02-16 00:00'` (clawd + labstudio-app)
+  - any `PR_DRAFT_2026-02-16_*.md` or branch names
+  - cron job edits (jobs updatedAtMs within 24h of Feb 16)
 
 ### B) TYFYS automations (RC/Zoho)
-- Keep RC/Zoho token + state files consistent (note: both `ringcentral-token.json` and `ringcentral-token.new.json` exist).
-- Continue monitoring enabled RC/Zoho jobs for auth drift (`invalid_grant`) and paging/zero-count anomalies.
+- Keep RC/Zoho token + state files consistent.
+  - Note: both `memory/ringcentral-token.json` and `memory/ringcentral-token.new.json` exist (potential confusion).
+- Watch for `invalid_grant` and paging/zero-count anomalies.
 
 ### C) LabStudio
-- Continue build blocks on current PR/branch; enforce “no mock data”; keep changes PR-sized; do not deploy to prod without explicit approval.
+- Continue build blocks on current PR/branch; enforce “no mock data”; keep PR-sized; do not deploy to prod without explicit approval.
 
 ### D) OpenClaw dual‑Mac hygiene
-- Periodic check: one LaunchAgent per machine; office profile still `gateway.mode=local` + loopback bind.
+- Periodic check: ensure only one LaunchAgent per Mac; office still `gateway.mode=local` + loopback bind; no copying of `~/.openclaw*`.
 
-## 5) Cron health (lastStatus=error in last 24h)
-- `LabStudio deploy: shop-on-prod-baseline once Vercel quota resets` (jobId: e69a0b5d-fb54-4b65-ac83-4aad62d55e60) — **ERROR**
-  - lastError: `Unsupported channel: whatsapp`
-  - Note: job currently disabled, but indicates channel/delivery drift in cron store.
+## 5) Cron health — lastStatus=error in last 24h (quick scan)
+Enabled jobs with errors:
+- `TYFYS inbound SMS auto-reply scanner (Sales team)` (jobId: 786870c7-a69b-426c-bd29-3dad3f438003)
+  - lastError: provider cooldown / rate_limit: `Provider openai-codex is in cooldown (all profiles unavailable)`
+- `TYFYS outbound SMS autopilot (Adam/Amy/Jared, NEW tenant)` (jobId: 0aa2a6d7-2921-43d7-9242-c7c75c75122d)
+  - lastError: same provider cooldown / rate_limit
+
+Disabled/one-shot jobs that still show errors (noise, but indicates config drift):
+- Several one-shot “KickCraft/Everett topic” test jobs + LabStudio deploy one-shot show `Unsupported channel: whatsapp`.
 
 ## 6) Detected breakages + queued fix (apply next work block)
 1) **Missing file:** `/Users/richardducat/clawd/memory/goals-master.md`
-   - Fix next: create the file (seed with commitments + goals + deadlines) so cron jobs don’t crash.
+   - Fix next: create the file with a stable structure so dependent cron jobs never crash.
 2) **Missing file:** `/Users/richardducat/clawd/memory/2026-02-16.md`
-   - Fix next: create retro daily note (reconstruct from git log + any PR draft files).
-3) **Cron delivery mismatch drift:** job e69a0b5d… (and likely others)
-   - Fix next: scan cron jobs for `delivery.channel`/errors referencing `whatsapp` and patch to Telegram or set `delivery.mode=none`.
-   - After patching, re-run only if the job is still required.
+   - Fix next: reconstruct retro daily note from git/PR drafts.
+3) **Model/provider cooldown causing cron failures** (rate_limit)
+   - Fix next: update the affected cron jobs to be resilient when provider is cooling down:
+     - either (a) extend timeouts + set wakeMode next-heartbeat + backoff, or
+     - (b) switch those two jobs to a lighter model / alternative provider profile if available.
+     - and/or (c) gate sending actions when model unavailable (skip run, do NOT spam).
+4) **Cron delivery mismatch drift:** jobs with `Unsupported channel: whatsapp`
+   - Fix next: scan cron store for jobs whose `state.lastError` contains that string and patch delivery fields:
+     - remove any stale/incorrect `delivery.channel`
+     - ensure Telegram targets are explicit where needed; otherwise `delivery.mode=none`
