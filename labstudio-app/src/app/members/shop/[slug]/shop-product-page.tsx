@@ -24,9 +24,6 @@ export default function ShopProductPage({ slug }: { slug: string }) {
   const totals = useMemo(() => cartTotals(cart), [cart]);
 
   useEffect(() => {
-    setLoading(true);
-    setError(null);
-
     fetch('/api/lab/shop')
       .then((r) => r.json())
       .then((j) => {
