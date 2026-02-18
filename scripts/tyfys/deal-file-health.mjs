@@ -71,8 +71,25 @@ function healthSummary({ tasks, notes, attachments }) {
 }
 
 async function main() {
+  const stageArg = (() => {
+    const i = args.indexOf('--stages');
+    return i !== -1 ? args[i + 1] : null;
+  })();
+  const stages = (stageArg ? stageArg.split(',').map(s => s.trim()).filter(Boolean) : [
+    'Intake (Document Collection)',
+    'Ready for Provider',
+    'Sent to Provider',
+  ]);
+
+  const all = args.includes('--all');
   const sinceIso = isoZoho(new Date(Date.now() - hours * 3600 * 1000));
-  const q = `select id, Deal_Name, Stage, Modified_Time, Last_Activity_Time, Appointment_Status, Provider from Deals where Modified_Time >= '${sinceIso}' and Stage in ('Intake (Document Collection)','Ready for Provider','Sent to Provider') limit ${Math.min(limit, 200)}`;
+
+  const stageSql = stages.map(s => `'${s.replace(/'/g, "\\'")}'`).join(',');
+  const where = all
+    ? `Stage in (${stageSql})`
+    : `Modified_Time >= '${sinceIso}' and Stage in (${stageSql})`;
+
+  const q = `select id, Deal_Name, Stage, Modified_Time, Last_Activity_Time, Appointment_Status, Provider from Deals where ${where} limit ${Math.min(limit, 200)}`;
   const res = await zohoCrmCoql({ accessToken: token, apiDomain, selectQuery: q });
   const deals = res?.data || [];
 
