@@ -1,72 +1,81 @@
-# Context Anchor (INTERNAL)
+# Context Anchor (internal)
 
-Last updated: 2026-02-18 12:02 ET
+Last updated: 2026-02-18 13:02 ET
 
-## 1) Internal summaries (inputs)
+## Internal summaries (for drift prevention)
 
-### memory/goals-master.md
-- **MISSING FILE** at `/Users/richardducat/clawd/memory/goals-master.md` (ENOENT).
+### goals-master.md
+- **MISSING FILE**: `/Users/richardducat/clawd/memory/goals-master.md` not found (ENOENT).
+- Impact: daily goals/deadlines cron (`2254c296-...`) expects this file; content is currently unknown from this anchor run.
 
 ### memory/2026-02-16.md
-- **MISSING FILE** at `/Users/richardducat/clawd/memory/2026-02-16.md` (ENOENT).
+- **MISSING FILE**: `/Users/richardducat/clawd/memory/2026-02-16.md` not found (ENOENT).
+- Impact: loss of continuity for decisions/next steps recorded that day.
 
-### MEMORY.md (skim: operating rules + non-negotiables)
-- Operate proactively; minimize friction; if ≥70% sure, decide and proceed.
-- **Draft-first for all outbound** until explicitly approved to send.
-- **Do not email Karen back** (draft-only rule).
-- LabStudio: **no mock data** in user-visible UI.
-- OpenClaw dual-Macbook rules: don’t sync `~/.openclaw*`; one LaunchAgent per Mac; office vs travel profiles.
+### MEMORY.md (skim — operating rules + non‑negotiables)
+- Operate proactively; default to acting without asking unless safety/permissions/irreversibility.
+- Draft-first for **all outbound emails** until explicitly approved to send.
+- **Do not email Karen back** (draft-only; no direct send).
+- LabStudio: **NO mock data** in user-visible UI (real DB/integration-backed only).
+- Deploy/runbook notes exist; Vercel CLI gotchas (git author must match team member email).
+- Dual MacBooks/OpenClaw: keep office vs travel profiles separate; never copy `~/.openclaw*`; one LaunchAgent per Mac.
 
-## 2) Top 10 commitments (current)
-1. Single-dad responsibilities: Everett (11) + Berkeley (5).
-2. School: Berkeley’s speech services continuity; weekly check-in with SLP Danielle Ryba.
-3. Courts: stay on top of clerk-of-courts / Brevard Court 18 / magistrate items (email watch).
-4. **Backups**: hourly git auto-sync; nightly OpenClaw state backups (Drive + local sync).
-5. TYFYS: keep RC sales-team updates posting reliably (AM posts + day-cap + lead buckets + KPI scoreboard).
-6. TYFYS: inbound SMS automation (auto-reply + forward-to-owner) reliability; avoid spamming; token health.
-7. TYFYS: provider pipeline hygiene (handoff tasker; fulfillment tasker; provider replies watch).
-8. LabStudio: ship member-usable end-to-end flows; keep work PR-sized; do not deploy without approval.
-9. Repo hygiene/drift control: audits, default branch sanity, PR aging.
-10. Change-control: record automation/cron changes in anchor files so decisions don’t live only in chat.
+---
 
-## 3) Today’s non-negotiables (must not slip)
-- **Courts + school monitoring**
-  - Email watch jobs (7:30am + 4:40pm ET) are the safety net.
-- **Backups**
-  - Hourly `git-auto-sync-all` (cron at :05) must keep running.
-  - Nightly OpenClaw state backups (2:30am + 2:40am) must keep running.
-- **RingCentral (RC) updates**
-  - Weekday AM series: 8:30 (morning update), 8:32 (lead buckets), 8:35 (KPI scoreboard), 8:40 (verification).
-  - 4:00pm ET day-cap update.
+## Top 10 commitments (current)
+1) **Draft-first** for outbound email; never send without approval.
+2) **Do not email Karen back** (ever; drafts ok).
+3) **Reduce friction**: if ≥70% sure, decide and proceed.
+4) **Protect privacy**: avoid client PII/PHI in outputs; keep rep updates REP-SAFE.
+5) **Courts + school vigilance**: daily email watches + surfacing deadlines.
+6) **Backups**: hourly git auto-sync + nightly OpenClaw state backups.
+7) **TYFYS operations automation**: SMS autopilot, inbound scanners/forwarders, waiting-room check-ins.
+8) **RingCentral updates**: AM posts + lead buckets + KPI scoreboard + EOD/day-cap update.
+9) **LabStudio progress**: autonomous build blocks; PR-sized changes; no prod deploy without explicit approval.
+10) **DriftGuard**: cron error sentinel + preflight/change-control so automations don’t silently fail.
 
-## 4) Active workstreams + next actions
+---
 
-### A) Context + goals anchoring (THIS JOB)
-- Next action: **recreate missing files or repoint jobs**.
-  - Search for canonical goals doc location (maybe `second-brain/`, `docs/`, or renamed file).
-  - If missing permanently: create new `memory/goals-master.md` and backfill from recent daily notes + MEMORY.md.
-  - Ensure there is a `memory/2026-02-16.md` (if it existed, it may have been renamed); otherwise create a stub with recovered summary.
+## Today’s non-negotiables
+- **Courts/School:** keep the 7:30am + 4:40pm email watches clean and reliable; escalate only truly time-sensitive items.
+- **Backups:** confirm hourly git auto-sync continues to succeed; nightly OpenClaw bundles should remain green.
+- **RC updates:** morning/eod posts and lead freshness buckets must continue posting to the correct RingCentral chat.
 
-### B) Cron/automation reliability
-- Next action: investigate and clean up **disabled jobs** that still show `lastStatus=error` due to `Unsupported channel: whatsapp` (Cool Cat test pings; LabStudio deploy one-shot).
-  - Likely fix: ensure delivery channel is explicitly `telegram` for those jobs or remove/garbage-collect expired disabled one-shots to reduce noise.
+---
 
-### C) TYFYS ops
-- Next action: keep an eye on token health (RingCentral `invalid_grant` playbook exists) and Zoho paging/zeros for lead-buckets.
+## Active workstreams + next actions
 
-### D) LabStudio
-- Next action: continue build blocks on active PR/branch (no mock data; PR-sized commits; pnpm build).
+### A) Reliability / drift prevention
+- Next: restore/locate missing anchor files:
+  - Find if renamed/moved: search for `goals-master` and `2026-02-16` in `memory/`.
+  - If truly absent: recreate minimal versions (placeholders) so dependent jobs stop failing.
 
-## 5) Breakages detected + queued fix
+### B) TYFYS automations (Zoho + RingCentral)
+- Running/enabled: outbound SMS autopilot, inbound auto-reply scanner, inbound forward-to-owner, timezone backfill, waiting-room check-in, provider replies watch.
+- Next: keep an eye on OAuth `invalid_grant` errors; refresh per-user tokens only when needed.
 
-### Breakage: missing anchor inputs
-- `memory/goals-master.md` not found.
-- `memory/2026-02-16.md` not found.
+### C) LabStudio
+- Running/enabled: 11am/2pm/5pm build blocks + progress pings.
+- Next: ensure work stays PR-sized; no prod deploy until explicitly approved.
 
-Queued fix (next work block):
-1) `find` for alternate locations/filenames and update cron/job instructions accordingly.
-2) If truly missing: create the files (stub + reconstructed content) and commit them.
+### D) Personal/CRM + comms scans
+- Running/enabled: personal CRM ingest + meeting prep; daily comms sweep; EOD update.
+- Next: keep outputs short (per job constraints).
 
-### Cron health (last 24h)
-- No **enabled** jobs observed in `lastStatus=error` within this snapshot.
-- However, several **disabled one-shot** jobs have `lastStatus=error` (historical) with `Unsupported channel: whatsapp`.
+---
+
+## Cron health (last 24h: any lastStatus=error)
+Observed `lastStatus=error` jobs (may be disabled / one-shots):
+- `e69a0b5d-fb54-4b65-ac83-4aad62d55e60` — LabStudio deploy one-shot: **lastError: Unsupported channel: whatsapp** (delivery misroute).
+
+Older (outside 24h) but notable pattern:
+- Several Feb 14 one-shots (Everett/Cool Cat pings) errored with **Unsupported channel: whatsapp**.
+
+---
+
+## Detected breakages + queued fix (do not execute now)
+1) **Missing files**: `memory/goals-master.md` and `memory/2026-02-16.md`.
+   - Fix next work block: locate via ripgrep / filesystem; restore from git history/Drive if applicable; otherwise recreate minimal.
+2) **Delivery routing bug**: jobs erroring with `Unsupported channel: whatsapp`.
+   - Likely cause: cron delivery config missing/incorrect `channel` (should be telegram) or gateway thinks default channel is whatsapp.
+   - Fix next work block: inspect the failing job objects; set explicit `delivery.channel="telegram"` (and `to` where needed) or delete/disable obsolete one-shots.
