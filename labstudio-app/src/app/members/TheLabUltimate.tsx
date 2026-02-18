@@ -66,6 +66,7 @@ export default function TheLabUltimate({
   initialUser,
   initialProfile,
   needsOnboarding,
+  checkoutStatus,
 }: {
   initialUser: { display_name?: string; xp?: number; level?: number } | null;
   initialProfile: {
@@ -74,6 +75,7 @@ export default function TheLabUltimate({
     goal?: string | null;
   } | null;
   needsOnboarding?: boolean;
+  checkoutStatus?: 'success' | 'cancel' | null;
 }) {
   const [tab, setTabState] = useState<Tab>('home');
   const [tabMeta, setTabMeta] = useState<Record<string, unknown> | null>(null);
@@ -121,6 +123,38 @@ export default function TheLabUltimate({
 
       {/* Content */}
       <main className="max-w-md lg:max-w-6xl mx-auto p-4 relative z-10">
+        {checkoutStatus ? (
+          <div
+            className={`mb-4 rounded-2xl border p-4 flex items-center justify-between gap-4 ${
+              checkoutStatus === 'success'
+                ? 'border-emerald-500/30 bg-emerald-500/10'
+                : 'border-zinc-500/30 bg-white/5'
+            }`}
+          >
+            <div>
+              <div
+                className={`text-xs font-bold tracking-widest uppercase ${
+                  checkoutStatus === 'success' ? 'text-emerald-400' : 'text-zinc-300'
+                }`}
+              >
+                Checkout
+              </div>
+              <div className="text-sm text-zinc-200">
+                {checkoutStatus === 'success'
+                  ? 'Payment succeeded. If you bought a membership/pass, it should be active shortly.'
+                  : 'Checkout canceled.'}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="shrink-0 text-xs font-black text-zinc-200 bg-white/10 hover:bg-white/15 px-3 py-2 rounded-xl"
+              onClick={() => setTab('market')}
+            >
+              Shop
+            </button>
+          </div>
+        ) : null}
+
         {needsOnboarding ? (
           <div className="mb-4 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-4 flex items-center justify-between gap-4">
             <div>

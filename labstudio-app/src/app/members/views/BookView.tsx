@@ -14,6 +14,7 @@ type NextBooking = {
 
 export default function BookView() {
   const [nextBooking, setNextBooking] = useState<NextBooking | null>(null);
+  const bookingsUrl = process.env.NEXT_PUBLIC_LABSTUDIO_BOOKINGS_URL || null;
 
   useEffect(() => {
     fetch('/api/lab/home')
@@ -56,10 +57,24 @@ export default function BookView() {
       )}
 
       <Card className="p-4">
-        <div className="text-sm text-zinc-300">Create a booking (manual for now)</div>
-        <div className="text-xs text-zinc-500 mt-2">
-          We’ll wire true self-serve booking (slot selection + event creation) once we add Google API OAuth.
-        </div>
+        <div className="text-sm text-zinc-300">Book a session</div>
+        {bookingsUrl ? (
+          <div className="mt-3">
+            <a
+              href={bookingsUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-block text-xs font-black text-zinc-950 bg-yellow-400 hover:bg-yellow-300 px-3 py-2 rounded-xl"
+            >
+              Open booking page
+            </a>
+            <div className="text-[11px] text-zinc-500 mt-2">Opens the live booking system in a new tab.</div>
+          </div>
+        ) : (
+          <div className="text-xs text-zinc-500 mt-2">
+            Booking link isn’t configured yet. Set <span className="font-mono">NEXT_PUBLIC_LABSTUDIO_BOOKINGS_URL</span>.
+          </div>
+        )}
       </Card>
     </div>
   );

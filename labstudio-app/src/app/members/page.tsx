@@ -6,7 +6,11 @@ import type { InitialProfile } from './types';
 
 export const dynamic = 'force-dynamic';
 
-export default async function MembersHome() {
+export default async function MembersHome({
+  searchParams,
+}: {
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
   const jar = await cookies();
   const uid = jar.get('labstudio_uid')?.value;
 
@@ -37,5 +41,15 @@ export default async function MembersHome() {
     }
   }
 
-  return <TheLabUltimate initialUser={initialUser} initialProfile={initialProfile} needsOnboarding={needsOnboarding} />;
+  const checkout = typeof searchParams?.checkout === 'string' ? searchParams?.checkout : null;
+
+  return (
+    <TheLabUltimate
+      initialUser={initialUser}
+      initialProfile={initialProfile}
+      needsOnboarding={needsOnboarding}
+      checkoutStatus={checkout === 'success' || checkout === 'cancel' ? checkout : null}
+    />
+  );
 }
+
