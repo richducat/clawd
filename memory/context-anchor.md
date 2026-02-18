@@ -1,8 +1,8 @@
 # Context Anchor (internal)
 
-Last updated: 2026-02-18 15:02 ET
+Last updated: 2026-02-18 16:02 ET
 
-## Source reads (internal summary)
+## 1) Source reads (internal summary)
 - ⚠️ Missing files (cron payload points at these, but they don’t exist on disk):
   - `/Users/richardducat/clawd/memory/goals-master.md`
   - `/Users/richardducat/clawd/memory/2026-02-16.md`
@@ -14,10 +14,10 @@ Last updated: 2026-02-18 15:02 ET
   - **Do not email Karen back** automatically (draft-only; no sending without explicit approval).
   - Autonomy + low-friction: if ≥70% sure and safe/reversible, decide and proceed; only ask when safety/permissions/irreversible.
   - For code/work: PR-sized changes; do not push live; Richard tests/commits.
-  - LabStudio: **no mock data** in user-visible UI (must be DB/integration-backed).
+  - LabStudio: **no mock data** in user-visible UI (must be DB/integration-backed; seeding OK if it writes to DB).
   - OpenClaw dual-Mac rules: one LaunchAgent per Mac; don’t copy `~/.openclaw*`; office uses `--profile office`.
 
-## Top 10 commitments (operating commitments)
+## 2) Top 10 commitments (bullets)
 1) Draft-first for outbound comms; never send without explicit approval.
 2) Never email Karen back automatically (draft-only; wait for approval).
 3) Ship one tangible, testable deliverable regularly (PR-sized; <400 lines net when possible).
@@ -29,62 +29,57 @@ Last updated: 2026-02-18 15:02 ET
 9) Avoid drift collisions: prevent duplicate cron commands / shared state-file collisions.
 10) Keep OpenClaw office/travel separation stable (one gateway per Mac, correct profile usage).
 
-## Today’s non-negotiables (Wed)
+## 3) Today’s non-negotiables (courts/school + backups + RC updates)
 - Courts/school:
-  - Email watch jobs (AM + 4:40pm ET) must run; any replies are **draft-only**.
+  - Email watch jobs (7:30am ET + 4:40pm ET) must run; any replies are **draft-only**.
+  - Berkeley speech weekly check-in draft (Wed 4:30pm ET) must run (draft-only, reply-in-thread).
 - Backups:
   - Hourly git auto-sync (job `d43e5f81-...`) must stay green.
   - Nightly OpenClaw state backups (Drive + local sync) must stay green.
 - RingCentral / TYFYS updates:
-  - Morning Sales Team RC update + lead buckets + KPI scoreboard + verification (weekday schedule) must stay green.
-  - Day-cap RC update (4:00pm ET) must stay green.
+  - Morning RC: update + lead buckets + KPI scoreboard + verification must stay green.
+  - Day-cap RC update (4:00pm ET weekdays) must stay green.
 
-## Active workstreams + next actions
-### 1) Context anchoring / operating system
+## 4) Active workstreams + next actions
+### A) Context anchoring / operating system
+- Next actions (next work block):
+  - Create `memory/goals-master.md` (canonical goals + weekly focus + top priorities).
+  - Restore daily-note continuity: create missing daily files (at minimum `2026-02-16.md`; optionally backfill `2026-02-17.md` + start `2026-02-18.md`).
+  - If daily-file convention intentionally changed, patch cron payload(s) to point at the real canonical file(s).
+
+### B) TYFYS automations (RingCentral + Zoho)
 - Next actions:
-  - Create `memory/goals-master.md` (canonical goals + priorities + weekly focus).
-  - Restore daily-note continuity: create missing daily files (at minimum `2026-02-16.md` per cron payload; optionally backfill `2026-02-17.md` + `2026-02-18.md`).
-  - If the daily-file convention changed, patch the cron payload(s) to point at the real canonical file.
+  - Keep token health stable (Zoho + RingCentral). If `invalid_grant`, refresh via per-user oauth refresh script.
+  - Fix outbound SMS autopilot runtime so it reliably completes inside cron timeout (see breakages).
 
-### 2) LabStudio
+### C) LabStudio
 - Next actions:
   - Continue incremental PR-sized improvements during scheduled build blocks.
-  - Investigate the failed one-shot deploy job (below) and decide a safe re-run plan when in a work block.
+  - Revisit the disabled one-shot deploy job only after delivery channel is corrected (or set to `delivery.mode: none`).
 
-### 3) TYFYS automations
+### D) DriftGuard / hygiene
 - Next actions:
-  - Monitor token health (Zoho + RingCentral). If `invalid_grant`, refresh via the per-user oauth refresh script.
-  - Unblock outbound SMS autopilot runtime (see breakages) so it reliably completes inside cron timeout.
+  - Ensure any automation edits within 24h get recorded here (and/or via DriftGuard preflight “Recent automation changes”).
 
-### 4) DriftGuard / hygiene
-- Next actions:
-  - Ensure any automation edits within 24h get recorded here (and/or via DriftGuard preflight "Recent automation changes").
+## 5) Cron health (jobs with lastStatus=error in last 24h)
+- Enabled:
+  - `0aa2a6d7-2921-43d7-9242-c7c75c75122d` (TYFYS outbound SMS autopilot): `Error: cron: job execution timed out` (consecutiveErrors=1)
 
-## Cron health (quick check)
-- Enabled jobs with `lastStatus=error` in last 24h:
-  - `0aa2a6d7-2921-43d7-9242-c7c75c75122d` (TYFYS outbound SMS autopilot): `Error: cron: job execution timed out`
-
-## Detected breakages + queued fix (do NOT action now; next work block)
+## 6) Detected breakages + the fix to apply next (queued; do NOT action now)
 1) **Anchor inputs missing** (`goals-master.md` + `2026-02-16.md` don’t exist)
    - Fix plan:
-     - Create `memory/goals-master.md` with: top 5 goals, top 3 workstreams, hard non-negotiables, and a short “this week” section.
-     - Create `memory/2026-02-16.md` (and optionally backfill 2/17–2/18) OR update this cron job’s payload to the correct daily filename convention.
-2) **Daily-note continuity break** (no 2/16–2/18 daily files in memory folder)
+     - Create `memory/goals-master.md` with: Top 5 goals, Top 3 workstreams, today’s non-negotiables, and a “this week” section.
+     - Create `memory/2026-02-16.md` (and optionally 2/17–2/18). Add a small “plan tomorrow” section.
+2) **Daily-note continuity break** (no 2/16–2/18 daily files)
    - Fix plan:
-     - Decide/confirm canonical convention (one file per day, named `YYYY-MM-DD.md`).
-     - Add a lightweight guard (cron or heartbeat) that ensures today’s `memory/YYYY-MM-DD.md` exists and gets a “next-day plan” section by EOD.
+     - Add lightweight guardrail: ensure today’s `memory/YYYY-MM-DD.md` exists by noon, and has a “next actions” list by EOD.
 3) **TYFYS outbound SMS autopilot timeout** (enabled job error)
-   - Hypothesis: run is exceeding cron timeout (240s) due to Zoho paging / RC throttling / template selection / large leadLimit.
+   - Hypothesis: run exceeds cron timeout due to Zoho paging / RC throttling / `--leadLimit 120`.
    - Fix plan:
-     - First-run repro locally with `--dry-run` and smaller limits (e.g., `--leadLimit 40`) to get baseline runtime.
-     - Reduce default leadLimit, or add internal batching (process N leads per run, persist cursor in `memory/tyfys-sms-autopilot.json`).
-     - If RC calls are rate-limited, add exponential backoff + hard cap per run.
-     - Update cron timeoutSeconds upward only if necessary (prefer making the script fast).
-4) **LabStudio deploy one-shot errored due to channel misroute** (`Unsupported channel: whatsapp`)
-   - Note: this job is currently disabled, but indicates a mis-set/implicit delivery channel.
+     - Repro locally with `--dry-run` and smaller limits (e.g., `--leadLimit 40`) to baseline runtime.
+     - Implement batching/cursor in `memory/tyfys-sms-autopilot.json` (process N leads per run).
+     - Add RC rate-limit backoff + cap per run; keep cron `timeoutSeconds` as-is unless absolutely necessary.
+4) **Historical one-shot jobs show delivery misroute** (`Unsupported channel: whatsapp`)
+   - Low priority (those jobs are disabled), but indicates a configuration footgun.
    - Fix plan:
-     - For internal automation jobs: set `delivery.mode: none`.
-     - If announcements are needed: explicitly set `delivery.channel: telegram` + `delivery.to`.
-     - Patch/recreate the one-shot deploy job accordingly before re-running.
-5) **Historical disabled Telegram-topic one-shots misrouted** (`Unsupported channel: whatsapp`)
-   - Low priority since disabled; cleanup plan: delete old one-shots or enforce explicit delivery channels for future topic jobs.
+     - For future topic/one-shot jobs: explicitly set `delivery.channel: telegram` + `delivery.to`, or `delivery.mode: none` when purely internal.
