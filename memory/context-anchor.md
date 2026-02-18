@@ -1,16 +1,18 @@
 # Context Anchor (internal)
 
-Last updated: 2026-02-17 18:02 ET
+Last updated: 2026-02-17 19:02 ET
 
 ## 1) Source refresh (internal summary)
-- **memory/goals-master.md:** MISSING (ENOENT). Breakage: at least one enabled cron job (“Daily goals + deadlines post”) depends on it.
-- **memory/2026-02-16.md:** MISSING (ENOENT). Continuity gap for yesterday’s work/decisions.
+- **memory/goals-master.md:** MISSING (ENOENT)
+  - Breakage: at least one enabled cron job (“Daily goals + deadlines post”) depends on it.
+- **memory/2026-02-16.md:** MISSING (ENOENT)
+  - Continuity gap for yesterday’s work/decisions (last daily note present is 2026-02-15).
 - **MEMORY.md (skim — operating rules/non‑negotiables):**
   - Draft-first for all outbound comms until explicitly approved.
   - **Do not email Karen back** (draft-only rule persists).
   - Avoid friction: if ≥70% sure, decide and proceed; only ask when safety/permissions/irreversible.
-  - LabStudio: **NO mock data** in user-visible UI.
-  - OpenClaw dual-Mac: don’t copy `~/.openclaw*`; one LaunchAgent per Mac; office profile uses `~/.openclaw-office` with `gateway.mode=local` + loopback bind.
+  - LabStudio: **NO mock data** in user-visible UI (must be real DB/integration-backed).
+  - OpenClaw dual‑Mac: don’t copy `~/.openclaw*`; one LaunchAgent per Mac; office profile uses `~/.openclaw-office` with `gateway.mode=local` + loopback bind.
 
 ## 2) Top 10 commitments (current)
 1) Single-dad ops: Everett (11) + Berkeley (5) supported and on-schedule.
@@ -33,28 +35,33 @@ Last updated: 2026-02-17 18:02 ET
 
 ## 4) Active workstreams + next actions
 ### A) Drift control / continuity
-- Create missing `memory/goals-master.md` with a minimal, real structure (top goals, deadlines, recurring commitments, “today non-negotiables”).
-- Create `memory/2026-02-16.md` retro log reconstructed from git history + any PR draft files.
+- Create missing `memory/goals-master.md` with minimal real structure:
+  - Top goals, deadlines, recurring commitments, “today non‑negotiables”, and “this week focus”.
+- Create `memory/2026-02-16.md` retro log reconstructed from:
+  - `git log --since '2026-02-16 00:00'` across key repos
+  - any `PR_DRAFT_` files / LabStudio branches
+  - cron job changes (job list updatedAtMs within 24h if relevant)
 
-### B) TYFYS automations
-- Audit enabled jobs for delivery/channel correctness (avoid accidental `whatsapp`).
-- Keep RC/Zoho token + state files consistent (recent: `ringcentral-token.new.json` exists alongside `ringcentral-token.json`).
+### B) TYFYS automations (RC/Zoho)
+- Keep RC/Zoho token + state files consistent (note: both `ringcentral-token.json` and `ringcentral-token.new.json` exist).
+- Continue monitoring enabled RC/Zoho jobs for auth drift (`invalid_grant`) and paging/zero-count anomalies.
 
 ### C) LabStudio
-- Continue build blocks on current PR/branch; keep “no mock data” constraint.
+- Continue build blocks on current PR/branch; enforce “no mock data”; keep changes PR-sized; do not deploy to prod without explicit approval.
 
-### D) OpenClaw dual-Mac hygiene
+### D) OpenClaw dual‑Mac hygiene
 - Periodic check: one LaunchAgent per machine; office profile still `gateway.mode=local` + loopback bind.
 
-## 5) Cron health (errors in last 24h)
-- **ERROR:** `LabStudio deploy: shop-on-prod-baseline once Vercel quota resets` (jobId: e69a0b5d-fb54-4b65-ac83-4aad62d55e60)
+## 5) Cron health (lastStatus=error in last 24h)
+- `LabStudio deploy: shop-on-prod-baseline once Vercel quota resets` (jobId: e69a0b5d-fb54-4b65-ac83-4aad62d55e60) — **ERROR**
   - lastError: `Unsupported channel: whatsapp`
-  - Likely cause: delivery/channel drift; should be Telegram announce or `delivery.mode=none`.
+  - Note: job currently disabled, but indicates channel/delivery drift in cron store.
 
 ## 6) Detected breakages + queued fix (apply next work block)
 1) **Missing file:** `/Users/richardducat/clawd/memory/goals-master.md`
    - Fix next: create the file (seed with commitments + goals + deadlines) so cron jobs don’t crash.
 2) **Missing file:** `/Users/richardducat/clawd/memory/2026-02-16.md`
-   - Fix next: create retro daily note (reconstruct from git log + cron history).
-3) **Cron delivery mismatch:** job e69a0b5d…
-   - Fix next: patch job delivery to Telegram (or set `delivery.mode=none`) and re-run only if still needed; quick scan for any other jobs referencing `whatsapp`.
+   - Fix next: create retro daily note (reconstruct from git log + any PR draft files).
+3) **Cron delivery mismatch drift:** job e69a0b5d… (and likely others)
+   - Fix next: scan cron jobs for `delivery.channel`/errors referencing `whatsapp` and patch to Telegram or set `delivery.mode=none`.
+   - After patching, re-run only if the job is still required.
