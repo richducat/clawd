@@ -1,17 +1,18 @@
 # Context Anchor (internal)
 
-Last updated: 2026-02-19 15:02 ET
+Last updated: 2026-02-19 16:02 ET
 
 ## Source reads (internal summary)
-- ⚠️ Missing files (still):
-  - `/Users/richardducat/clawd/memory/goals-master.md` (not found)
-  - `/Users/richardducat/clawd/memory/2026-02-16.md` (not found)
+- ⚠️ Missing anchor inputs (still):
+  - `/Users/richardducat/clawd/memory/goals-master.md` (ENOENT)
+  - `/Users/richardducat/clawd/memory/2026-02-16.md` (ENOENT)
 - MEMORY.md skim (operating rules / non-negotiables):
   - **Draft-first for all outbound emails** until explicitly approved to send.
   - **Do not email Karen back automatically** (draft-only; no sending to Karen without explicit approval).
   - Low-friction rule: if ≥70% sure and safe/reversible, decide and proceed.
   - Code/work: PR-sized changes; do not push live; Richard tests/commits.
   - LabStudio: **no mock data** in user-visible UI (real DB/integration-backed only).
+  - OpenClaw stability: don’t copy `~/.openclaw*` between Macs; run one LaunchAgent per Mac; office vs travel profiles.
 
 ## Top 10 commitments (operating commitments)
 1) Draft-first for outbound comms; never send without explicit approval.
@@ -38,34 +39,34 @@ Last updated: 2026-02-19 15:02 ET
   - Inbound routing + inbound auto-replies + outbound autopilot run in windows (guardrails in payloads).
 
 ## Active workstreams + next actions
-### 1) Context anchoring (prevent drift)
-- Next action (queued): create the missing anchor source files OR update all jobs that reference them.
-  - Create: `memory/goals-master.md` (seed with current goals/priorities + deadlines)
-  - Create: `memory/2026-02-16.md` (retro-log + next-day plan) OR update references to an existing canonical date file.
+### 1) Anchoring / planning hygiene
+- Next actions (queued):
+  - Create `memory/goals-master.md` (canonical goals + deadlines).
+  - Create `memory/2026-02-16.md` (retro-log + plan), OR update any cron payload(s) that reference it to a canonical existing date file.
 
-### 2) LabStudio
-- Ongoing: weekday build blocks (11am / 2pm / 5pm ET) are active.
+### 2) LabStudio (member-usable E2E)
+- Work blocks are scheduled weekdays (11am / 2pm / 5pm ET).
 - Next action: keep progress PR-oriented (branch + small commits + `pnpm build`) and avoid prod deploy unless explicitly approved.
 
 ### 3) TYFYS automations (Zoho + RingCentral)
-- Next action: keep an eye on token/auth failures (`invalid_grant`) and fix via per-user RC refresh script when needed.
+- Next action: watch for token/auth failures (`invalid_grant`) and fix via per-user RC refresh script when needed.
 - Keep Jared excluded where payload says excluded (token/extension mismatch) to avoid noisy failures.
 
-### 4) DriftGuard / hygiene
+### 4) DriftGuard / repo hygiene
 - Next action: if any cron/automation edits happen via UI, ensure they get written back into this file (so nothing lives only in chat).
 
 ## Cron health (quick scan)
-Enabled jobs with `lastStatus=error` (treat as “needs attention”; likely within last 24h depending on schedule):
-- `786870c7-...` **TYFYS inbound SMS auto-reply scanner (Sales team)**
+Enabled jobs with `lastStatus=error` in the last ~24h:
+- `786870c7-a69b-426c-bd29-3dad3f438003` — **TYFYS inbound SMS auto-reply scanner (Sales team)**
   - lastError: `Error: cron: job execution timed out` (consecutiveErrors=1)
 
 Notes:
-- Several *disabled* one-shot jobs show `Unsupported channel: whatsapp` in lastError. Low priority unless re-enabled.
+- Several *disabled* historical one-shot jobs show `Unsupported channel: whatsapp` in lastError. Low priority unless re-enabled.
 
 ## Detected breakages + queued fix (do next available work block)
 1) **Missing anchor inputs**: `goals-master.md` and `2026-02-16.md` paths don’t exist.
-   - Fix (queued): create those files (preferred) OR change any cron payloads that read them to point at canonical files.
-2) **Inbound auto-reply scanner timing out** (180s).
-   - Fix (queued): reduce scan scope (shorter lookback / fewer lines), ensure script early-exits, and/or bump timeoutSeconds to 300 if needed.
-3) **Old disabled one-shot deliveries misrouted**: `Unsupported channel: whatsapp`.
-   - Fix (queued, low priority): delete old one-shots or ensure future one-shots explicitly set `delivery.channel=telegram`.
+   - Fix (queued): create those files (preferred) OR change any jobs that read them to point at canonical files.
+2) **Inbound auto-reply scanner timing out**.
+   - Fix (queued): reduce scan scope (shorter lookback / fewer lines), ensure script early-exits, and/or bump `timeoutSeconds` for this job.
+3) **Old disabled one-shot deliveries misrouted** (`Unsupported channel: whatsapp`).
+   - Fix (queued, low priority): delete old one-shots or ensure any future one-shots explicitly set `delivery.channel=telegram`.
