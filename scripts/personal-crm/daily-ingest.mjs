@@ -116,9 +116,9 @@ const summary = {
 // --- Calendar ingest ---
 {
   const fromIso = from.toISOString();
-  const toIso = now.toISOString();
+  const toIsoStr = now.toISOString();
 
-  const events = gogJson(['calendar', 'events', calendarId, '--from', fromIso, '--to', toIso, '--account', account, '--json']);
+  const events = gogJson(['calendar', 'events', calendarId, '--from', fromIso, '--to', toIsoStr, '--account', account, '--json']);
   const items = events?.events || events?.items || events || [];
 
   const insertInteraction = db.prepare(`
