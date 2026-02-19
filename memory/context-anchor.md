@@ -1,62 +1,48 @@
 # Context Anchor (internal)
 
-Updated: 2026-02-18 19:02 ET
+Updated: 2026-02-18 20:02 ET
 
 ## Top 10 commitments (current)
-1) **LabStudio**: ship member-usable end-to-end flows (cafe + booking + shop/cart/checkout) with **real DB-backed/integration-backed data** (no mock UI).
-2) Keep LabStudio changes **PR-sized** (≈<400 lines net), test locally, **do not deploy/push live** without explicit approval.
-3) **TYFYS throughput**: keep Zoho stages 1–3 moving daily; eliminate missing intake notes + missing key attachments; reduce overdue tasks.
-4) **TYFYS automations reliability**: RingCentral AM/KPI/verification/EOD posts stay green; tokens healthy; no silent failures.
-5) **Personal admin stability**: never miss **courts + school** deadlines; surface anything urgent fast.
-6) **Draft-first comms hygiene**: draft-only for outbound; do not send unless explicitly approved.
-7) **Email rule**: draft-only simple replies for everyone; **do NOT email Karen back**.
-8) **Backups + change-control**: hourly git autosync + nightly OpenClaw state backups stay green.
-9) **Friction rule**: if ≥70% sure, proceed without asking; only ask when safety/permissions/irreversibility or likely costly error.
-10) **Continuity**: write next-day plan into `memory/YYYY-MM-DD.md` daily to avoid context loss.
+1) **LabStudio**: make app member-usable end-to-end (cafe + booking + shop/cart/checkout) with **real DB-backed data** (no mock UI).
+2) **TYFYS throughput**: keep Zoho stages 1–3 moving daily; fix missing intake notes + missing attachments; reduce overdue tasks.
+3) **TYFYS automations reliability**: keep RingCentral AM/KPI/verification/EOD posts green; keep tokens healthy.
+4) **Outbound SMS autopilot stability**: reduce runtime/timeouts; batching + per-run caps + rate-limit backoff.
+5) **Personal admin stability**: never miss **courts + school** deadlines; keep replies **draft-only**.
+6) **Backups + change-control**: hourly git autosync + nightly OpenClaw backups stay green; capture decisions in memory files.
+7) **Provider replies watch**: surface provider/doctor emails quickly; no outbound emails unless explicitly approved.
+8) **Waiting-room + fulfillment tasking**: ensure Devin/Karen get actionable Zoho tasks; enforce required fields.
+9) **Repo hygiene / drift prevention**: default branch main, avoid embedded .git / branch-path drift.
+10) **Low-friction operations**: act without asking when safe; avoid creating friction; PR-sized changes.
 
 ## Today’s non-negotiables
-- **Courts/school**: email watches run; any needed replies are **drafts only**.
-- **Backups**: hourly git autosync OK; nightly OpenClaw state backups scheduled.
-- **RingCentral updates**: AM + lead buckets + KPI + verification + EOD posts stay sane/green.
+- **Courts + school watch**: monitor Gmail for clerk/courts + Quest/school items; if reply needed → **draft-only**.
+- **Backups**: hourly git autosync job stays green; nightly OpenClaw state backups stay green.
+- **RingCentral updates**: AM + KPI + verification + EOD posts run and look sane.
 
 ## Active workstreams + next actions
-### LabStudio (primary build)
+### LabStudio
 - Next actions:
-  - Continue incremental shippable improvements during build blocks (11/2/5 weekdays).
-  - Enforce “no mock data” requirement; if data missing, add DB seed/write-path, not UI placeholders.
-  - Keep deploy runbook in mind (Vercel CLI + author identity gotchas).
+  - Keep shipping 2–3 PR-sized improvements this week.
+  - Prioritize real shop/cart/checkout + booking flows; eliminate any remaining mock UI surfaces.
+  - Keep build blocks (11am/2pm/5pm ET weekdays) producing incremental shippable commits.
 
-### TYFYS Ops (stages 1–3)
+### TYFYS Ops (Stages 1–3)
 - Next actions:
-  - Keep daily client status updates to Devin group running.
-  - Drive down deal-file gaps: missing intake notes, missing attachments, >10 overdue tasks.
+  - Close loop on missing intake notes + missing key attachments for active Deals.
+  - Use deal-file-health + taskers to create/assign clean next steps.
 
-### Automation hygiene / DriftGuard
+### Automation hygiene
 - Next actions:
-  - Watch cron error sentinel + preflight results.
-  - Keep tokens healthy; if invalid_grant occurs, refresh per-user refresh tokens.
+  - Keep DriftGuard + cron sentinels green.
+  - Continue hardening SMS autopilot: smaller batch caps, better retries/backoff, avoid long single runs.
 
-### Personal admin
-- Next actions:
-  - Maintain court/school scans; draft replies only when clearly needed.
+## Cron health (last 24h)
+- No jobs with `lastStatus=error` **within the last 24 hours** (threshold = now-24h).
 
-## Detected breakages (last ~24h) + queued fix
-### 1) ENABLED job error: TYFYS outbound SMS autopilot timed out
-- Job: `TYFYS outbound SMS autopilot (Adam/Amy/Jared, NEW tenant)`
-- jobId: `0aa2a6d7-2921-43d7-9242-c7c75c75122d`
-- Last error: `Error: cron: job execution timed out` (lastRunAtMs 1771443900157)
-- Likely cause: too much work per run / slow Zoho+RC roundtrips / leadLimit too high for timeoutSeconds (3300s) in worst-case.
-- Fix to apply next work block:
-  1) Reduce per-run work: drop `--leadLimit 120` → **60** (or implement paging with checkpointing in `memory/tyfys-sms-autopilot.json`).
-  2) Add internal time-budget enforcement: stop sending when <5 min remaining; persist cursor.
-  3) Add instrumentation for: fetch leads time, eligibility filtering time, send batch time, per-rep breakdown.
-  4) If needed, bump cron timeoutSeconds to **4200** (only after (1)-(3)).
+## Detected breakages / risks (queued fixes)
+1) **Several one-shot/disabled jobs show `lastError: Unsupported channel: whatsapp`** (e.g., Cool Cat Everett-topic pings; LabStudio deploy one-shot).
+   - Hypothesis: delivery channel field is incorrectly set/left over (should be Telegram or mode=none).
+   - Next fix (next work block): audit those specific job payloads/delivery objects; patch to explicit `channel:"telegram"` (or remove `channel` entirely when `mode:none`) and re-run only if re-enabled.
 
-### 2) Old/disabled one-shots showing “Unsupported channel: whatsapp”
-- Observed on several disabled Feb 14 one-shots + one disabled LabStudio deploy one-shot.
-- Action: no immediate impact (disabled). If resurrecting any job, **explicitly set `delivery.channel: telegram`** (or `mode:none`) to avoid default-channel confusion.
-
-## Notes from memory skim (operating rules / non-negotiables)
-- Proactive and autonomous, but **draft-first** for all outbound.
-- **No mock data** in LabStudio user-visible UI.
-- For builds: create PRs; user tests/commits; do not push live.
+2) **LabStudio deploy one-shot job (shop-on-prod-baseline) recorded error even though it is disabled now**.
+   - Next fix: when time permits, re-create deploy reminder with correct Telegram delivery (or `mode:none`) and ensure it doesn’t auto-post anywhere unintended.
