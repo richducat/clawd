@@ -1,48 +1,65 @@
 # Context Anchor (internal)
 
-Updated: 2026-02-18 20:02 ET
+Updated: 2026-02-18 21:02 ET
 
-## Top 10 commitments (current)
-1) **LabStudio**: make app member-usable end-to-end (cafe + booking + shop/cart/checkout) with **real DB-backed data** (no mock UI).
-2) **TYFYS throughput**: keep Zoho stages 1–3 moving daily; fix missing intake notes + missing attachments; reduce overdue tasks.
-3) **TYFYS automations reliability**: keep RingCentral AM/KPI/verification/EOD posts green; keep tokens healthy.
-4) **Outbound SMS autopilot stability**: reduce runtime/timeouts; batching + per-run caps + rate-limit backoff.
-5) **Personal admin stability**: never miss **courts + school** deadlines; keep replies **draft-only**.
-6) **Backups + change-control**: hourly git autosync + nightly OpenClaw backups stay green; capture decisions in memory files.
-7) **Provider replies watch**: surface provider/doctor emails quickly; no outbound emails unless explicitly approved.
-8) **Waiting-room + fulfillment tasking**: ensure Devin/Karen get actionable Zoho tasks; enforce required fields.
-9) **Repo hygiene / drift prevention**: default branch main, avoid embedded .git / branch-path drift.
-10) **Low-friction operations**: act without asking when safe; avoid creating friction; PR-sized changes.
+## 1) Source recap (internal)
+- goals-master.md: priority is LabStudio member-ready end-to-end with **real DB-backed flows**; keep TYFYS stages 1–3 moving; keep automations (RC posts, SMS autopilot, tokens) reliable; don’t miss courts/school; keep backups + change-control green.
+- 2026-02-16.md: daily note continuity was missing; mandate: ensure daily memory files exist + capture next-day plan; keep automations green.
+- MEMORY.md (ops rules skim): draft-first outbound email policy; never email Karen automatically; avoid mock data in LabStudio; PR-sized changes; dual-Mac OpenClaw hygiene.
 
-## Today’s non-negotiables
-- **Courts + school watch**: monitor Gmail for clerk/courts + Quest/school items; if reply needed → **draft-only**.
-- **Backups**: hourly git autosync job stays green; nightly OpenClaw state backups stay green.
-- **RingCentral updates**: AM + KPI + verification + EOD posts run and look sane.
+## 2) Top 10 commitments (current)
+1) **LabStudio**: ship real, DB-backed member flows (cafe + booking + shop/cart/checkout); no mock UI.
+2) LabStudio: deliver 2–3 PR-sized improvements per week (weekday build blocks).
+3) **TYFYS throughput**: keep Zoho stages 1–3 moving daily; eliminate missing intake notes + missing key attachments; reduce overdue tasks.
+4) **TYFYS automations**: RingCentral posts (AM + lead buckets + KPI + verification + day-cap + ops brief) stay green.
+5) **Outbound SMS autopilot**: keep runtime stable (batching, limits, backoff) + avoid timeouts.
+6) **Token health**: RingCentral refresh tokens + Zoho auth stay valid; fix invalid_grant quickly.
+7) **Personal admin stability**: courts + school monitoring; draft-first replies; never miss deadlines.
+8) **Backups**: hourly git auto-sync; nightly OpenClaw state backups to Drive + local sync.
+9) **DriftGuard/change-control**: cron health sentinel + preflight + record automation changes in anchor files.
+10) **Memory continuity**: daily note exists every day; next-day plan written to prevent drift.
 
-## Active workstreams + next actions
-### LabStudio
+## 3) Today’s non-negotiables (daily)
+- **Courts + school**: email watch scans run; any replies are **draft-only**.
+- **Backups**: hourly git autosync stays green; nightly OpenClaw state backup jobs stay green.
+- **RingCentral updates**: AM + lead buckets + KPI + verification + EOD/day-cap posts run and look sane.
+
+## 4) Active workstreams + next actions
+### A) LabStudio (product)
 - Next actions:
-  - Keep shipping 2–3 PR-sized improvements this week.
-  - Prioritize real shop/cart/checkout + booking flows; eliminate any remaining mock UI surfaces.
-  - Keep build blocks (11am/2pm/5pm ET weekdays) producing incremental shippable commits.
+  - Pick the next smallest “member-usable” gap in the shop/cart/checkout or booking flow and implement with real DB data.
+  - Keep changes PR-sized (<400 net lines), add test steps + rollback note.
+  - Ensure build passes locally (pnpm build).
 
-### TYFYS Ops (Stages 1–3)
+### B) TYFYS Ops (stages 1–3 hygiene)
 - Next actions:
-  - Close loop on missing intake notes + missing key attachments for active Deals.
-  - Use deal-file-health + taskers to create/assign clean next steps.
+  - Run/monitor deal-file-health and push toward: notes present, key attachments present, overdue tasks reduced.
+  - Ensure Devin-group client-status posts are skimmable and focus on movement + blockers.
 
-### Automation hygiene
+### C) Automation hygiene / reliability
 - Next actions:
-  - Keep DriftGuard + cron sentinels green.
-  - Continue hardening SMS autopilot: smaller batch caps, better retries/backoff, avoid long single runs.
+  - Keep DriftGuard sentinel/preflight green.
+  - If any job errors: capture in this file + apply smallest safe fix during next work block.
 
-## Cron health (last 24h)
-- No jobs with `lastStatus=error` **within the last 24 hours** (threshold = now-24h).
+### D) Personal admin
+- Next actions:
+  - Continue courts/school scans; drafts only.
+  - Weekly Berkeley speech check-in draft (when scheduled Wednesdays).
 
-## Detected breakages / risks (queued fixes)
-1) **Several one-shot/disabled jobs show `lastError: Unsupported channel: whatsapp`** (e.g., Cool Cat Everett-topic pings; LabStudio deploy one-shot).
-   - Hypothesis: delivery channel field is incorrectly set/left over (should be Telegram or mode=none).
-   - Next fix (next work block): audit those specific job payloads/delivery objects; patch to explicit `channel:"telegram"` (or remove `channel` entirely when `mode:none`) and re-run only if re-enabled.
+## 5) Cron health (last 24h errors)
+Detected jobs with `lastStatus=error` (regardless of enabled/disabled):
+- (DISABLED) **LabStudio deploy: shop-on-prod-baseline once Vercel quota resets** (jobId e69a0b5d-...): lastError `Unsupported channel: whatsapp`.
+- (DISABLED) **KickCraft/Everett topic** pings (jobIds df8f1ae3-..., 464cbf82-..., 806bdedf-..., 0338f6fa-...): lastError `Unsupported channel: whatsapp`.
 
-2) **LabStudio deploy one-shot job (shop-on-prod-baseline) recorded error even though it is disabled now**.
-   - Next fix: when time permits, re-create deploy reminder with correct Telegram delivery (or `mode:none`) and ensure it doesn’t auto-post anywhere unintended.
+## 6) Detected breakages + queued fix (apply next work block)
+### Breakage: “Unsupported channel: whatsapp” in cron runs
+- Likely cause: cron delivery routing/channel config mismatch (jobs attempted to announce via a channel not supported in this gateway).
+- Fix plan (next work block):
+  1) For the KickCraft/Everett one-shot test jobs: **delete or permanently disable** them (they’re already disabled and were one-time).
+  2) For the LabStudio deploy one-shot job: either
+     - set `delivery.mode="none"` (no announcements) OR
+     - set `delivery.channel="telegram"` with an explicit `to` target.
+  3) After edits, re-run `cron list` and confirm no new errors.
+
+---
+(Internal note) Hard rule respected: no outbound messages sent from this run.

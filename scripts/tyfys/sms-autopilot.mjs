@@ -380,7 +380,7 @@ async function fetchRecentSms({ fromDate }) {
     perPage: '200',
     messageType: 'SMS',
   });
-  return ringcentralGetJson(`/restapi/v1.0/account/~/extension/~/message-store?${qs.toString()}`, { tenant });
+  return ringcentralGetJson(`/restapi/v1.0/account/~/extension/~/message-store?${qs.toString()}`, { tenant, userKey: ADMIN_USER_KEY });
 }
 
 function getRecordCounterparty(rec) {
@@ -500,8 +500,9 @@ async function main() {
       if (dryRun) {
         process.stdout.write(`[dry-run] SLA${leadSlaHours}h LEAD(${l.ownerName || 'n/a'}) to ${l.phone} from ${fromNumber}: ${text}\n`);
       } else {
-        const extensionId = await resolveExtensionIdForFromNumber({ fromNumber, tenant });
-        await ringcentralSendSms({ fromNumber, toNumber: l.phone, text, tenant, userKey: ADMIN_USER_KEY, extensionId });
+        const repUserKey = lineToUserKey(fromNumber);
+        if (!repUserKey) throw new Error(`Lead SLA: cannot map fromNumber ${fromNumber} to rep userKey`);
+        await ringcentralSendSms({ fromNumber, toNumber: l.phone, text, tenant, userKey: repUserKey });
       }
 
       const nowIso2 = new Date().toISOString();
