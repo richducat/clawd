@@ -50,4 +50,5 @@ db/*.db
 
 # Local clones of separate repos / big local sandboxes
 kickcraft/
-labstudio-app/
+labstudio-app-sandbox/
+labstudio-app.local/
