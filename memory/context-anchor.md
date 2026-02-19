@@ -1,17 +1,17 @@
 # Context Anchor (internal)
 
-Last updated: 2026-02-19 03:02 ET
+Last updated: 2026-02-19 04:02 ET
 
 ## Source reads (internal summary)
 - ⚠️ Missing files (not found on disk):
   - `/Users/richardducat/clawd/memory/goals-master.md`
   - `/Users/richardducat/clawd/memory/2026-02-16.md`
-- Read:
+- Read/checked:
   - `MEMORY.md` (skim: operating rules / non-negotiables)
-  - `memory/2026-02-18.md`
+  - `memory/2026-02-18.md` (latest substantive status)
   - `memory/context-anchor.md` (prior anchor)
   - `cron list` (health scan)
-  - `ls memory/` to verify what exists
+  - `ls memory/` + `find` (verify file existence)
 
 ### MEMORY.md skim — operating rules / non-negotiables
 - **Outbound comms:** draft-first for *all* outbound emails until explicit approval to send.
@@ -23,7 +23,7 @@ Last updated: 2026-02-19 03:02 ET
 ## Top 10 commitments (bullets)
 1) Draft-first for outbound comms; never send without explicit approval.
 2) Never email Karen back automatically; draft-only + wait for explicit approval.
-3) Ship tangible, testable deliverables steadily; keep PR-sized; write PR drafts + test steps.
+3) Ship tangible, testable deliverables steadily; keep PR-sized; include test steps + rollback notes.
 4) LabStudio: no mock data in user-visible UI—only real DB/integration data.
 5) TYFYS: protect privacy (no client PII/PHI leakage; rep-safe summaries where required).
 6) Keep RingCentral automations healthy (AM posts + verification; inbound/outbound SMS guardrails).
@@ -54,13 +54,13 @@ Last updated: 2026-02-19 03:02 ET
 
 ## Active workstreams + next actions
 ### 1) Anchor hygiene (meta)
-- Breakage: cron + routines reference files that don’t exist.
+- Breakage: automations reference files that don’t exist.
 - Next actions (next work block):
   - Create `memory/goals-master.md` (canonical goals + deadlines + recurring non-negotiables).
-  - Reconstruct `memory/2026-02-16.md` (retro-log) **or** update any references to point at existing daily logs.
+  - Reconstruct `memory/2026-02-16.md` (retro-log) **or** update automation references to point at existing daily logs.
 
 ### 2) TYFYS — Veteran Files → Zoho Deal attachments backfill
-- Status (2026-02-18 log):
+- Status (from 2026-02-18 log):
   - processed folders(with files)=107
   - matched to Zoho Deals=81
   - attachment candidates examined=1,330
@@ -69,7 +69,7 @@ Last updated: 2026-02-19 03:02 ET
   - unmatched folders remaining=26
   - failures=43 (mostly `.gdoc` hydration/export issue)
 - Next actions:
-  - Add explicit `.gdoc` handling (export to real PDF/DOCX or skip with clear reason) and re-run errors-only.
+  - Add explicit `.gdoc` handling: export to real PDF/DOCX (or skip with clear reason) and re-run **errors-only**.
   - Resolve 26 unmatched folders (improve matching heuristics + maintain a manual mapping list).
   - Keep report current: `memory/tyfys/veteran-files-attach-report.json`.
 
@@ -98,10 +98,10 @@ Last updated: 2026-02-19 03:02 ET
   - Increase pod disk to 40–60GB **or** move HF cache to larger mount (`HF_HOME`/`HF_HUB_CACHE`) and restart server.
 
 ## Cron health (quick)
-- Check time: 2026-02-19 03:02 ET
-- Jobs with `lastStatus=error` in last ~24h: **none detected**.
+- Check time: 2026-02-19 04:02 ET
+- Enabled jobs with `lastStatus=error` in last 24h: **none detected**.
 - Notes:
-  - Several historical one-shot / disabled jobs show `Unsupported channel: whatsapp` errors (cleanup candidates, but not recurring).
+  - Several disabled/one-shot historical jobs show `Unsupported channel: whatsapp` errors (cleanup candidates; not recurring).
 
 ## Detected breakages + queued fix (do NOT execute now)
 1) **Missing anchor inputs**: `goals-master.md` and `2026-02-16.md` don’t exist.
