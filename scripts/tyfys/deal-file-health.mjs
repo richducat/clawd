@@ -187,7 +187,7 @@ async function main() {
   const outJson = JSON.stringify({
     windowHours: hours,
     scanned: deals.length,
-    stages,
+    stages: ['Intake (Document Collection)','Ready for Provider','Sent to Provider'],
     generatedAt: new Date().toISOString(),
     deals: jsonRows,
   }, null, 2) + '\n';
