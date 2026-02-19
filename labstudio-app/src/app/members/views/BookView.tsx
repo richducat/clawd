@@ -116,7 +116,7 @@ export default function BookView() {
           <div className="font-black text-xl italic mt-2">{nextBooking.summary || 'Session'}</div>
           <div className="flex items-center gap-2 text-sm text-zinc-300 mt-1">
             <Clock size={14} className="text-zinc-500" />
-            {new Date(nextBooking.start).toLocaleString()}
+            {new Date(nextBooking.start).toLocaleString('en-US', { timeZone: 'America/New_York' })}
           </div>
           {nextBooking.location ? <div className="text-xs text-zinc-500 mt-2">{nextBooking.location}</div> : null}
           {nextBooking.description ? <div className="text-xs text-zinc-500 mt-2">{nextBooking.description}</div> : null}
