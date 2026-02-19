@@ -130,7 +130,51 @@ export async function ringcentralGetAccessToken({ tenant, userKey } = {}) {
     throw new Error(`Missing ${refreshEnvKey}`);
   }
 
-  const refreshed = await ringcentralRefreshToken({ refreshToken, tenant });
+  let refreshed;
+  try {
+    refreshed = await ringcentralRefreshToken({ refreshToken, tenant });
+  } catch (err) {
+    // Fallback: if the env/cached refresh token has been revoked (common after re-consent),
+    // try any per-user refresh token we have on disk for this tenant.
+    const msg = String(err?.message || err);
+    if (msg.includes('invalid_grant') || msg.includes('Token not found')) {
+      try {
+        const tokens = await readPerUserRefreshTokens();
+        const tKey = tenantKey(tenant);
+        const tenantObj = tokens?.[tKey] || tokens?.[String(tKey || '').toLowerCase()] || null;
+        const candidates = [];
+        if (tenantObj && typeof tenantObj === 'object') {
+          for (const v of Object.values(tenantObj)) {
+            const rt = typeof v === 'string' ? v : v?.refresh_token;
+            if (rt) candidates.push(rt);
+          }
+        }
+        // Also support shapes like { "new:amy": "<rt>" }
+        const prefix = String(String(tKey || '').toLowerCase() + ':');
+        for (const [k, v] of Object.entries(tokens || {})) {
+          if (!k?.toLowerCase?.().startsWith(prefix)) continue;
+          const rt = typeof v === 'string' ? v : v?.refresh_token;
+          if (rt) candidates.push(rt);
+        }
+        const fallbackRt = candidates[0];
+        if (fallbackRt && fallbackRt !== refreshToken) {
+          refreshed = await ringcentralRefreshToken({ refreshToken: fallbackRt, tenant });
+          // If this works, update env so future non-userKey calls work again.
+          if (!userKey) {
+            refreshEnvKey = envName(tenant, 'REFRESH_TOKEN');
+            await patchEnvLocal(refreshEnvKey, fallbackRt);
+            process.env[refreshEnvKey] = fallbackRt;
+          }
+        } else {
+          throw err;
+        }
+      } catch {
+        throw err;
+      }
+    } else {
+      throw err;
+    }
+  }
 
   // Persist refresh token rotation if present.
   if (refreshed.refresh_token) {

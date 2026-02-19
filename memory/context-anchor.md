@@ -1,6 +1,6 @@
 # Context Anchor (internal)
 
-Updated: 2026-02-19 (Thu) — ~08:02 ET
+Updated: 2026-02-19 (Thu) — 08:42 ET
 
 ## Internal summary (quick)
 - **Operating rules (skim from MEMORY.md):**
@@ -9,7 +9,7 @@ Updated: 2026-02-19 (Thu) — ~08:02 ET
   - Avoid friction: if ≥70% sure, decide and proceed; only ask when safety/irreversible/costly.
   - Keep code changes PR-sized; don’t push live; Richard tests/commits.
   - LabStudio UI: **no mock data** in user-visible UI (DB/integration-backed only).
-- **Continuity gaps:** cron references `memory/goals-master.md` and `memory/2026-02-16.md`, but both are **missing** in `/Users/richardducat/clawd/memory/`.
+- **Continuity gap:** this job + daily goals job reference `memory/goals-master.md` and `memory/2026-02-16.md`, but both are **missing** in `/Users/richardducat/clawd/memory/`.
 
 ## Top 10 commitments (keep stable)
 1) **Kids-first logistics**: custody rhythm respected; never miss school/admin items.
@@ -38,15 +38,15 @@ Updated: 2026-02-19 (Thu) — ~08:02 ET
 
 ## Active workstreams + next actions
 ### TYFYS — ops reliability + revenue plumbing
-- Recent (from 2026-02-18/19 notes):
-  - `app.tyfys.net` wired to Vercel project `tyfys-benefits`; DNS set and verified 200.
-  - Stripe→Zoho webhook fix shipped: Deal Stage uses **Payment complete**; Lead_Source uses **tyfys.net**.
+- Current known shipped items (from 2026-02-19 notes):
+  - `app.tyfys.net` wired to Vercel project `tyfys-benefits`; DNS set; verified 200.
+  - Stripe→Zoho webhook fix: Deal Stage uses **Payment complete**; Lead_Source uses **tyfys.net**.
   - Deal file health scanner JSON bug fixed (`stages` now defined).
-  - Veteran Files → Zoho Deal attachments backfill done (203 new attachments); next: unmatched folders + `.gdoc` export.
+  - Backup automation hardened: `git-auto-sync-all.sh` handles missing upstream and can set upstream.
 - Next actions:
   - RC tokens: if `invalid_grant`, refresh with `node scripts/tyfys/ringcentral-oauth-refresh-token-per-user.mjs --tenant new --user <adam|amy|devin|jared|richard>`.
+  - Attachments backfill follow-up (if still pending): implement `.gdoc` export-to-PDF flow; rerun “errors-only”; resolve unmatched folders.
   - Keep Devin-group stage posts focused on: movement today + missing notes + missing attachments + overdue tasks.
-  - Attachments backfill follow-up: implement `.gdoc` export-to-PDF flow (or skip/export manually), then rerun errors-only.
 
 ### LabStudio — member-usable flows (real data only)
 - Next actions:
@@ -58,21 +58,19 @@ Updated: 2026-02-19 (Thu) — ~08:02 ET
   - Increase pod disk to 40–60GB OR repoint HF cache to larger mount (`HF_HOME`, `HF_HUB_CACHE`) and restart server.
 
 ## Cron health (quick)
-- **Enabled jobs with lastStatus=error in last 24h:** none detected.
-- Note: multiple **disabled** one-shot jobs show historical errors (“Unsupported channel: whatsapp”) — non-impacting but noisy.
+- **Jobs with lastStatus=error in last 24h:** none detected.
+- Note: a few **disabled / one-shot** jobs have historical errors (“Unsupported channel: whatsapp”) — noisy but not currently impacting.
 
 ## Detected breakages + queued fix (do not execute now)
 1) **Breakage:** `memory/goals-master.md` missing.
    - Impact: daily goals/deadlines post + this anchor can’t reference canonical goals.
-   - Fix next work block: locate canonical goals source (likely `second-brain/` or an older memory file) and either:
-     - restore/create `memory/goals-master.md`, OR
-     - patch cron job(s) to point at the correct file.
+   - Fix next work block:
+     - locate canonical goals source (likely `second-brain/` or older memory file), then
+     - create/restore `memory/goals-master.md` OR patch the cron job(s) to point at the correct file.
 2) **Breakage:** `memory/2026-02-16.md` missing.
-   - Impact: continuity gap; cron prompt references it.
-   - Fix next work block: reconstruct placeholder from:
-     - git commits on/around Feb 16,
-     - any `PR_DRAFT_2026-02-16_*` artifacts,
-     - cron/job run history around that date,
-     then backfill key decisions + next actions.
+   - Impact: continuity gap; multiple prompts reference it.
+   - Fix next work block:
+     - reconstruct a placeholder from git commits around Feb 16 + any PR_DRAFT_2026-02-16 artifacts + cron/job changes near that date,
+     - backfill key decisions + next actions.
 3) **Hygiene (optional):** disabled jobs with delivery errors (“Unsupported channel: whatsapp”).
-   - Fix next work block: delete/cleanup those disabled jobs or correct delivery channel so error history doesn’t mask real failures.
+   - Fix next work block: cleanup/delete those disabled jobs or correct delivery channel so error history doesn’t mask real failures.
