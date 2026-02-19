@@ -1,6 +1,6 @@
 # Context Anchor (internal)
 
-Last updated: 2026-02-19 05:02 ET
+Last updated: 2026-02-19 06:02 ET
 
 ## Source reads (internal summary)
 - ⚠️ Missing files (not found on disk):
@@ -8,9 +8,8 @@ Last updated: 2026-02-19 05:02 ET
   - `/Users/richardducat/clawd/memory/2026-02-16.md`
 - Read/checked:
   - `MEMORY.md` (skim: operating rules / non-negotiables)
-  - `memory/context-anchor.md` (prior anchor)
+  - `memory/context-anchor.md` (previous anchor state)
   - `cron list` (health scan)
-  - `ls memory/` + `find` (verify file existence)
 
 ### MEMORY.md skim — operating rules / non-negotiables
 - **Outbound comms:** draft-first for *all* outbound emails until explicit approval to send.
@@ -22,18 +21,18 @@ Last updated: 2026-02-19 05:02 ET
 ## Top 10 commitments (bullets)
 1) Draft-first for outbound comms; never send without explicit approval.
 2) Never email Karen back automatically; draft-only + wait for explicit approval.
-3) Ship tangible, testable deliverables steadily; keep PR-sized; include test steps + rollback notes.
-4) LabStudio: no mock data in user-visible UI—only real DB/integration data.
-5) TYFYS: protect privacy (no client PII/PHI leakage; rep-safe summaries where required).
-6) Keep RingCentral automations healthy (AM posts + verification; inbound/outbound SMS guardrails).
-7) Keep backups healthy (hourly git autosync; nightly OpenClaw state backups).
-8) Change-control discipline: decisions/automation changes must be anchored in memory files (not just chat/UI).
-9) Avoid drift collisions: detect/disable duplicates; minimize overlapping automations.
-10) Maintain “Devin visibility” loop (daily stages 1–3 client status updates to Devin group).
+3) Never blindly respond: review the thread context before drafting.
+4) Avoid friction: if ≥70% sure and safe, proceed without clarifying questions.
+5) Ship tangible, testable deliverables steadily; keep PR-sized; include test steps + risk/rollback.
+6) LabStudio: no mock data in user-visible UI—only real DB/integration data.
+7) TYFYS: protect privacy (no client PII/PHI leakage; rep-safe summaries where required).
+8) Keep RingCentral automations healthy (AM posts + verification; inbound/outbound SMS guardrails).
+9) Keep backups healthy (hourly git autosync; nightly OpenClaw state backups).
+10) Change-control discipline: decisions/automation changes must be anchored in memory files (not just chat/UI).
 
 ## Today’s non-negotiables (Thu Feb 19)
 ### Courts / School
-- Keep scheduled email watches running.
+- Keep scheduled court/school email watches running.
 - Any needed replies are **DRAFT ONLY**.
 
 ### Backups
@@ -47,40 +46,35 @@ Last updated: 2026-02-19 05:02 ET
   - 8:35 KPI scoreboard
   - 8:40 verification (dry-run sanity)
 - 6pm Ops Brief (Mon–Sat).
-- Devin group posts:
+- Devin visibility posts:
   - 9:00am “Morning client status (stages 1–3)”
   - 6:00pm “Evening client status (stages 1–3)”
 
 ## Active workstreams + next actions
 ### 1) Anchor hygiene (meta)
 - Breakage: automations reference files that don’t exist.
-- Next actions (next work block):
+- Next actions (next available work block):
   - Create `memory/goals-master.md` (canonical goals + deadlines + recurring non-negotiables).
-  - Reconstruct `memory/2026-02-16.md` (retro-log) **or** update automation references to point at existing daily logs.
+  - Reconstruct `memory/2026-02-16.md` (retro-log) **or** update automation references to point at an existing daily log.
 
 ### 2) TYFYS — Veteran Files → Zoho Deal attachments backfill
-- Status (from last captured state in this anchor):
-  - processed folders(with files)=107
-  - matched to Zoho Deals=81
-  - attachment candidates examined=1,330
-  - new attachments uploaded=203
-  - skipped (already-attached by exact filename)=1,084
-  - unmatched folders remaining=26
-  - failures=43 (mostly `.gdoc` hydration/export issue)
+- Current status (from last known anchor):
+  - processed folders(with files)=107; matched deals=81; candidates examined=1,330; uploaded=203; skipped(already attached by filename)=1,084; unmatched folders=26; failures=43 (mostly `.gdoc` hydration/export issue).
 - Next actions:
-  - Add explicit `.gdoc` handling: export to real PDF/DOCX (or skip with clear reason) and re-run **errors-only**.
-  - Resolve 26 unmatched folders (improve matching heuristics + maintain a manual mapping list).
+  - Add explicit `.gdoc` handling (export to real PDF/DOCX or skip with clear reason) and re-run **errors-only**.
+  - Resolve 26 unmatched folders (improve matching heuristics + maintain manual mapping list).
   - Keep report current: `memory/tyfys/veteran-files-attach-report.json`.
 
 ### 3) TYFYS — Intake notes gap / deal-file-health
 - Problem: intake calls appear completed but intake notes missing in Zoho.
 - Next actions:
-  - Re-run deal-file-health focusing on first 3 stages; ensure Devin-group summaries stay accurate.
-  - Process alignment: missing notes detected → create/assign follow-up task.
+  - Re-run `deal-file-health` focusing on first 3 stages; ensure Devin-group summaries remain accurate.
+  - Process alignment: when missing notes detected → create/assign follow-up task (owner depends on stage).
 
 ### 4) VoltGuard — homepage lead capture
+- Status: homepage lead form posts to Google Form endpoint; deployed to GitHub Pages (commit `7459bc3`).
 - Next actions:
-  - Confirm submissions are landing in the Google Sheet.
+  - Confirm submissions land in the Google Sheet.
   - Add basic client-side validation + friendly success state (no PII logging).
 
 ### 5) LabStudio
@@ -91,22 +85,25 @@ Last updated: 2026-02-19 05:02 ET
 
 ### 6) PersonaPlex disk fix
 - Next actions:
-  - Increase pod disk to 40–60GB **or** move HF cache to larger mount (`HF_HOME`/`HF_HUB_CACHE`) and restart server.
+  - Increase pod disk to ~40–60GB **or** move HF cache to larger mount (`HF_HOME`/`HF_HUB_CACHE`) and restart server.
 
 ### 7) OpenClaw dual-Mac stability
 - Keep office vs travel profiles separated.
 - Next actions (as needed): validate only one gateway LaunchAgent per Mac + `gateway.mode=local` on office profile.
 
 ## Cron health (quick)
-- Check time: 2026-02-19 05:02 ET
-- Enabled jobs with `lastStatus=error` in last 24h: **none detected**.
-- Notes:
-  - Several disabled/one-shot historical jobs show `Unsupported channel: whatsapp` errors (cleanup candidates; not recurring).
+- Check time: 2026-02-19 06:02 ET
+- Jobs with `lastStatus=error` whose `lastRunAtMs` falls within the last ~24h:
+  - None detected.
 
-## Detected breakages + queued fix (do NOT execute now)
+## Detected breakages + the fix to apply next (queue only; do not execute now)
 1) **Missing anchor inputs**: `goals-master.md` and `2026-02-16.md` don’t exist.
    - Fix next work block:
      - Create `memory/goals-master.md`.
-     - Reconstruct `memory/2026-02-16.md` or repoint automation references.
-2) **Historical one-shot cron deliveries misrouted (whatsapp)** (disabled jobs).
-   - Fix next work block (low priority): delete old one-shots or ensure future one-shots always specify `delivery.channel=telegram`.
+     - Reconstruct `memory/2026-02-16.md` or repoint the context-anchor + daily goals cron payload to existing files.
+2) **Context anchor cron job risk** (enabled): missing files + 180s timeout could cause future anchor runs to fail if reads are re-enabled.
+   - Fix next work block:
+     - After creating/repointing files, trigger `cron run` once to confirm green.
+     - If still timing out, reduce scope (fewer reads) and/or extend timeout to 300s.
+3) **Historical one-shot cron deliveries misrouted (whatsapp)** (disabled jobs; non-urgent).
+   - Fix next work block (low priority): delete old one-shots or ensure future one-shots always set `delivery.channel=telegram` explicitly.
