@@ -1,6 +1,6 @@
 # Context Anchor (internal)
 
-Last updated: 2026-02-19 04:02 ET
+Last updated: 2026-02-19 05:02 ET
 
 ## Source reads (internal summary)
 - ⚠️ Missing files (not found on disk):
@@ -8,7 +8,6 @@ Last updated: 2026-02-19 04:02 ET
   - `/Users/richardducat/clawd/memory/2026-02-16.md`
 - Read/checked:
   - `MEMORY.md` (skim: operating rules / non-negotiables)
-  - `memory/2026-02-18.md` (latest substantive status)
   - `memory/context-anchor.md` (prior anchor)
   - `cron list` (health scan)
   - `ls memory/` + `find` (verify file existence)
@@ -60,7 +59,7 @@ Last updated: 2026-02-19 04:02 ET
   - Reconstruct `memory/2026-02-16.md` (retro-log) **or** update automation references to point at existing daily logs.
 
 ### 2) TYFYS — Veteran Files → Zoho Deal attachments backfill
-- Status (from 2026-02-18 log):
+- Status (from last captured state in this anchor):
   - processed folders(with files)=107
   - matched to Zoho Deals=81
   - attachment candidates examined=1,330
@@ -75,15 +74,13 @@ Last updated: 2026-02-19 04:02 ET
 
 ### 3) TYFYS — Intake notes gap / deal-file-health
 - Problem: intake calls appear completed but intake notes missing in Zoho.
-- Tooling shipped (2026-02-18): `scripts/tyfys/deal-file-health.mjs` flags `⚠️MISSING_INTAKE_NOTES`.
 - Next actions:
   - Re-run deal-file-health focusing on first 3 stages; ensure Devin-group summaries stay accurate.
   - Process alignment: missing notes detected → create/assign follow-up task.
 
 ### 4) VoltGuard — homepage lead capture
-- Status (2026-02-18): replaced homepage wizard with Tailwind lead form and wired to Google Form `formResponse` endpoint; deployed via GitHub Pages (commit `7459bc3`).
 - Next actions:
-  - Confirm submissions are landing in the Google Sheet (sanity: name/email/phone + details field).
+  - Confirm submissions are landing in the Google Sheet.
   - Add basic client-side validation + friendly success state (no PII logging).
 
 ### 5) LabStudio
@@ -93,12 +90,15 @@ Last updated: 2026-02-19 04:02 ET
   - **No prod deploy** without explicit approval.
 
 ### 6) PersonaPlex disk fix
-- State: server works but GPU pod ran out of disk while downloading `model.safetensors`.
 - Next actions:
   - Increase pod disk to 40–60GB **or** move HF cache to larger mount (`HF_HOME`/`HF_HUB_CACHE`) and restart server.
 
+### 7) OpenClaw dual-Mac stability
+- Keep office vs travel profiles separated.
+- Next actions (as needed): validate only one gateway LaunchAgent per Mac + `gateway.mode=local` on office profile.
+
 ## Cron health (quick)
-- Check time: 2026-02-19 04:02 ET
+- Check time: 2026-02-19 05:02 ET
 - Enabled jobs with `lastStatus=error` in last 24h: **none detected**.
 - Notes:
   - Several disabled/one-shot historical jobs show `Unsupported channel: whatsapp` errors (cleanup candidates; not recurring).
