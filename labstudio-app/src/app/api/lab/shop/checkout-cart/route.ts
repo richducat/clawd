@@ -31,6 +31,27 @@ export async function POST(req: Request) {
   await ensureSchema();
   await getOrCreateUser(uid);
 
+  // Ensure cafe table exists even if the user hasn't loaded /api/lab/cafe yet.
+  const q = sql();
+  await q`
+    create table if not exists lab_cafe_items (
+      slug text primary key,
+      name text not null,
+      category text not null,
+      price_cents integer not null,
+      product_url text,
+      image_url text,
+      stripe_product_id text,
+      stripe_price_id text,
+      active boolean not null default true,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+  `;
+  await q`alter table lab_cafe_items add column if not exists image_url text;`;
+  await q`alter table lab_cafe_items add column if not exists stripe_product_id text;`;
+  await q`alter table lab_cafe_items add column if not exists stripe_price_id text;`;
+
   const body = (await req.json().catch(() => ({}))) as { lines?: unknown };
   const linesRaw = Array.isArray((body as any)?.lines) ? ((body as any).lines as any[]) : [];
   const lines: CartLine[] = linesRaw
@@ -72,7 +93,6 @@ export async function POST(req: Request) {
 
   const mode: 'subscription' | 'payment' = hasRecurring ? 'subscription' : 'payment';
 
-  const q = sql();
   const cafeSlugs = cafeLines.map((l) => l.price_id.replace(/^cafe:/, '')).filter(Boolean);
   const cafeItems = cafeSlugs.length
     ? ((await q`
