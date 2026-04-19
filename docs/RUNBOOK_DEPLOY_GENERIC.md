@@ -106,3 +106,11 @@ Include:
   - Runs on `pull_request` / `push` when markdown or audit config changes
   - Runs daily on schedule (`13:15 UTC`)
   - Uses strict mode so missing core workspace markdown files or policy conflicts fail the job
+
+## 10) Hybrid DB bootstrap (SQLite + embeddings)
+- Initialize/update the hybrid standard schema:
+  ```bash
+  npm run db:hybrid:init
+  ```
+- Migration sources live in `db/migrations/`.
+- DB files should remain outside git and resolve via `OPENCLAW_DB_ROOT` (see `db/README.md`).
