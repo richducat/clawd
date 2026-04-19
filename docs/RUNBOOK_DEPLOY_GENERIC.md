@@ -92,3 +92,17 @@ Include:
 - Deploy
 - Verify with a real production request
 - Write the next-step plan to a file
+
+## 9) Markdown Audit Automation
+- Run locally:
+  ```bash
+  npm run md:audit
+  ```
+- Run strict mode (non-zero exit on drift errors):
+  ```bash
+  npm run md:audit:strict
+  ```
+- CI workflow: `.github/workflows/markdown-audit.yml`
+  - Runs on `pull_request` / `push` when markdown or audit config changes
+  - Runs daily on schedule (`13:15 UTC`)
+  - Uses strict mode so missing core workspace markdown files or policy conflicts fail the job
