@@ -256,15 +256,25 @@ Include:
   - base route config:
     - `HYBRID_ALERT_WEBHOOK_URL` (single route)
     - `HYBRID_ALERT_WEBHOOK_URLS` (comma/newline multi-route fan-out)
+  - optional drift-incident route config (used when drift signals exist):
+    - `HYBRID_ALERT_DRIFT_WEBHOOK_URL`
+    - `HYBRID_ALERT_DRIFT_WEBHOOK_URLS`
   - optional escalation route config:
     - `HYBRID_ALERT_ESCALATION_WEBHOOK_URL`
     - `HYBRID_ALERT_ESCALATION_WEBHOOK_URLS`
+  - optional drift-escalation route config:
+    - `HYBRID_ALERT_DRIFT_ESCALATION_WEBHOOK_URL`
+    - `HYBRID_ALERT_DRIFT_ESCALATION_WEBHOOK_URLS`
     - `HYBRID_ALERT_ESCALATION_WINDOWS_ET` (repo variable, defaults to `always`)
+  - optional ACK SLA override:
+    - `HYBRID_ALERT_ACK_SLA_MINUTES` (repo variable; defaults are deterministic by incident type/mode)
   - escalation window format (`ET`):
     - `always`
     - or semicolon-delimited entries in `daySpec@HH:MM-HH:MM`
     - examples: `mon-fri@08:00-18:00;sat@09:00-12:00`, `sun@00:00-23:59`
-  - on health-gate failure, workflow posts a JSON payload (`text`) to all configured base routes and includes escalation routes only when current ET falls inside configured escalation windows. Payload includes:
+  - on health-gate failure, workflow posts a JSON payload (`text` + `metadata`) to all configured base routes and includes escalation routes only when current ET falls inside configured escalation windows
+  - when drift signals are present (`signal_count > 0` or drift gate breached), drift routes are also included; drift escalation routes are ET-window gated like base escalation
+  - payload includes:
     - run mode (`canary` or `live`)
     - run URL
     - run date + threshold values
@@ -276,6 +286,7 @@ Include:
       - incident-ledger artifact paths (json + markdown)
       - canary-vs-live drift summary (`status`, `signal_count`, `total_severity_score`, `gate_breached`, `gate_breached_by_signal_count`, `gate_breached_by_severity_score`)
       - canary-vs-live drift artifact paths (json + markdown)
+      - deterministic ACK metadata (`ack_marker`, `ack_sla_minutes`, `ack_due_at_utc`, `ack_due_at_et`, `ack_policy`)
   - if no webhook routes are configured, workflow logs and skips outbound notification
 
 ## 16) Hybrid retrieval query (entities + chunks)
