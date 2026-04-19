@@ -214,8 +214,26 @@ Include:
   - `--as-of <iso>` evaluates lag against a fixed timestamp
   - `--artifact-dir <path>` scans `pipeline-summary-*.json` artifacts for recent failure signals
   - `--artifacts-max <n>` controls how many recent artifact files to inspect
+  - threshold guards (non-zero exit on breach):
+    - `--max-lag-hours <n>`
+    - `--max-seen-drift-hours <n>`
+    - `--max-artifact-issues <n>`
 - Report fields include:
   - source cursor lag/drift for `gmail`, `google_calendar`, and `kb_ingest`
   - entity/chunk coverage totals and grouped `domain/type` counts
   - recent entity update snapshots
   - recent artifact-derived error/failure indicators (when artifacts exist)
+  - threshold metadata + explicit breach records in JSON mode
+
+CI/alerting example:
+```bash
+npm run db:hybrid:health -- \
+  --json \
+  --max-lag-hours 24 \
+  --max-seen-drift-hours 48 \
+  --max-artifact-issues 0
+```
+
+Exit behavior:
+- no threshold flags: report-only, exits `0`
+- one or more threshold flags set: exits `2` if any configured threshold is breached
