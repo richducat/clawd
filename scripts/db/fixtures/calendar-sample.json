@@ -1,0 +1,32 @@
+{
+  "events": [
+    {
+      "id": "evt_demo_001",
+      "summary": "Customer kickoff",
+      "start": {
+        "dateTime": "2026-04-18T16:00:00Z"
+      },
+      "end": {
+        "dateTime": "2026-04-18T16:30:00Z"
+      },
+      "attendees": [
+        { "email": "richducat@gmail.com", "displayName": "Rich" },
+        { "email": "alex.partner@example.com", "displayName": "Alex Partner", "responseStatus": "accepted" }
+      ]
+    },
+    {
+      "id": "evt_demo_002",
+      "summary": "Ops review",
+      "start": {
+        "dateTime": "2026-04-18T20:00:00Z"
+      },
+      "end": {
+        "dateTime": "2026-04-18T20:45:00Z"
+      },
+      "attendees": [
+        { "email": "richducat@gmail.com", "displayName": "Rich" },
+        { "email": "ops@example.com", "displayName": "Ops Team", "responseStatus": "tentative" }
+      ]
+    }
+  ]
+}

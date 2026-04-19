@@ -114,3 +114,17 @@ Include:
   ```
 - Migration sources live in `db/migrations/`.
 - DB files should remain outside git and resolve via `OPENCLAW_DB_ROOT` (see `db/README.md`).
+
+## 11) CRM ingestion (Gmail + Calendar daily)
+- Run Gmail + Calendar ingestion into `hybrid-core.sqlite`:
+  ```bash
+  npm run db:hybrid:ingest
+  ```
+- For deterministic local verification (no live connector dependency), run against fixtures:
+  ```bash
+  npm run db:hybrid:ingest -- \
+    --gmail-json scripts/db/fixtures/gmail-sample.json \
+    --calendar-json scripts/db/fixtures/calendar-sample.json \
+    --account richducat@gmail.com
+  ```
+- The script is incremental and updates source checkpoints in `ingestion_cursors`.
