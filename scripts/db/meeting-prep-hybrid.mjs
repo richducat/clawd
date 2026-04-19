@@ -289,6 +289,24 @@ async function main() {
         decisionCommitmentSequencing,
         commitmentCloseChecklist,
       });
+      const failureModeRehearsals = buildFailureModeRehearsals({
+        title: event.title || '',
+        attendees: attendeeBriefs,
+        relationshipRiskSignals,
+        agendaGapSignals,
+        dependencyFollowThroughPrompts,
+        commitmentRiskAging,
+        ownerEscalationPrompts,
+      });
+      const stakeholderProofRequests = buildStakeholderProofRequests({
+        title: event.title || '',
+        attendees: attendeeBriefs,
+        relationshipRiskSignals,
+        stakeholderIntentSummaries,
+        decisionCommitmentSequencing,
+        failureModeRehearsals,
+        stakeholderCloseScripts,
+      });
       const prepQuality = buildMeetingPrepQuality({
         attendees: attendeeBriefs,
         relationshipRiskSignals,
@@ -306,6 +324,8 @@ async function main() {
         dependencyFollowThroughPrompts,
         decisionCommitmentSequencing,
         stakeholderCloseScripts,
+        failureModeRehearsals,
+        stakeholderProofRequests,
       });
 
       if (insertSnapshotStmt) {
@@ -359,6 +379,8 @@ async function main() {
         dependencyFollowThroughPrompts,
         decisionCommitmentSequencing,
         stakeholderCloseScripts,
+        failureModeRehearsals,
+        stakeholderProofRequests,
         prepQuality,
       });
     }
@@ -602,6 +624,40 @@ function printMarkdownBrief({ account, date, timezone, internalDomains, meetings
         console.log(`    - Close script: ${script.script}`);
         if (script.desiredOutcome) {
           console.log(`    - Desired outcome: ${script.desiredOutcome}`);
+        }
+      }
+    }
+    if (Array.isArray(meeting.failureModeRehearsals) && meeting.failureModeRehearsals.length) {
+      console.log('- Failure-mode rehearsals:');
+      for (const rehearsal of meeting.failureModeRehearsals) {
+        const dependsOn = Array.isArray(rehearsal.dependsOn) && rehearsal.dependsOn.length
+          ? ` [depends_on=${rehearsal.dependsOn.join(', ')}]`
+          : '';
+        console.log(`  - [${rehearsal.priority}] ${rehearsal.trigger} -> ${rehearsal.rehearsalQuestion}${dependsOn}`);
+        if (rehearsal.mitigationPath) {
+          console.log(`    - Mitigation path: ${rehearsal.mitigationPath}`);
+        }
+        if (rehearsal.ownerHint) {
+          console.log(`    - Owner hint: ${rehearsal.ownerHint}`);
+        }
+        if (rehearsal.evidenceToCapture) {
+          console.log(`    - Evidence to capture: ${rehearsal.evidenceToCapture}`);
+        }
+      }
+    }
+    if (Array.isArray(meeting.stakeholderProofRequests) && meeting.stakeholderProofRequests.length) {
+      console.log('- Stakeholder proof-request pack:');
+      for (const req of meeting.stakeholderProofRequests) {
+        const who = req.attendeeName ? `${req.attendeeName} <${req.attendeeEmail}>` : req.attendeeEmail;
+        const dependsOn = Array.isArray(req.dependsOn) && req.dependsOn.length
+          ? ` [depends_on=${req.dependsOn.join(', ')}]`
+          : '';
+        console.log(`  - [${req.priority}] ${who} -> ${req.request}${dependsOn}`);
+        if (req.rationale) {
+          console.log(`    - Rationale: ${req.rationale}`);
+        }
+        if (req.dueWindow) {
+          console.log(`    - Due window: ${req.dueWindow}`);
         }
       }
     }
@@ -2299,6 +2355,200 @@ function buildStakeholderCloseScripts({
   return scripts.slice(0, maxScripts);
 }
 
+function buildFailureModeRehearsals({
+  title,
+  attendees,
+  relationshipRiskSignals,
+  agendaGapSignals,
+  dependencyFollowThroughPrompts,
+  commitmentRiskAging,
+  ownerEscalationPrompts,
+}) {
+  const rehearsals = [];
+  const signalByCode = new Map((relationshipRiskSignals || []).map((signal) => [signal.code, signal]));
+  const attendeeCount = Number(attendees?.length || 0);
+  const highAgendaGapCount = (agendaGapSignals || []).filter((gap) => gap.severity === 'high').length;
+  const hasHighAging = (commitmentRiskAging?.windows || []).some((window) => window.priority === 'high');
+  const hasDependencyPrompts = Array.isArray(dependencyFollowThroughPrompts) && dependencyFollowThroughPrompts.length > 0;
+  const hasOwnerEscalation = Array.isArray(ownerEscalationPrompts) && ownerEscalationPrompts.length > 0;
+  const maxRehearsals = 6;
+
+  const push = (code, priority, trigger, rehearsalQuestion, mitigationPath, ownerHint, evidenceToCapture, dependsOn = []) => {
+    if (rehearsals.some((item) => item.code === code)) return;
+    rehearsals.push({
+      code,
+      priority,
+      trigger: cleanLine(trigger, 180),
+      rehearsalQuestion: cleanLine(rehearsalQuestion, 220),
+      mitigationPath: cleanLine(mitigationPath, 240),
+      ownerHint: cleanLine(ownerHint, 120),
+      evidenceToCapture: cleanLine(evidenceToCapture, 220),
+      dependsOn: dedupeArray(dependsOn).slice(0, 4),
+    });
+  };
+
+  if (signalByCode.has('high_individual_risk') || hasHighAging) {
+    push(
+      'rehearsal_high_risk_stall',
+      'high',
+      'High-risk stakeholder stalls owner/date confirmation after closeout.',
+      'If owner/date lock does not land by end of day, what escalation message do we send and who sends it?',
+      'Trigger same-day escalation with named mitigation owner and concrete due date.',
+      'Risk owner',
+      'Escalation thread link plus owner/date acceptance reply.',
+      ['owner_missing_confirmation', 'aging_24h_owner_confirmation']
+    );
+  }
+
+  if (signalByCode.has('rsvp_declined') || signalByCode.has('rsvp_unconfirmed')) {
+    push(
+      'rehearsal_attendance_gap',
+      'high',
+      'Critical stakeholder is unavailable when decision boundary is being finalized.',
+      'Which delegate or async path will we execute inside 24h if attendance fails?',
+      'Pre-assign delegate and async decision deadline before meeting close.',
+      'Attendee manager',
+      'Delegate confirmation and async deadline recorded in recap.',
+      ['followthrough_participation_dependency', 'aging_72h_rsvp_backfill']
+    );
+  }
+
+  if (highAgendaGapCount > 0 || hasKeyword(title, ['scope', 'alignment', 'roadmap', 'review'])) {
+    push(
+      'rehearsal_scope_drift',
+      'medium',
+      'Scope ambiguity reopens after commitments are assigned.',
+      'What is the one-line scope boundary we will restate if debate restarts?',
+      'Re-anchor to signed-off scope boundary and convert disagreement into a single owner action.',
+      'Meeting owner',
+      'Updated scope boundary line in recap and one owner/date item tied to it.',
+      ['decision_lock']
+    );
+  }
+
+  if (hasDependencyPrompts || hasOwnerEscalation || attendeeCount >= 3) {
+    push(
+      'rehearsal_cross_function_handoff',
+      'medium',
+      'Cross-functional dependency misses first checkpoint after meeting.',
+      'What contingency path runs if dependency owner misses the first checkpoint?',
+      'Switch to contingency owner and publish updated checkpoint timestamp immediately.',
+      'Program owner',
+      'Checkpoint update posted with contingency owner and next due window.',
+      ['followthrough_cross_function_dependency', 'owner_checkpoint_escalation']
+    );
+  }
+
+  if (!rehearsals.length) {
+    push(
+      'rehearsal_default',
+      'low',
+      'General execution drift risk.',
+      'What is our fallback action if no commitment update appears by tomorrow?',
+      'Send concise reminder with owner/date confirmation request.',
+      'Meeting owner',
+      'Reminder timestamp plus owner/date confirmation in thread.',
+      ['default']
+    );
+  }
+
+  return rehearsals.slice(0, maxRehearsals);
+}
+
+function buildStakeholderProofRequests({
+  title,
+  attendees,
+  relationshipRiskSignals,
+  stakeholderIntentSummaries,
+  decisionCommitmentSequencing,
+  failureModeRehearsals,
+  stakeholderCloseScripts,
+}) {
+  const requests = [];
+  const signalByCode = new Map((relationshipRiskSignals || []).map((signal) => [signal.code, signal]));
+  const intentsByEmail = new Map((stakeholderIntentSummaries || []).map((summary) => [summary.attendeeEmail, summary]));
+  const topStep = (decisionCommitmentSequencing?.steps || [])[0] || null;
+  const hasHighRehearsal = (failureModeRehearsals || []).some((item) => item.priority === 'high');
+  const maxRequests = 6;
+
+  const push = (item) => {
+    if (!item?.attendeeEmail) return;
+    if (requests.some((entry) => entry.attendeeEmail === item.attendeeEmail)) return;
+    requests.push(item);
+  };
+
+  for (const attendee of attendees || []) {
+    if (requests.length >= maxRequests) break;
+    const email = attendee?.email;
+    if (!email) continue;
+    const name = cleanLine(attendee?.name || '', 100) || null;
+    const intent = intentsByEmail.get(email);
+    const response = String(attendee?.responseStatus || '').toLowerCase();
+    const riskLevel = attendee?.relationshipRisk?.level || 'low';
+    const priority = riskLevel === 'high' ? 'high' : riskLevel === 'medium' ? 'medium' : 'low';
+
+    let request = 'Share explicit owner/date confirmation for your open commitment.';
+    let rationale = 'Owner/date confirmation prevents follow-through ambiguity.';
+    let dueWindow = 'within 24h';
+    const dependsOn = [];
+
+    if (response === 'declined' || response === 'tentative' || response === 'needsaction' || signalByCode.has('rsvp_unconfirmed')) {
+      request = 'Confirm delegate contact and async decision timestamp if you cannot attend live.';
+      rationale = 'Decision flow remains unblocked when attendance is unstable.';
+      dueWindow = 'before close of business today';
+      dependsOn.push('followthrough_participation_dependency');
+    } else if (priority === 'high' || hasHighRehearsal || intent?.intent === 'constraint mitigation') {
+      request = 'Provide mitigation proof checkpoint (artifact, owner, and timestamp) for your blocker.';
+      rationale = 'High-risk blockers need verifiable mitigation evidence, not only verbal agreement.';
+      dueWindow = 'within 24h';
+      dependsOn.push('rehearsal_high_risk_stall');
+    } else if (intent?.intent === 'decision closure' || hasKeyword(title, ['decision', 'approval', 'review'])) {
+      request = 'Confirm approved-now vs deferred scope in one sentence and name the deferred owner/date.';
+      rationale = 'Explicit decision-state proof reduces downstream scope drift.';
+      dueWindow = 'within 1 business day';
+      dependsOn.push('sequence_decision_boundary');
+    } else if (intent?.intent === 'scope clarity' || intent?.intent === 'context validation') {
+      request = 'Share the single scope boundary line you will use in your downstream team recap.';
+      rationale = 'Consistent scope language prevents interpretation drift across teams.';
+      dueWindow = 'within 1 business day';
+      dependsOn.push('rehearsal_scope_drift');
+    }
+
+    if (topStep && priority !== 'high') {
+      dependsOn.push(topStep.code);
+    }
+
+    const closeScript = (stakeholderCloseScripts || []).find((item) => item.attendeeEmail === email);
+    if (closeScript?.trigger) {
+      rationale = `${rationale} Trigger context: ${closeScript.trigger}`;
+    }
+
+    push({
+      attendeeEmail: email,
+      attendeeName: name,
+      priority,
+      request: cleanLine(request, 220),
+      rationale: cleanLine(rationale, 280),
+      dueWindow: cleanLine(dueWindow, 120),
+      dependsOn: dedupeArray(dependsOn).slice(0, 4),
+    });
+  }
+
+  if (!requests.length) {
+    push({
+      attendeeEmail: 'external-stakeholder',
+      attendeeName: null,
+      priority: 'low',
+      request: 'Provide one owner/date evidence line for next-step confirmation.',
+      rationale: 'Fallback proof request keeps closeout deterministic.',
+      dueWindow: 'within 1 business day',
+      dependsOn: ['default'],
+    });
+  }
+
+  return requests.slice(0, maxRequests);
+}
+
 function buildMeetingPrepQuality({
   attendees,
   relationshipRiskSignals,
@@ -2316,6 +2566,8 @@ function buildMeetingPrepQuality({
   dependencyFollowThroughPrompts,
   decisionCommitmentSequencing,
   stakeholderCloseScripts,
+  failureModeRehearsals,
+  stakeholderProofRequests,
 }) {
   const checks = [];
   const push = (code, severity, status, message) => {
@@ -2423,6 +2675,28 @@ function buildMeetingPrepQuality({
     );
   } else {
     push('stakeholder_close_scripts_coverage', 'high', 'fail', 'Missing stakeholder-specific close scripts section.');
+  }
+
+  if (has(failureModeRehearsals)) {
+    push(
+      'failure_mode_rehearsal_coverage',
+      'low',
+      'pass',
+      `Failure-mode rehearsals present (${failureModeRehearsals.length}).`
+    );
+  } else {
+    push('failure_mode_rehearsal_coverage', 'high', 'fail', 'Missing failure-mode rehearsal section.');
+  }
+
+  if (has(stakeholderProofRequests)) {
+    push(
+      'stakeholder_proof_request_coverage',
+      'low',
+      'pass',
+      `Stakeholder proof-request pack present (${stakeholderProofRequests.length}).`
+    );
+  } else {
+    push('stakeholder_proof_request_coverage', 'high', 'fail', 'Missing stakeholder proof-request pack section.');
   }
 
   if (highRiskSignals.length > 0 && !has(objectionRebuttalPacks)) {

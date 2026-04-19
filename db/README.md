@@ -148,6 +148,8 @@ Output behavior:
   - dependency-aware follow-through prompts (`trigger`, `prompt`, `desiredOutcome`, `priority`, `ownerHint`, `dependsOn`) for deterministic dependency closure after the meeting
   - decision-commitment sequencing model (`summary`, `steps`) for deterministic decision-order and owner/date lock sequencing
   - stakeholder-specific close scripts (`attendee`, `trigger`, `script`, `desiredOutcome`, `priority`) for deterministic stakeholder closeout messaging
+  - failure-mode rehearsals (`trigger`, `rehearsalQuestion`, `mitigationPath`, `ownerHint`, `evidenceToCapture`, `priority`, `dependsOn`) for deterministic contingency handling when commitments slip
+  - stakeholder proof-request pack (`attendee`, `request`, `rationale`, `dueWindow`, `priority`, `dependsOn`) for explicit post-meeting proof capture
   - meeting-prep quality scoring (`score`, `level`, `gapCount`, `summary`, `coverageChecks`) for deterministic output-completeness assessment
   - deterministic meeting-level recommendations derived from cross-attendee risk patterns, each with confidence metadata
   - cross-attendee relationship risk signals (`code`, `severity`, `count`, `attendees`, `message`)
