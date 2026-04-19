@@ -380,6 +380,11 @@ Optional flags:
   - `--slo-target-google-calendar-pct <n>`: Google Calendar source target availability percentage override
   - `--slo-target-kb-ingest-pct <n>`: KB ingest source target availability percentage override
   - `--slo-partial-failure-weight <n>`: weighted error cost for `partial_failure` runs in budget burn computation (default `0.5`)
+  - `--slo-seasonality-window-days <n>`: lookback days used to build source day-of-week error profiles (default `56`)
+  - `--slo-seasonality-min-runs <n>`: minimum runs required for current weekday profile before fallback to median profile (default `4`)
+  - `--slo-seasonality-band-multiplier <n>`: MAD band width multiplier for day-profile expected error rate bands (default `1.5`)
+  - `--slo-adaptive-burn-min-multiplier <n>`: lower clamp for adaptive budget-burn multiplier (default `0.6`)
+  - `--slo-adaptive-burn-max-multiplier <n>`: upper clamp for adaptive budget-burn multiplier (default `1.8`)
 - threshold guards (optional, non-zero exit when breached):
   - `--max-lag-hours <n>`
   - `--max-seen-drift-hours <n>`
@@ -405,6 +410,11 @@ npm run db:hybrid:health -- \
   --slo-budget-window-days 7 \
   --slo-target-default-pct 99 \
   --slo-partial-failure-weight 0.5 \
+  --slo-seasonality-window-days 56 \
+  --slo-seasonality-min-runs 4 \
+  --slo-seasonality-band-multiplier 1.5 \
+  --slo-adaptive-burn-min-multiplier 0.6 \
+  --slo-adaptive-burn-max-multiplier 1.8 \
   --max-lag-hours 24 \
   --max-seen-drift-hours 48 \
   --max-artifact-issues 0 \
@@ -441,8 +451,9 @@ Output includes:
   - source-level average/latest anomaly counts
 - source-level SLO budget tracking from `ingestion_run_metrics`:
   - per-source run mixes (`ok`, `partial_failure`, `failed`) in the configured budget window
-  - per-source weighted error rate, error budget, burn %, burn rate, and remaining budget %
-  - deterministic budget status (`within_budget`, `near_budget`, `over_budget`, `critical_over_budget`) + alert level
+  - seasonality profiles by source weekday (`utc_weekday` basis) with expected error-rate floor/ceiling bands
+  - per-source weighted error rate, error budget, raw burn %, adaptive burn %, raw/adaptive burn rates, and remaining budget %
+  - deterministic budget status (`within_budget`, `near_budget`, `over_budget`, `critical_over_budget`) + alert level, evaluated on adaptive burn %
 - breach rollup feed for digest window:
   - scans `ingestion-trends-*.json` and `ingestion-health-*.json`
   - aggregates breach events by severity and source/top breach kinds

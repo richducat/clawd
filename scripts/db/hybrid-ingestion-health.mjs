@@ -23,10 +23,19 @@ const sloRetentionDays = readOptionalNumberArg(args, '--slo-retention-days');
 const sloRetentionCount = readOptionalNumberArg(args, '--slo-retention-count');
 const defaultSloTargetPct = toSafeFloat(getArg(args, '--slo-target-default-pct'), 99, 90, 100);
 const sourceSloTargets = readSourceSloTargets(args, defaultSloTargetPct);
+const sloSeasonalityConfig = {
+  window_days: toSafeInt(getArg(args, '--slo-seasonality-window-days'), 56, 14, 365),
+  min_runs_per_day: toSafeInt(getArg(args, '--slo-seasonality-min-runs'), 4, 2, 50),
+  band_multiplier: toSafeFloat(getArg(args, '--slo-seasonality-band-multiplier'), 1.5, 0.5, 10),
+  adaptive_multiplier_min: toSafeFloat(getArg(args, '--slo-adaptive-burn-min-multiplier'), 0.6, 0.1, 1),
+  adaptive_multiplier_max: toSafeFloat(getArg(args, '--slo-adaptive-burn-max-multiplier'), 1.8, 1, 10),
+  basis: 'utc_weekday',
+};
 const sloBudgetConfig = {
   window_days: toSafeInt(getArg(args, '--slo-budget-window-days'), 7, 2, 90),
   partial_failure_weight: toSafeFloat(getArg(args, '--slo-partial-failure-weight'), 0.5, 0, 1),
   target_pct_by_source: sourceSloTargets,
+  seasonality: sloSeasonalityConfig,
 };
 const baselineConfig = {
   window_runs: toSafeInt(getArg(args, '--baseline-window-runs'), 14, 3, 180),
@@ -117,6 +126,7 @@ async function main() {
         window_days: sloWindowDays,
       },
       slo_budget_config: sloBudgetConfig,
+      slo_seasonality_config: sloSeasonalityConfig,
       baseline_config: baselineConfig,
       thresholds: {
         configured: hasThresholds,
@@ -394,9 +404,10 @@ function printMarkdown(result, artifactDirInput) {
   } else {
     console.log(`- window_start=${result.slo_budgets.window_start}, window_end=${result.slo_budgets.window_end}, window_days=${result.slo_budget_config?.window_days}`);
     console.log(`- partial_failure_weight=${formatNumber(result.slo_budget_config?.partial_failure_weight)}`);
+    console.log(`- seasonality_window_days=${formatNumber(result.slo_seasonality_config?.window_days)}, seasonality_min_runs_per_day=${formatNumber(result.slo_seasonality_config?.min_runs_per_day)}, seasonality_band_multiplier=${formatNumber(result.slo_seasonality_config?.band_multiplier)}, adaptive_multiplier_min=${formatNumber(result.slo_seasonality_config?.adaptive_multiplier_min)}, adaptive_multiplier_max=${formatNumber(result.slo_seasonality_config?.adaptive_multiplier_max)}, basis=${result.slo_seasonality_config?.basis || 'n/a'}`);
     console.log(`- total_runs=${result.slo_budgets.totals?.total_runs || 0}, over_budget_sources=${result.slo_budgets.totals?.over_budget_sources || 0}, alerted_sources=${result.slo_budgets.totals?.alerted_sources || 0}`);
     for (const source of result.slo_budgets.sources || []) {
-      console.log(`- ${source.source}: status=${source.status}, target_pct=${formatNumber(source.target_pct)}, runs=${source.total_runs}, ok=${source.ok_runs}, partial_failure=${source.partial_failure_runs}, failed=${source.failed_runs}, error_rate_pct=${formatNumber(source.actual_error_rate_pct)}, budget_pct=${formatNumber(source.error_budget_pct)}, burn_pct=${formatNumber(source.budget_burn_pct)}, burn_rate=${formatNumber(source.burn_rate)}, remaining_budget_pct=${formatNumber(source.remaining_budget_pct)}, alert=${source.alert}`);
+      console.log(`- ${source.source}: status=${source.status}, target_pct=${formatNumber(source.target_pct)}, runs=${source.total_runs}, ok=${source.ok_runs}, partial_failure=${source.partial_failure_runs}, failed=${source.failed_runs}, error_rate_pct=${formatNumber(source.actual_error_rate_pct)}, budget_pct=${formatNumber(source.error_budget_pct)}, burn_pct=${formatNumber(source.budget_burn_pct)}, adaptive_burn_pct=${formatNumber(source.adaptive_budget_burn_pct)}, burn_rate=${formatNumber(source.burn_rate)}, adaptive_burn_rate=${formatNumber(source.adaptive_burn_rate)}, seasonal_expected_error_rate_pct=${formatNumber(source.seasonality?.expected_error_rate_pct)}, seasonal_day_error_rate_pct=${formatNumber(source.seasonality?.current_day_error_rate_pct)}, seasonal_day_runs=${formatNumber(source.seasonality?.current_day_runs)}, seasonal_multiplier=${formatNumber(source.seasonality?.adaptive_multiplier)}, remaining_budget_pct=${formatNumber(source.remaining_budget_pct)}, alert=${source.alert}`);
     }
   }
   console.log('');
@@ -676,26 +687,47 @@ function readSourceSloBudgets(db, { asOf, config }) {
   const windowEnd = asOf.toISOString();
   const windowStartDate = new Date(asOf.getTime() - config.window_days * 24 * 60 * 60 * 1000);
   const windowStart = windowStartDate.toISOString();
+  const seasonalityWindowDays = Number(config.seasonality?.window_days || config.window_days);
+  const seasonalityWindowStartDate = new Date(asOf.getTime() - seasonalityWindowDays * 24 * 60 * 60 * 1000);
+  const seasonalityWindowStart = seasonalityWindowStartDate.toISOString();
+  const currentWeekday = asOf.getUTCDay();
 
   const rows = db.prepare(`
-    SELECT source, status
+    SELECT source, status, run_completed_at
     FROM ingestion_run_metrics
     WHERE source IN (${DEFAULT_SOURCES.map(() => '?').join(',')})
       AND run_completed_at >= ?
       AND run_completed_at <= ?
     ORDER BY source ASC, run_completed_at DESC, run_id DESC
-  `).all(...DEFAULT_SOURCES, windowStart, windowEnd);
+  `).all(...DEFAULT_SOURCES, seasonalityWindowStart, windowEnd);
 
-  const grouped = new Map();
-  for (const source of DEFAULT_SOURCES) grouped.set(source, []);
+  const statusBySource = new Map();
+  const seasonalityBySource = new Map();
+  for (const source of DEFAULT_SOURCES) {
+    statusBySource.set(source, []);
+    seasonalityBySource.set(source, []);
+  }
+
   for (const row of rows) {
     const source = String(row.source || '');
-    if (!grouped.has(source)) continue;
-    grouped.get(source).push(String(row.status || 'failed'));
+    if (!statusBySource.has(source)) continue;
+    const status = String(row.status || 'failed');
+    const completedAt = toIsoOrNull(row.run_completed_at);
+    const ts = completedAt ? parseIso(completedAt) : null;
+    const weekday = ts ? ts.getUTCDay() : null;
+    seasonalityBySource.get(source).push({
+      status,
+      run_completed_at: completedAt,
+      weekday,
+    });
+    if (completedAt && completedAt >= windowStart) {
+      statusBySource.get(source).push(status);
+    }
   }
 
   const sources = DEFAULT_SOURCES.map((source) => {
-    const statuses = grouped.get(source) || [];
+    const statuses = statusBySource.get(source) || [];
+    const seasonalityRuns = seasonalityBySource.get(source) || [];
     const totalRuns = statuses.length;
     const okRuns = statuses.filter((status) => status === 'ok').length;
     const partialFailureRuns = statuses.filter((status) => status === 'partial_failure').length;
@@ -708,29 +740,70 @@ function readSourceSloBudgets(db, { asOf, config }) {
     let actualErrorRatePct = null;
     let budgetBurnPct = null;
     let burnRate = null;
+    let adaptiveBudgetBurnPct = null;
+    let adaptiveBurnRate = null;
     let remainingBudgetPct = null;
     let status = 'no_runs';
     let alert = 'none';
+    let seasonality = {
+      basis: config.seasonality?.basis || 'utc_weekday',
+      current_weekday: currentWeekday,
+      min_runs_per_day: Number(config.seasonality?.min_runs_per_day || 0),
+      window_days: seasonalityWindowDays,
+      day_profiles: [],
+      current_day_runs: 0,
+      current_day_error_rate_pct: null,
+      expected_error_rate_pct: null,
+      expected_error_rate_floor_pct: null,
+      expected_error_rate_ceiling_pct: null,
+      adaptive_multiplier: 1,
+      model_status: 'insufficient_history',
+    };
 
     if (totalRuns > 0) {
       actualErrorRatePct = Number(((weightedErrorUnits / totalRuns) * 100).toFixed(3));
+      const seasonalityModel = computeSeasonalityModel({
+        runs: seasonalityRuns,
+        currentWeekday,
+        minRunsPerDay: Number(config.seasonality?.min_runs_per_day || 0),
+        bandMultiplier: Number(config.seasonality?.band_multiplier || 1),
+        partialFailureWeight: Number(config.partial_failure_weight ?? 0.5),
+      });
+      seasonality = {
+        ...seasonality,
+        ...seasonalityModel,
+      };
+
+      const expectedErrorRatePct = seasonalityModel.expected_error_rate_pct ?? actualErrorRatePct;
+      const adaptiveMultiplier = clamp(
+        Number((expectedErrorRatePct > 0 ? (expectedErrorRatePct / Math.max(actualErrorRatePct, 0.001)) : 1).toFixed(3)),
+        Number(config.seasonality?.adaptive_multiplier_min || 0.1),
+        Number(config.seasonality?.adaptive_multiplier_max || 10),
+      );
+      seasonality.adaptive_multiplier = adaptiveMultiplier;
+
       if (errorBudgetPct > 0) {
         budgetBurnPct = Number(((actualErrorRatePct / errorBudgetPct) * 100).toFixed(3));
         burnRate = Number((actualErrorRatePct / errorBudgetPct).toFixed(3));
+        adaptiveBudgetBurnPct = Number((budgetBurnPct / adaptiveMultiplier).toFixed(3));
+        adaptiveBurnRate = Number((burnRate / adaptiveMultiplier).toFixed(3));
         remainingBudgetPct = Number(Math.max(0, errorBudgetPct - actualErrorRatePct).toFixed(3));
       } else {
         budgetBurnPct = weightedErrorUnits > 0 ? 1000 : 0;
         burnRate = weightedErrorUnits > 0 ? 10 : 0;
+        adaptiveBudgetBurnPct = Number((budgetBurnPct / adaptiveMultiplier).toFixed(3));
+        adaptiveBurnRate = Number((burnRate / adaptiveMultiplier).toFixed(3));
         remainingBudgetPct = 0;
       }
 
-      if (budgetBurnPct > 200) {
+      const statusBurnPct = adaptiveBudgetBurnPct ?? budgetBurnPct;
+      if (statusBurnPct > 200) {
         status = 'critical_over_budget';
         alert = 'high';
-      } else if (budgetBurnPct > 100) {
+      } else if (statusBurnPct > 100) {
         status = 'over_budget';
         alert = 'medium';
-      } else if (budgetBurnPct >= 80) {
+      } else if (statusBurnPct >= 80) {
         status = 'near_budget';
         alert = 'watch';
       } else {
@@ -752,7 +825,10 @@ function readSourceSloBudgets(db, { asOf, config }) {
       actual_error_rate_pct: actualErrorRatePct,
       budget_burn_pct: budgetBurnPct,
       burn_rate: burnRate,
+      adaptive_budget_burn_pct: adaptiveBudgetBurnPct,
+      adaptive_burn_rate: adaptiveBurnRate,
       remaining_budget_pct: remainingBudgetPct,
+      seasonality,
     };
   });
 
@@ -761,15 +837,74 @@ function readSourceSloBudgets(db, { asOf, config }) {
     note: rows.length ? null : 'no ingestion runs found in source SLO window',
     window_start: windowStart,
     window_end: windowEnd,
+    seasonality_window_start: seasonalityWindowStart,
+    seasonality_window_end: windowEnd,
     totals: {
       total_runs: sources.reduce((sum, source) => sum + source.total_runs, 0),
       ok_runs: sources.reduce((sum, source) => sum + source.ok_runs, 0),
       partial_failure_runs: sources.reduce((sum, source) => sum + source.partial_failure_runs, 0),
       failed_runs: sources.reduce((sum, source) => sum + source.failed_runs, 0),
-      over_budget_sources: sources.filter((source) => source.total_runs > 0 && Number(source.budget_burn_pct || 0) > 100).length,
+      over_budget_sources: sources.filter((source) => source.total_runs > 0 && Number((source.adaptive_budget_burn_pct ?? source.budget_burn_pct) || 0) > 100).length,
       alerted_sources: sources.filter((source) => source.alert !== 'none').length,
     },
     sources,
+  };
+}
+
+function computeSeasonalityModel({ runs, currentWeekday, minRunsPerDay, bandMultiplier, partialFailureWeight }) {
+  const groups = new Map();
+  for (let i = 0; i < 7; i += 1) {
+    groups.set(i, []);
+  }
+  for (const row of runs || []) {
+    if (row.weekday === null || row.weekday === undefined) continue;
+    if (!groups.has(row.weekday)) continue;
+    groups.get(row.weekday).push(row.status);
+  }
+
+  const dayProfiles = [];
+  const dailyErrorRates = [];
+  for (let day = 0; day < 7; day += 1) {
+    const statuses = groups.get(day) || [];
+    const totalRuns = statuses.length;
+    const partialFailureRuns = statuses.filter((status) => status === 'partial_failure').length;
+    const failedRuns = statuses.filter((status) => status === 'failed').length;
+    const weightedErrorUnits = Number((failedRuns + (partialFailureRuns * partialFailureWeight)).toFixed(6));
+    const errorRatePct = totalRuns
+      ? Number(((weightedErrorUnits / totalRuns) * 100).toFixed(3))
+      : null;
+    if (errorRatePct !== null) dailyErrorRates.push(errorRatePct);
+    dayProfiles.push({
+      weekday: day,
+      runs: totalRuns,
+      error_rate_pct: errorRatePct,
+    });
+  }
+
+  const currentDay = dayProfiles.find((row) => row.weekday === currentWeekday) || null;
+  const sampledRates = dailyErrorRates.filter((value) => Number.isFinite(value));
+  const medianRate = sampledRates.length
+    ? Number(percentile([...sampledRates].sort((a, b) => a - b), 50).toFixed(3))
+    : null;
+  const madRaw = sampledRates.length
+    ? percentile(sampledRates.map((v) => Math.abs(v - medianRate)).sort((a, b) => a - b), 50)
+    : null;
+  const madScaled = madRaw === null ? null : Number((madRaw * 1.4826).toFixed(3));
+  const band = madScaled === null ? null : Number((madScaled * bandMultiplier).toFixed(3));
+  const floor = band === null || medianRate === null ? null : Number(Math.max(0, medianRate - band).toFixed(3));
+  const ceiling = band === null || medianRate === null ? null : Number((medianRate + band).toFixed(3));
+  const expected = currentDay && currentDay.runs >= minRunsPerDay && currentDay.error_rate_pct !== null
+    ? currentDay.error_rate_pct
+    : medianRate;
+
+  return {
+    day_profiles: dayProfiles,
+    current_day_runs: Number(currentDay?.runs || 0),
+    current_day_error_rate_pct: currentDay?.error_rate_pct ?? null,
+    expected_error_rate_pct: expected,
+    expected_error_rate_floor_pct: floor,
+    expected_error_rate_ceiling_pct: ceiling,
+    model_status: currentDay && currentDay.runs >= minRunsPerDay ? 'trained' : 'fallback_median',
   };
 }
 
@@ -1266,6 +1401,14 @@ function toSafeFloat(value, fallback, min, max) {
   return Number(n.toFixed(3));
 }
 
+function clamp(value, min, max) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return min;
+  if (n < min) return min;
+  if (n > max) return max;
+  return n;
+}
+
 function safeJson(raw) {
   if (!raw || typeof raw !== 'string') return null;
   try {
@@ -1349,12 +1492,13 @@ function evaluateThresholdBreaches({ sources, failures, reconciliation, baseline
       });
     } else {
       for (const source of sloBudgets.sources || []) {
-        if (source.budget_burn_pct === null || source.budget_burn_pct === undefined) continue;
-        if (source.budget_burn_pct > thresholds.max_slo_budget_burn_pct) {
+        const effectiveBurnPct = source.adaptive_budget_burn_pct ?? source.budget_burn_pct;
+        if (effectiveBurnPct === null || effectiveBurnPct === undefined) continue;
+        if (effectiveBurnPct > thresholds.max_slo_budget_burn_pct) {
           breaches.push({
             kind: 'slo_budget_burn_pct',
             source: source.source,
-            actual: source.budget_burn_pct,
+            actual: effectiveBurnPct,
             limit: thresholds.max_slo_budget_burn_pct,
           });
         }
@@ -1655,6 +1799,8 @@ function buildTrendArtifactPayload(result) {
     db: result.db,
     trend_config: result.trend_config,
     baseline_config: result.baseline_config,
+    slo_budget_config: result.slo_budget_config || null,
+    slo_seasonality_config: result.slo_seasonality_config || null,
     totals: {
       entities: Number(result.totals?.entities || 0),
       chunks: Number(result.totals?.chunks || 0),
