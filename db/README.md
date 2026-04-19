@@ -280,6 +280,17 @@ Runtime notes:
     - `HYBRID_ALERT_ESCALATION_WINDOWS_ET` (repo variable, defaults to `always`)
   - optional ACK SLA override:
     - `HYBRID_ALERT_ACK_SLA_MINUTES` (repo variable; defaults are deterministic by incident type/mode)
+  - optional ACK reminder route config:
+    - `HYBRID_ALERT_ACK_REMINDER_WEBHOOK_URL`
+    - `HYBRID_ALERT_ACK_REMINDER_WEBHOOK_URLS`
+  - optional ACK reminder escalation route config:
+    - `HYBRID_ALERT_ACK_REMINDER_ESCALATION_WEBHOOK_URL`
+    - `HYBRID_ALERT_ACK_REMINDER_ESCALATION_WEBHOOK_URLS`
+  - optional ACK reconciliation/reminder controls (repo variables):
+    - `HYBRID_ALERT_ACK_REMINDER_INTERVAL_MINUTES` (default `30`)
+    - `HYBRID_ALERT_ACK_ESCALATE_AFTER_REMINDERS` (default `2`)
+    - `HYBRID_ALERT_ACK_EVIDENCE_MARKERS` (comma/newline/JSON-array list of acknowledged markers)
+    - `HYBRID_ALERT_ACK_EVIDENCE_KEYS` (comma/newline/JSON-array list of acknowledged incident keys)
   - window format (`ET`):
     - `always`
     - or semicolon-delimited entries in `daySpec@HH:MM-HH:MM`
@@ -294,11 +305,14 @@ Runtime notes:
     - canary-vs-live drift summary (`status`, `signal_count`, `total_severity_score`, `gate_breached`, `gate_breached_by_signal_count`, `gate_breached_by_severity_score`)
     - canary-vs-live drift artifact paths (json + markdown)
   - alerts include deterministic ACK markers in both `text` and `metadata`:
+    - `ack_key`
     - `ack_marker`
     - `ack_sla_minutes`
     - `ack_due_at_utc`
     - `ack_due_at_et`
     - `ack_policy` (`deterministic_v1`)
+  - dispatcher persists ACK state to `ALERT_ACK_STATE_PATH` and reconciles acknowledged incidents via marker/key evidence on subsequent runs
+  - unresolved ACK incidents that breach SLA emit reminder metadata (`ack_reminders_due_count`) and can fan out to reminder/escalation routes
 
 ## Retrieval/query layer (roadmap tranche option #2)
 

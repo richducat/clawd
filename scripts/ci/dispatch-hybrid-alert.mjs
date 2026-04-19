@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+
 const ET_TIMEZONE = "America/New_York";
 const WEEKDAY_TO_INDEX = {
   sun: 0,
@@ -203,12 +207,92 @@ function resolveAckSlaMinutes({ incident, runMode }) {
   return 45;
 }
 
-function buildAckMarker({ incident, runMode, runDate }) {
+function sha1(value) {
+  return crypto.createHash("sha1").update(value).digest("hex");
+}
+
+function toIsoOrNull(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+}
+
+function parseJsonList(value) {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return [];
+  try {
+    const parsed = JSON.parse(trimmed);
+    return Array.isArray(parsed) ? parsed.map((item) => String(item).trim()).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseAckEvidenceTokens(value) {
+  return unique([
+    ...parseList(value),
+    ...parseJsonList(value),
+  ]).filter(Boolean);
+}
+
+function readAckState(filePath) {
+  if (!filePath) return { schema_version: 1, incidents: {} };
+  if (!fs.existsSync(filePath)) {
+    return { schema_version: 1, incidents: {} };
+  }
+  try {
+    const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    if (typeof parsed !== "object" || parsed == null) {
+      return { schema_version: 1, incidents: {} };
+    }
+    const incidents = typeof parsed.incidents === "object" && parsed.incidents != null ? parsed.incidents : {};
+    return {
+      schema_version: 1,
+      incidents,
+      generated_at_utc: toIsoOrNull(parsed.generated_at_utc) || undefined,
+    };
+  } catch {
+    return { schema_version: 1, incidents: {} };
+  }
+}
+
+function writeAckState(filePath, state) {
+  if (!filePath) return;
+  const outPath = path.resolve(filePath);
+  fs.mkdirSync(path.dirname(outPath), { recursive: true });
+  fs.writeFileSync(
+    outPath,
+    `${JSON.stringify(
+      {
+        schema_version: 1,
+        generated_at_utc: new Date().toISOString(),
+        incidents: state.incidents,
+      },
+      null,
+      2
+    )}\n`,
+    "utf8"
+  );
+}
+
+function minutesSince(iso) {
+  const date = iso ? new Date(iso) : null;
+  if (!date || Number.isNaN(date.getTime())) return null;
+  return Math.floor((Date.now() - date.getTime()) / (60 * 1000));
+}
+
+function buildAckKey({ incident, runMode, runDate, repo, branch }) {
+  return `${runMode}:${incident.type}:${runDate || "unknown"}:${repo || "unknown"}:${branch || "unknown"}`;
+}
+
+function buildAckMarker({ ackKey, incident, runMode, runDate }) {
   const now = new Date();
   const ackSlaMinutes = resolveAckSlaMinutes({ incident, runMode });
   const dueAt = new Date(now.getTime() + ackSlaMinutes * 60 * 1000);
-  const marker = `ack-${runMode}-${incident.type}-${runDate || "unknown"}-${now.getTime()}`;
+  const marker = `ack-${sha1(ackKey).slice(0, 16)}`;
   return {
+    ack_key: ackKey,
     ack_required: true,
     ack_policy: "deterministic_v1",
     ack_marker: marker,
@@ -218,7 +302,14 @@ function buildAckMarker({ incident, runMode, runDate }) {
   };
 }
 
-function buildAlertText({ escalationEnabled, driftEscalationEnabled, incident, ackMarker }) {
+function buildAlertText({
+  escalationEnabled,
+  driftEscalationEnabled,
+  incident,
+  ackMarker,
+  reminderSummary,
+  ackStatePath,
+}) {
   const mode = process.env.RUN_MODE || "unknown";
   const repo = process.env.REPO || "unknown";
   const branch = process.env.BRANCH_REF || "unknown";
@@ -254,7 +345,7 @@ function buildAlertText({ escalationEnabled, driftEscalationEnabled, incident, a
     `Branch: ${branch}`,
     `Run date: ${runDate}`,
     `Thresholds: lag<=${lag}h, drift<=${drift}h, artifactIssues<=${artifactIssues}`,
-    `ACK: marker=${ackMarker.ack_marker}, required=true, sla=${ackMarker.ack_sla_minutes}m, due_utc=${ackMarker.ack_due_at_utc}, due_et=${ackMarker.ack_due_at_et}`,
+    `ACK: key=${ackMarker.ack_key}, marker=${ackMarker.ack_marker}, required=true, sla=${ackMarker.ack_sla_minutes}m, due_utc=${ackMarker.ack_due_at_utc}, due_et=${ackMarker.ack_due_at_et}`,
   ];
   if (escalationEnabled) {
     lines.push("Escalation: ACTIVE (inside configured ET window)");
@@ -297,6 +388,17 @@ function buildAlertText({ escalationEnabled, driftEscalationEnabled, incident, a
     );
     lines.push(`Drift evidence: json=${driftJson || "n/a"}, md=${driftMd || "n/a"}`);
   }
+  if (reminderSummary.length > 0) {
+    lines.push(`ACK reminders due: ${reminderSummary.length}`);
+    for (const reminder of reminderSummary.slice(0, 5)) {
+      lines.push(
+        `- ${reminder.ack_key} marker=${reminder.ack_marker} overdue=${reminder.overdue_minutes}m reminders=${reminder.reminder_count}`
+      );
+    }
+  }
+  if (ackStatePath) {
+    lines.push(`ACK state file: ${ackStatePath}`);
+  }
   return lines.join("\n");
 }
 
@@ -317,11 +419,90 @@ async function main() {
   const escalationRoutes = parseRoutes("ALERT_ESCALATION_WEBHOOK_URL", "ALERT_ESCALATION_WEBHOOK_URLS");
   const driftRoutes = parseRoutes("ALERT_DRIFT_WEBHOOK_URL", "ALERT_DRIFT_WEBHOOK_URLS");
   const driftEscalationRoutes = parseRoutes("ALERT_DRIFT_ESCALATION_WEBHOOK_URL", "ALERT_DRIFT_ESCALATION_WEBHOOK_URLS");
+  const ackReminderRoutes = parseRoutes("ALERT_ACK_REMINDER_WEBHOOK_URL", "ALERT_ACK_REMINDER_WEBHOOK_URLS");
+  const ackReminderEscalationRoutes = parseRoutes(
+    "ALERT_ACK_REMINDER_ESCALATION_WEBHOOK_URL",
+    "ALERT_ACK_REMINDER_ESCALATION_WEBHOOK_URLS"
+  );
   const nowEt = getNowEt();
   const incident = classifyIncident();
   const runMode = String(process.env.RUN_MODE || "unknown");
   const runDate = String(process.env.RUN_DATE || "");
-  const ackMarker = buildAckMarker({ incident, runMode, runDate });
+  const repo = String(process.env.REPO || "unknown");
+  const branch = String(process.env.BRANCH_REF || "unknown");
+  const ackKey = buildAckKey({ incident, runMode, runDate, repo, branch });
+  const ackMarker = buildAckMarker({ ackKey, incident, runMode, runDate });
+  const ackStatePath = String(process.env.ALERT_ACK_STATE_PATH || "").trim();
+  const ackState = readAckState(ackStatePath);
+  const ackReminderIntervalMinutes = toPositiveIntegerOrNull(process.env.ALERT_ACK_REMINDER_INTERVAL_MINUTES) ?? 30;
+  const ackEscalateAfterReminders = toPositiveIntegerOrNull(process.env.ALERT_ACK_ESCALATE_AFTER_REMINDERS) ?? 2;
+  const ackEvidenceMarkers = new Set(parseAckEvidenceTokens(process.env.ALERT_ACK_EVIDENCE_MARKERS));
+  const ackEvidenceKeys = new Set(parseAckEvidenceTokens(process.env.ALERT_ACK_EVIDENCE_KEYS));
+  const nowIso = new Date().toISOString();
+
+  const existing = ackState.incidents[ackKey];
+  const nextIncident = {
+    ack_key: ackKey,
+    ack_marker: ackMarker.ack_marker,
+    incident_type: incident.type,
+    run_mode: runMode,
+    run_date: runDate || "unknown",
+    repo,
+    branch,
+    status: "pending",
+    first_seen_at_utc: toIsoOrNull(existing?.first_seen_at_utc) || nowIso,
+    last_seen_at_utc: nowIso,
+    ack_due_at_utc: toIsoOrNull(existing?.ack_due_at_utc) || ackMarker.ack_due_at_utc,
+    ack_sla_minutes: ackMarker.ack_sla_minutes,
+    acknowledged_at_utc: null,
+    acknowledgment_source: "",
+    reminder_count: Number(existing?.reminder_count || 0),
+    last_reminder_at_utc: toIsoOrNull(existing?.last_reminder_at_utc) || null,
+    next_reminder_at_utc: toIsoOrNull(existing?.next_reminder_at_utc) || null,
+  };
+
+  if (ackEvidenceMarkers.has(nextIncident.ack_marker) || ackEvidenceKeys.has(nextIncident.ack_key)) {
+    nextIncident.status = "acknowledged";
+    nextIncident.acknowledged_at_utc = nowIso;
+    nextIncident.acknowledgment_source = ackEvidenceMarkers.has(nextIncident.ack_marker)
+      ? "ack_marker_evidence"
+      : "ack_key_evidence";
+    nextIncident.next_reminder_at_utc = null;
+  } else if (existing?.status === "acknowledged") {
+    nextIncident.status = "acknowledged";
+    nextIncident.acknowledged_at_utc = toIsoOrNull(existing?.acknowledged_at_utc) || nowIso;
+    nextIncident.acknowledgment_source = existing?.acknowledgment_source || "historical_state";
+    nextIncident.next_reminder_at_utc = null;
+  }
+
+  ackState.incidents[ackKey] = nextIncident;
+
+  const reminderSummary = [];
+  for (const [key, item] of Object.entries(ackState.incidents)) {
+    if (item?.status !== "pending") continue;
+    const dueMinutes = minutesSince(item.ack_due_at_utc);
+    if (dueMinutes == null || dueMinutes < 0) continue;
+
+    const sinceLastReminder =
+      item.last_reminder_at_utc == null ? null : Math.max(0, minutesSince(item.last_reminder_at_utc) ?? 0);
+    const reminderDue = sinceLastReminder == null || sinceLastReminder >= ackReminderIntervalMinutes;
+    if (!reminderDue) continue;
+
+    const nextCount = Number(item.reminder_count || 0) + 1;
+    item.reminder_count = nextCount;
+    item.last_reminder_at_utc = nowIso;
+    item.next_reminder_at_utc = new Date(Date.now() + ackReminderIntervalMinutes * 60 * 1000).toISOString();
+
+    reminderSummary.push({
+      ack_key: key,
+      ack_marker: item.ack_marker || "n/a",
+      overdue_minutes: dueMinutes,
+      reminder_count: nextCount,
+      reminder_escalation_due: nextCount >= ackEscalateAfterReminders,
+    });
+  }
+
+  writeAckState(ackStatePath, ackState);
 
   const escalationWindows = parseEscalationWindows(process.env.ALERT_ESCALATION_WINDOWS_ET);
   const escalationEnabled = escalationRoutes.length > 0 && escalationWindows.some((window) => isWindowMatch(window, nowEt));
@@ -335,6 +516,12 @@ async function main() {
     ...(escalationEnabled ? escalationRoutes : []),
     ...(incident.drift_related ? driftRoutes : []),
     ...(driftEscalationEnabled ? driftEscalationRoutes : []),
+    ...(reminderSummary.length > 0 ? ackReminderRoutes : []),
+    ...(reminderSummary.some((item) => item.reminder_escalation_due)
+      ? ackReminderEscalationRoutes.length > 0
+        ? ackReminderEscalationRoutes
+        : escalationRoutes
+      : []),
   ]);
 
   if (destinationRoutes.length === 0) {
@@ -343,13 +530,26 @@ async function main() {
   }
 
   const payload = {
-    text: buildAlertText({ escalationEnabled, driftEscalationEnabled, incident, ackMarker }),
+    text: buildAlertText({
+      escalationEnabled,
+      driftEscalationEnabled,
+      incident,
+      ackMarker,
+      reminderSummary,
+      ackStatePath,
+    }),
     metadata: {
       incident_type: incident.type,
       incident_severity: incident.severity,
       run_mode: runMode,
       run_date: runDate || "unknown",
       ...ackMarker,
+      ack_state_path: ackStatePath || null,
+      ack_reconciled: nextIncident.status === "acknowledged",
+      ack_reconciled_at_utc: nextIncident.acknowledged_at_utc || null,
+      ack_reconciliation_source: nextIncident.acknowledgment_source || null,
+      ack_reminders_due_count: reminderSummary.length,
+      ack_reminder_escalations_due_count: reminderSummary.filter((item) => item.reminder_escalation_due).length,
     },
   };
   const dryRun = toBoolean(process.env.ALERT_DRY_RUN);
@@ -362,10 +562,19 @@ async function main() {
     escalation_routes: escalationRoutes.length,
     drift_routes: driftRoutes.length,
     drift_escalation_routes: driftEscalationRoutes.length,
+    ack_reminder_routes: ackReminderRoutes.length,
+    ack_reminder_escalation_routes: ackReminderEscalationRoutes.length,
     escalation_enabled: escalationEnabled,
     drift_escalation_enabled: driftEscalationEnabled,
     escalation_windows: escalationWindows.map((window) => window.source),
     et_now: `${nowEt.weekday}@${nowEt.hhmm}`,
+    ack_key: ackMarker.ack_key,
+    ack_state_path: ackStatePath || null,
+    ack_reconciled: nextIncident.status === "acknowledged",
+    ack_reconciled_at_utc: nextIncident.acknowledged_at_utc || null,
+    ack_reconciliation_source: nextIncident.acknowledgment_source || null,
+    ack_reminders_due_count: reminderSummary.length,
+    ack_reminder_escalations_due_count: reminderSummary.filter((item) => item.reminder_escalation_due).length,
     ack_sla_minutes: ackMarker.ack_sla_minutes,
     ack_due_at_utc: ackMarker.ack_due_at_utc,
     ack_marker: ackMarker.ack_marker,
