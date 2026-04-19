@@ -231,6 +231,23 @@ Optional flags:
 - `--as-of <iso>`: evaluate lag/drift against a fixed timestamp (default `now`)
 - `--artifact-dir <path>`: scan pipeline summary artifacts for failure signals (default `artifacts`)
 - `--artifacts-max <n>`: max recent `pipeline-summary-*.json` files to inspect (default `8`)
+- threshold guards (optional, non-zero exit when breached):
+  - `--max-lag-hours <n>`
+  - `--max-seen-drift-hours <n>`
+  - `--max-artifact-issues <n>`
+
+Threshold-gated example (CI/alerts):
+```bash
+npm run db:hybrid:health -- \
+  --json \
+  --max-lag-hours 24 \
+  --max-seen-drift-hours 48 \
+  --max-artifact-issues 0
+```
+
+Exit behavior:
+- Default/report-only mode (no threshold flags): exits `0`.
+- Threshold mode (one or more threshold flags): exits `2` when any configured threshold is breached.
 
 Output includes:
 - source health rows for `gmail`, `google_calendar`, `kb_ingest`:
@@ -240,3 +257,4 @@ Output includes:
 - entity/chunk coverage totals and counts grouped by `domain/type`
 - recent entity update snapshots
 - recent failure/error signals inferred from pipeline summary artifacts when present
+- threshold metadata (`thresholds`) and explicit breach records (`breaches`)
