@@ -55,6 +55,14 @@ on:
         description: "Optional weighted drift gate in live mode: fail when drift severity score exceeds this threshold"
         required: false
         default: ""
+      max_quality_drift_signals:
+        description: "Optional quality-drift gate: fail when meeting-prep quality drift signal count exceeds this threshold"
+        required: false
+        default: ""
+      max_quality_severity_score:
+        description: "Optional quality-drift gate: fail when meeting-prep quality severity score exceeds this threshold"
+        required: false
+        default: ""
   schedule:
     - cron: "20 13 * * *"
 
@@ -83,6 +91,8 @@ jobs:
       MAX_ARTIFACT_ISSUES_INPUT: ${{ inputs.max_artifact_issues || '0' }}
       MAX_DRIFT_SIGNALS_INPUT: ${{ inputs.max_drift_signals || '' }}
       MAX_DRIFT_SEVERITY_SCORE_INPUT: ${{ inputs.max_drift_severity_score || '' }}
+      MAX_QUALITY_DRIFT_SIGNALS_INPUT: ${{ inputs.max_quality_drift_signals || '' }}
+      MAX_QUALITY_SEVERITY_SCORE_INPUT: ${{ inputs.max_quality_severity_score || '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -151,21 +161,88 @@ jobs:
             --artifact-dir artifacts \
             > "artifacts/ingestion-health-${run_date}.md"
 
-          npm run db:hybrid:health -- \
-            --json \
-            --artifact-dir artifacts \
-            --trend-artifact-dir artifacts \
-            --trend-artifact-prefix ingestion-trends \
-            --trend-retention-count 180 \
-            --slo-digest-dir artifacts \
-            --slo-digest-prefix ingestion-slo-weekly \
-            --slo-window-days 7 \
-            --slo-retention-count 52 \
-            --max-lag-hours "${MAX_LAG_HOURS_INPUT}" \
-            --max-seen-drift-hours "${MAX_SEEN_DRIFT_HOURS_INPUT}" \
-            --max-artifact-issues "${MAX_ARTIFACT_ISSUES_INPUT}" \
-            --max-slo-budget-burn-pct 100 \
-            | tee "artifacts/ingestion-health-${run_date}.json"
+          cmd=(
+            npm run db:hybrid:health --
+            --json
+            --artifact-dir artifacts
+            --trend-artifact-dir artifacts
+            --trend-artifact-prefix ingestion-trends
+            --trend-retention-count 180
+            --slo-digest-dir artifacts
+            --slo-digest-prefix ingestion-slo-weekly
+            --slo-window-days 7
+            --slo-retention-count 52
+            --max-lag-hours "${MAX_LAG_HOURS_INPUT}"
+            --max-seen-drift-hours "${MAX_SEEN_DRIFT_HOURS_INPUT}"
+            --max-artifact-issues "${MAX_ARTIFACT_ISSUES_INPUT}"
+            --max-slo-budget-burn-pct 100
+          )
+
+          if [[ -n "${MAX_QUALITY_DRIFT_SIGNALS_INPUT:-}" ]]; then
+            cmd+=(--max-quality-drift-signals "${MAX_QUALITY_DRIFT_SIGNALS_INPUT}")
+          fi
+          if [[ -n "${MAX_QUALITY_SEVERITY_SCORE_INPUT:-}" ]]; then
+            cmd+=(--max-quality-severity-score "${MAX_QUALITY_SEVERITY_SCORE_INPUT}")
+          fi
+
+          "${cmd[@]}" | tee "artifacts/ingestion-health-${run_date}.json"
+
+      - name: Extract quality drift metadata
+        if: ${{ always() }}
+        id: quality
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_date="${{ steps.args.outputs.run_date }}"
+          health_json="artifacts/ingestion-health-${run_date}.json"
+
+          HEALTH_JSON="$health_json" node -e '
+            const fs = require("node:fs");
+            const out = process.env.GITHUB_OUTPUT;
+            const fp = process.env.HEALTH_JSON;
+            const fallback = {
+              quality_signal_count: "0",
+              quality_severity_score: "0",
+              quality_top_lane: "",
+              quality_top_lane_severity: "",
+              quality_gate_breached: "false",
+            };
+
+            const append = (kv) => {
+              const lines = [];
+              for (const [k, v] of Object.entries(kv)) lines.push(`${k}=${String(v ?? "")}`);
+              fs.appendFileSync(out, `${lines.join("\n")}\n`, "utf8");
+            };
+
+            if (!fp || !fs.existsSync(fp)) {
+              append(fallback);
+              process.exit(0);
+            }
+
+            let parsed;
+            try {
+              parsed = JSON.parse(fs.readFileSync(fp, "utf8"));
+            } catch {
+              append(fallback);
+              process.exit(0);
+            }
+
+            const prep = parsed && typeof parsed === "object" ? parsed.meeting_prep_quality || {} : {};
+            const driftSignals = Array.isArray(prep.drift_signals) ? prep.drift_signals.length : 0;
+            const severityScore = Number(prep?.latest?.severity_score);
+            const lanes = Array.isArray(prep.escalation_lanes) ? prep.escalation_lanes : [];
+            const lane = lanes[0] || {};
+            const breaches = Array.isArray(parsed?.breaches) ? parsed.breaches : [];
+            const qualityGateBreached = breaches.some((b) => b?.kind === "quality_drift_signals_count" || b?.kind === "quality_severity_score");
+
+            append({
+              quality_signal_count: Number.isFinite(driftSignals) ? String(driftSignals) : "0",
+              quality_severity_score: Number.isFinite(severityScore) ? String(severityScore) : "0",
+              quality_top_lane: typeof lane.lane === "string" ? lane.lane : "",
+              quality_top_lane_severity: typeof lane.severity === "string" ? lane.severity : "",
+              quality_gate_breached: qualityGateBreached ? "true" : "false",
+            });
+          '
 
       - name: Upload artifacts
         if: always()
@@ -206,6 +283,10 @@ jobs:
           ALERT_DRIFT_WEBHOOK_URLS: ${{ secrets.HYBRID_ALERT_DRIFT_WEBHOOK_URLS }}
           ALERT_DRIFT_ESCALATION_WEBHOOK_URL: ${{ secrets.HYBRID_ALERT_DRIFT_ESCALATION_WEBHOOK_URL }}
           ALERT_DRIFT_ESCALATION_WEBHOOK_URLS: ${{ secrets.HYBRID_ALERT_DRIFT_ESCALATION_WEBHOOK_URLS }}
+          ALERT_QUALITY_WEBHOOK_URL: ${{ secrets.HYBRID_ALERT_QUALITY_WEBHOOK_URL }}
+          ALERT_QUALITY_WEBHOOK_URLS: ${{ secrets.HYBRID_ALERT_QUALITY_WEBHOOK_URLS }}
+          ALERT_QUALITY_ESCALATION_WEBHOOK_URL: ${{ secrets.HYBRID_ALERT_QUALITY_ESCALATION_WEBHOOK_URL }}
+          ALERT_QUALITY_ESCALATION_WEBHOOK_URLS: ${{ secrets.HYBRID_ALERT_QUALITY_ESCALATION_WEBHOOK_URLS }}
           ALERT_ACK_REMINDER_WEBHOOK_URL: ${{ secrets.HYBRID_ALERT_ACK_REMINDER_WEBHOOK_URL }}
           ALERT_ACK_REMINDER_WEBHOOK_URLS: ${{ secrets.HYBRID_ALERT_ACK_REMINDER_WEBHOOK_URLS }}
           ALERT_ACK_REMINDER_ESCALATION_WEBHOOK_URL: ${{ secrets.HYBRID_ALERT_ACK_REMINDER_ESCALATION_WEBHOOK_URL }}
@@ -214,6 +295,7 @@ jobs:
           ALERT_ACK_SLA_MINUTES: ${{ vars.HYBRID_ALERT_ACK_SLA_MINUTES || '' }}
           ALERT_ACK_REMINDER_INTERVAL_MINUTES: ${{ vars.HYBRID_ALERT_ACK_REMINDER_INTERVAL_MINUTES || '30' }}
           ALERT_ACK_ESCALATE_AFTER_REMINDERS: ${{ vars.HYBRID_ALERT_ACK_ESCALATE_AFTER_REMINDERS || '2' }}
+          ALERT_ACK_ESCALATION_POLICY_JSON: ${{ vars.HYBRID_ALERT_ACK_ESCALATION_POLICY_JSON || '' }}
           ALERT_ACK_EVIDENCE_MARKERS: ${{ steps.ack_evidence.outputs.ack_evidence_markers }}
           ALERT_ACK_EVIDENCE_KEYS: ${{ steps.ack_evidence.outputs.ack_evidence_keys }}
           ALERT_ACK_EVIDENCE_JSON: ${{ steps.ack_evidence.outputs.ack_evidence_json_path }}
@@ -228,6 +310,11 @@ jobs:
           MAX_LAG_HOURS: ${{ env.MAX_LAG_HOURS_INPUT }}
           MAX_SEEN_DRIFT_HOURS: ${{ env.MAX_SEEN_DRIFT_HOURS_INPUT }}
           MAX_ARTIFACT_ISSUES: ${{ env.MAX_ARTIFACT_ISSUES_INPUT }}
+          ALERT_QUALITY_DRIFT_SIGNAL_COUNT: ${{ steps.quality.outputs.quality_signal_count }}
+          ALERT_QUALITY_SEVERITY_SCORE: ${{ steps.quality.outputs.quality_severity_score }}
+          ALERT_QUALITY_TOP_LANE: ${{ steps.quality.outputs.quality_top_lane }}
+          ALERT_QUALITY_TOP_LANE_SEVERITY: ${{ steps.quality.outputs.quality_top_lane_severity }}
+          ALERT_QUALITY_GATE_BREACHED: ${{ steps.quality.outputs.quality_gate_breached }}
           ALERT_DIGEST_OUT_DIR: artifacts
           ALERT_DIGEST_PREFIX: ack-reminder-digest
           ALERT_SUMMARY_PREFIX: dispatch-alert-summary
@@ -270,6 +357,8 @@ jobs:
       MAX_ARTIFACT_ISSUES_INPUT: ${{ inputs.max_artifact_issues || '0' }}
       MAX_DRIFT_SIGNALS_INPUT: ${{ inputs.max_drift_signals || '' }}
       MAX_DRIFT_SEVERITY_SCORE_INPUT: ${{ inputs.max_drift_severity_score || '' }}
+      MAX_QUALITY_DRIFT_SIGNALS_INPUT: ${{ inputs.max_quality_drift_signals || '' }}
+      MAX_QUALITY_SEVERITY_SCORE_INPUT: ${{ inputs.max_quality_severity_score || '' }}
       LIVE_ALLOWED_ACTORS_INPUT: ${{ vars.HYBRID_LIVE_ALLOWED_ACTORS || 'richducat' }}
       LIVE_EMERGENCY_STOP_INPUT: ${{ vars.HYBRID_LIVE_EMERGENCY_STOP || 'false' }}
       LIVE_APPROVAL_ENVIRONMENT: hybrid-live
@@ -419,21 +508,88 @@ jobs:
             --artifact-dir artifacts \
             > "artifacts/ingestion-health-${run_date}.md"
 
-          npm run db:hybrid:health -- \
-            --json \
-            --artifact-dir artifacts \
-            --trend-artifact-dir artifacts \
-            --trend-artifact-prefix ingestion-trends \
-            --trend-retention-count 180 \
-            --slo-digest-dir artifacts \
-            --slo-digest-prefix ingestion-slo-weekly \
-            --slo-window-days 7 \
-            --slo-retention-count 52 \
-            --max-lag-hours "${MAX_LAG_HOURS_INPUT}" \
-            --max-seen-drift-hours "${MAX_SEEN_DRIFT_HOURS_INPUT}" \
-            --max-artifact-issues "${MAX_ARTIFACT_ISSUES_INPUT}" \
-            --max-slo-budget-burn-pct 100 \
-            | tee "artifacts/ingestion-health-${run_date}.json"
+          cmd=(
+            npm run db:hybrid:health --
+            --json
+            --artifact-dir artifacts
+            --trend-artifact-dir artifacts
+            --trend-artifact-prefix ingestion-trends
+            --trend-retention-count 180
+            --slo-digest-dir artifacts
+            --slo-digest-prefix ingestion-slo-weekly
+            --slo-window-days 7
+            --slo-retention-count 52
+            --max-lag-hours "${MAX_LAG_HOURS_INPUT}"
+            --max-seen-drift-hours "${MAX_SEEN_DRIFT_HOURS_INPUT}"
+            --max-artifact-issues "${MAX_ARTIFACT_ISSUES_INPUT}"
+            --max-slo-budget-burn-pct 100
+          )
+
+          if [[ -n "${MAX_QUALITY_DRIFT_SIGNALS_INPUT:-}" ]]; then
+            cmd+=(--max-quality-drift-signals "${MAX_QUALITY_DRIFT_SIGNALS_INPUT}")
+          fi
+          if [[ -n "${MAX_QUALITY_SEVERITY_SCORE_INPUT:-}" ]]; then
+            cmd+=(--max-quality-severity-score "${MAX_QUALITY_SEVERITY_SCORE_INPUT}")
+          fi
+
+          "${cmd[@]}" | tee "artifacts/ingestion-health-${run_date}.json"
+
+      - name: Extract quality drift metadata
+        if: ${{ always() }}
+        id: quality
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_date="${{ steps.args.outputs.run_date }}"
+          health_json="artifacts/ingestion-health-${run_date}.json"
+
+          HEALTH_JSON="$health_json" node -e '
+            const fs = require("node:fs");
+            const out = process.env.GITHUB_OUTPUT;
+            const fp = process.env.HEALTH_JSON;
+            const fallback = {
+              quality_signal_count: "0",
+              quality_severity_score: "0",
+              quality_top_lane: "",
+              quality_top_lane_severity: "",
+              quality_gate_breached: "false",
+            };
+
+            const append = (kv) => {
+              const lines = [];
+              for (const [k, v] of Object.entries(kv)) lines.push(`${k}=${String(v ?? "")}`);
+              fs.appendFileSync(out, `${lines.join("\n")}\n`, "utf8");
+            };
+
+            if (!fp || !fs.existsSync(fp)) {
+              append(fallback);
+              process.exit(0);
+            }
+
+            let parsed;
+            try {
+              parsed = JSON.parse(fs.readFileSync(fp, "utf8"));
+            } catch {
+              append(fallback);
+              process.exit(0);
+            }
+
+            const prep = parsed && typeof parsed === "object" ? parsed.meeting_prep_quality || {} : {};
+            const driftSignals = Array.isArray(prep.drift_signals) ? prep.drift_signals.length : 0;
+            const severityScore = Number(prep?.latest?.severity_score);
+            const lanes = Array.isArray(prep.escalation_lanes) ? prep.escalation_lanes : [];
+            const lane = lanes[0] || {};
+            const breaches = Array.isArray(parsed?.breaches) ? parsed.breaches : [];
+            const qualityGateBreached = breaches.some((b) => b?.kind === "quality_drift_signals_count" || b?.kind === "quality_severity_score");
+
+            append({
+              quality_signal_count: Number.isFinite(driftSignals) ? String(driftSignals) : "0",
+              quality_severity_score: Number.isFinite(severityScore) ? String(severityScore) : "0",
+              quality_top_lane: typeof lane.lane === "string" ? lane.lane : "",
+              quality_top_lane_severity: typeof lane.severity === "string" ? lane.severity : "",
+              quality_gate_breached: qualityGateBreached ? "true" : "false",
+            });
+          '
 
       - name: Resolve same-date canary artifact baseline
         id: canary
@@ -553,6 +709,10 @@ jobs:
           ALERT_DRIFT_WEBHOOK_URLS: ${{ secrets.HYBRID_ALERT_DRIFT_WEBHOOK_URLS }}
           ALERT_DRIFT_ESCALATION_WEBHOOK_URL: ${{ secrets.HYBRID_ALERT_DRIFT_ESCALATION_WEBHOOK_URL }}
           ALERT_DRIFT_ESCALATION_WEBHOOK_URLS: ${{ secrets.HYBRID_ALERT_DRIFT_ESCALATION_WEBHOOK_URLS }}
+          ALERT_QUALITY_WEBHOOK_URL: ${{ secrets.HYBRID_ALERT_QUALITY_WEBHOOK_URL }}
+          ALERT_QUALITY_WEBHOOK_URLS: ${{ secrets.HYBRID_ALERT_QUALITY_WEBHOOK_URLS }}
+          ALERT_QUALITY_ESCALATION_WEBHOOK_URL: ${{ secrets.HYBRID_ALERT_QUALITY_ESCALATION_WEBHOOK_URL }}
+          ALERT_QUALITY_ESCALATION_WEBHOOK_URLS: ${{ secrets.HYBRID_ALERT_QUALITY_ESCALATION_WEBHOOK_URLS }}
           ALERT_ACK_REMINDER_WEBHOOK_URL: ${{ secrets.HYBRID_ALERT_ACK_REMINDER_WEBHOOK_URL }}
           ALERT_ACK_REMINDER_WEBHOOK_URLS: ${{ secrets.HYBRID_ALERT_ACK_REMINDER_WEBHOOK_URLS }}
           ALERT_ACK_REMINDER_ESCALATION_WEBHOOK_URL: ${{ secrets.HYBRID_ALERT_ACK_REMINDER_ESCALATION_WEBHOOK_URL }}
@@ -561,6 +721,7 @@ jobs:
           ALERT_ACK_SLA_MINUTES: ${{ vars.HYBRID_ALERT_ACK_SLA_MINUTES || '' }}
           ALERT_ACK_REMINDER_INTERVAL_MINUTES: ${{ vars.HYBRID_ALERT_ACK_REMINDER_INTERVAL_MINUTES || '30' }}
           ALERT_ACK_ESCALATE_AFTER_REMINDERS: ${{ vars.HYBRID_ALERT_ACK_ESCALATE_AFTER_REMINDERS || '2' }}
+          ALERT_ACK_ESCALATION_POLICY_JSON: ${{ vars.HYBRID_ALERT_ACK_ESCALATION_POLICY_JSON || '' }}
           ALERT_ACK_EVIDENCE_MARKERS: ${{ steps.ack_evidence.outputs.ack_evidence_markers }}
           ALERT_ACK_EVIDENCE_KEYS: ${{ steps.ack_evidence.outputs.ack_evidence_keys }}
           ALERT_ACK_EVIDENCE_JSON: ${{ steps.ack_evidence.outputs.ack_evidence_json_path }}
@@ -592,6 +753,11 @@ jobs:
           ALERT_DRIFT_GATE_BREACHED_BY_SEVERITY_SCORE: ${{ steps.drift.outputs.drift_gate_breached_by_severity_score }}
           ALERT_DRIFT_JSON: ${{ steps.drift.outputs.drift_json_path }}
           ALERT_DRIFT_MD: ${{ steps.drift.outputs.drift_md_path }}
+          ALERT_QUALITY_DRIFT_SIGNAL_COUNT: ${{ steps.quality.outputs.quality_signal_count }}
+          ALERT_QUALITY_SEVERITY_SCORE: ${{ steps.quality.outputs.quality_severity_score }}
+          ALERT_QUALITY_TOP_LANE: ${{ steps.quality.outputs.quality_top_lane }}
+          ALERT_QUALITY_TOP_LANE_SEVERITY: ${{ steps.quality.outputs.quality_top_lane_severity }}
+          ALERT_QUALITY_GATE_BREACHED: ${{ steps.quality.outputs.quality_gate_breached }}
           ALERT_DIGEST_OUT_DIR: artifacts
           ALERT_DIGEST_PREFIX: ack-reminder-digest
           ALERT_SUMMARY_PREFIX: dispatch-alert-summary

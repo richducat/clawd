@@ -189,22 +189,121 @@ function isWindowMatch(window, nowEt) {
 function classifyIncident() {
   const driftGateBreached = toBoolean(process.env.ALERT_DRIFT_GATE_BREACHED);
   const driftSignalCount = Number(process.env.ALERT_DRIFT_SIGNAL_COUNT || "0");
+  const qualityGateBreached = toBoolean(process.env.ALERT_QUALITY_GATE_BREACHED);
+  const qualitySignalCount = Number(process.env.ALERT_QUALITY_DRIFT_SIGNAL_COUNT || "0");
   if (driftGateBreached) {
-    return { type: "drift_gate_breach", drift_related: true, severity: "high" };
+    return { type: "drift_gate_breach", drift_related: true, quality_related: false, severity: "high" };
+  }
+  if (qualityGateBreached) {
+    return { type: "quality_drift_gate_breach", drift_related: false, quality_related: true, severity: "high" };
   }
   if (Number.isFinite(driftSignalCount) && driftSignalCount > 0) {
-    return { type: "drift_signal_detected", drift_related: true, severity: "medium" };
+    return { type: "drift_signal_detected", drift_related: true, quality_related: false, severity: "medium" };
   }
-  return { type: "health_gate_breach", drift_related: false, severity: "high" };
+  if (Number.isFinite(qualitySignalCount) && qualitySignalCount > 0) {
+    return { type: "quality_drift_signal_detected", drift_related: false, quality_related: true, severity: "medium" };
+  }
+  return { type: "health_gate_breach", drift_related: false, quality_related: false, severity: "high" };
 }
 
-function resolveAckSlaMinutes({ incident, runMode }) {
-  const explicit = toPositiveIntegerOrNull(process.env.ALERT_ACK_SLA_MINUTES);
-  if (explicit != null) return explicit;
-  if (incident.type === "drift_gate_breach") return 15;
-  if (runMode === "live") return 20;
-  if (incident.type === "drift_signal_detected") return 30;
-  return 45;
+function readAckEscalationPolicy() {
+  const raw = String(process.env.ALERT_ACK_ESCALATION_POLICY_JSON || "").trim();
+  if (!raw) return { config: null, parse_error: null };
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed == null || Array.isArray(parsed)) {
+      return { config: null, parse_error: "ALERT_ACK_ESCALATION_POLICY_JSON must be a JSON object." };
+    }
+    return { config: parsed, parse_error: null };
+  } catch (error) {
+    return { config: null, parse_error: `ALERT_ACK_ESCALATION_POLICY_JSON parse failed: ${error?.message || error}` };
+  }
+}
+
+function normalizeAckPolicyPatch(value) {
+  if (typeof value !== "object" || value == null || Array.isArray(value)) return {};
+  const patch = {};
+  const sla = toPositiveIntegerOrNull(value.ack_sla_minutes);
+  const reminderInterval = toPositiveIntegerOrNull(value.ack_reminder_interval_minutes);
+  const escalateAfter = toPositiveIntegerOrNull(value.ack_escalate_after_reminders);
+  const staleAfter = toPositiveIntegerOrNull(value.ack_stale_after_minutes);
+  if (sla != null) patch.ack_sla_minutes = sla;
+  if (reminderInterval != null) patch.ack_reminder_interval_minutes = reminderInterval;
+  if (escalateAfter != null) patch.ack_escalate_after_reminders = escalateAfter;
+  if (staleAfter != null) patch.ack_stale_after_minutes = staleAfter;
+  return patch;
+}
+
+function resolveAckPolicy({ incident, runMode, policyConfig }) {
+  const defaults = {
+    ack_sla_minutes: 45,
+    ack_reminder_interval_minutes: 30,
+    ack_escalate_after_reminders: 2,
+    ack_stale_after_minutes: 1440,
+  };
+
+  if (incident.type === "drift_gate_breach") {
+    defaults.ack_sla_minutes = 15;
+    defaults.ack_reminder_interval_minutes = 15;
+    defaults.ack_escalate_after_reminders = 1;
+  } else if (incident.type === "quality_drift_gate_breach") {
+    defaults.ack_sla_minutes = 20;
+    defaults.ack_reminder_interval_minutes = 20;
+    defaults.ack_escalate_after_reminders = 1;
+  } else if (runMode === "live") {
+    defaults.ack_sla_minutes = 20;
+  } else if (incident.type === "drift_signal_detected") {
+    defaults.ack_sla_minutes = 30;
+  } else if (incident.type === "quality_drift_signal_detected") {
+    defaults.ack_sla_minutes = 35;
+  }
+
+  const applied = ["deterministic_v2_default"];
+  let policy = { ...defaults };
+
+  const applyPatch = (label, candidate) => {
+    const patch = normalizeAckPolicyPatch(candidate);
+    if (!Object.keys(patch).length) return;
+    policy = { ...policy, ...patch };
+    applied.push(label);
+  };
+
+  if (policyConfig) {
+    applyPatch("policy.default", policyConfig.default);
+    applyPatch(`policy.run_mode.${runMode}`, policyConfig.run_mode?.[runMode]);
+    applyPatch(`policy.incident_severity.${incident.severity}`, policyConfig.incident_severity?.[incident.severity]);
+    applyPatch(`policy.incident_type.${incident.type}`, policyConfig.incident_type?.[incident.type]);
+  }
+
+  const explicitSla = toPositiveIntegerOrNull(process.env.ALERT_ACK_SLA_MINUTES);
+  if (explicitSla != null) {
+    policy.ack_sla_minutes = explicitSla;
+    applied.push("env.ALERT_ACK_SLA_MINUTES");
+  }
+
+  const explicitReminderInterval = toPositiveIntegerOrNull(process.env.ALERT_ACK_REMINDER_INTERVAL_MINUTES);
+  if (explicitReminderInterval != null) {
+    policy.ack_reminder_interval_minutes = explicitReminderInterval;
+    applied.push("env.ALERT_ACK_REMINDER_INTERVAL_MINUTES");
+  }
+
+  const explicitEscalateAfter = toPositiveIntegerOrNull(process.env.ALERT_ACK_ESCALATE_AFTER_REMINDERS);
+  if (explicitEscalateAfter != null) {
+    policy.ack_escalate_after_reminders = explicitEscalateAfter;
+    applied.push("env.ALERT_ACK_ESCALATE_AFTER_REMINDERS");
+  }
+
+  const explicitStaleAfter = toPositiveIntegerOrNull(process.env.ALERT_ACK_STALE_AFTER_MINUTES);
+  if (explicitStaleAfter != null) {
+    policy.ack_stale_after_minutes = explicitStaleAfter;
+    applied.push("env.ALERT_ACK_STALE_AFTER_MINUTES");
+  }
+
+  return {
+    ...policy,
+    ack_policy_name: "deterministic_v2",
+    ack_policy_applied: unique(applied),
+  };
 }
 
 function sha1(value) {
@@ -317,17 +416,17 @@ function buildAckKey({ incident, runMode, runDate, repo, branch }) {
   return `${runMode}:${incident.type}:${runDate || "unknown"}:${repo || "unknown"}:${branch || "unknown"}`;
 }
 
-function buildAckMarker({ ackKey, incident, runMode, runDate }) {
+function buildAckMarker({ ackKey, ackPolicy }) {
   const now = new Date();
-  const ackSlaMinutes = resolveAckSlaMinutes({ incident, runMode });
-  const dueAt = new Date(now.getTime() + ackSlaMinutes * 60 * 1000);
+  const dueAt = new Date(now.getTime() + ackPolicy.ack_sla_minutes * 60 * 1000);
   const marker = `ack-${sha1(ackKey).slice(0, 16)}`;
   return {
     ack_key: ackKey,
     ack_required: true,
-    ack_policy: "deterministic_v1",
+    ack_policy: ackPolicy.ack_policy_name,
+    ack_policy_applied: ackPolicy.ack_policy_applied,
     ack_marker: marker,
-    ack_sla_minutes: ackSlaMinutes,
+    ack_sla_minutes: ackPolicy.ack_sla_minutes,
     ack_due_at_utc: dueAt.toISOString(),
     ack_due_at_et: formatEtDateTime(dueAt),
   };
@@ -338,11 +437,14 @@ function buildEscalationSummary({
   nowEt,
   escalationEnabled,
   driftEscalationEnabled,
+  qualityEscalationEnabled,
   escalationWindows,
   baseRoutes,
   escalationRoutes,
   driftRoutes,
   driftEscalationRoutes,
+  qualityRoutes,
+  qualityEscalationRoutes,
   ackReminderRoutes,
   ackReminderEscalationRoutes,
   reminderSummary,
@@ -355,16 +457,20 @@ function buildEscalationSummary({
       et_now: `${nowEt.weekday}@${nowEt.hhmm}`,
       incident_type: incident.type,
       incident_drift_related: incident.drift_related,
+      incident_quality_related: incident.quality_related,
     },
     routes: {
       base_configured_count: baseRoutes.length,
       escalation_configured_count: escalationRoutes.length,
       drift_configured_count: driftRoutes.length,
       drift_escalation_configured_count: driftEscalationRoutes.length,
+      quality_configured_count: qualityRoutes.length,
+      quality_escalation_configured_count: qualityEscalationRoutes.length,
       ack_reminder_configured_count: ackReminderRoutes.length,
       ack_reminder_escalation_configured_count: ackReminderEscalationRoutes.length,
       escalation_enabled: escalationEnabled,
       drift_escalation_enabled: driftEscalationEnabled,
+      quality_escalation_enabled: qualityEscalationEnabled,
       reminder_escalation_due_count: reminderEscalationDueCount,
     },
   };
@@ -398,10 +504,13 @@ function toDigestMarkdown(digest) {
     `- Escalation windows: \`${digest.escalation.policy.windows_et.join(";") || "n/a"}\``,
     `- Escalation enabled: \`${digest.escalation.routes.escalation_enabled}\``,
     `- Drift escalation enabled: \`${digest.escalation.routes.drift_escalation_enabled}\``,
+    `- Quality escalation enabled: \`${digest.escalation.routes.quality_escalation_enabled}\``,
     `- Base routes configured: \`${digest.escalation.routes.base_configured_count}\``,
     `- Escalation routes configured: \`${digest.escalation.routes.escalation_configured_count}\``,
     `- Drift routes configured: \`${digest.escalation.routes.drift_configured_count}\``,
     `- Drift escalation routes configured: \`${digest.escalation.routes.drift_escalation_configured_count}\``,
+    `- Quality routes configured: \`${digest.escalation.routes.quality_configured_count}\``,
+    `- Quality escalation routes configured: \`${digest.escalation.routes.quality_escalation_configured_count}\``,
     `- ACK reminder routes configured: \`${digest.escalation.routes.ack_reminder_configured_count}\``,
     `- ACK reminder escalation routes configured: \`${digest.escalation.routes.ack_reminder_escalation_configured_count}\``,
     `- Reminder escalations due count: \`${digest.escalation.routes.reminder_escalation_due_count}\``,
@@ -422,6 +531,7 @@ function toDigestMarkdown(digest) {
 function buildAlertText({
   escalationEnabled,
   driftEscalationEnabled,
+  qualityEscalationEnabled,
   incident,
   ackMarker,
   reminderSummary,
@@ -456,6 +566,11 @@ function buildAlertText({
   const driftGateBreachedBySeverityScore = process.env.ALERT_DRIFT_GATE_BREACHED_BY_SEVERITY_SCORE || "";
   const driftJson = process.env.ALERT_DRIFT_JSON || "";
   const driftMd = process.env.ALERT_DRIFT_MD || "";
+  const qualitySignals = process.env.ALERT_QUALITY_DRIFT_SIGNAL_COUNT || "";
+  const qualitySeverityScore = process.env.ALERT_QUALITY_SEVERITY_SCORE || "";
+  const qualityGateBreached = process.env.ALERT_QUALITY_GATE_BREACHED || "";
+  const qualityTopLane = process.env.ALERT_QUALITY_TOP_LANE || "";
+  const qualityTopLaneSeverity = process.env.ALERT_QUALITY_TOP_LANE_SEVERITY || "";
 
   const lines = [
     ":rotating_light: Hybrid daily pipeline health gate breached",
@@ -465,13 +580,16 @@ function buildAlertText({
     `Branch: ${branch}`,
     `Run date: ${runDate}`,
     `Thresholds: lag<=${lag}h, drift<=${drift}h, artifactIssues<=${artifactIssues}`,
-    `ACK: key=${ackMarker.ack_key}, marker=${ackMarker.ack_marker}, required=true, sla=${ackMarker.ack_sla_minutes}m, due_utc=${ackMarker.ack_due_at_utc}, due_et=${ackMarker.ack_due_at_et}`,
+    `ACK: key=${ackMarker.ack_key}, marker=${ackMarker.ack_marker}, required=true, policy=${ackMarker.ack_policy}, sla=${ackMarker.ack_sla_minutes}m, due_utc=${ackMarker.ack_due_at_utc}, due_et=${ackMarker.ack_due_at_et}`,
   ];
   if (escalationEnabled) {
     lines.push("Escalation: ACTIVE (inside configured ET window)");
   }
   if (driftEscalationEnabled) {
     lines.push("Drift escalation: ACTIVE (inside configured ET window)");
+  }
+  if (qualityEscalationEnabled) {
+    lines.push("Quality escalation: ACTIVE (inside configured ET window)");
   }
   if (
     approvalRequired === "true" ||
@@ -492,6 +610,18 @@ function buildAlertText({
   lines.push(`Artifacts: ${artifactLabel} (see run page)`);
   if (ledgerJson || ledgerMd) {
     lines.push(`Incident ledger: json=${ledgerJson || "n/a"}, md=${ledgerMd || "n/a"}`);
+  }
+  if (
+    qualitySignals ||
+    qualitySeverityScore ||
+    qualityGateBreached ||
+    qualityTopLane ||
+    qualityTopLaneSeverity ||
+    incident.quality_related
+  ) {
+    lines.push(
+      `Meeting-prep quality drift: signals=${qualitySignals || "n/a"}, severityScore=${qualitySeverityScore || "n/a"}, gateBreached=${qualityGateBreached || "n/a"}, topLane=${qualityTopLane || "n/a"}, topLaneSeverity=${qualityTopLaneSeverity || "n/a"}`
+    );
   }
   if (
     driftStatus ||
@@ -528,7 +658,7 @@ function buildAlertText({
   }
   if (escalationSummary) {
     lines.push(
-      `Escalation summary: baseRoutes=${escalationSummary.routes.base_configured_count}, escalationRoutes=${escalationSummary.routes.escalation_configured_count}, driftRoutes=${escalationSummary.routes.drift_configured_count}, driftEscalationRoutes=${escalationSummary.routes.drift_escalation_configured_count}, reminderEscalationDue=${escalationSummary.routes.reminder_escalation_due_count}`
+      `Escalation summary: baseRoutes=${escalationSummary.routes.base_configured_count}, escalationRoutes=${escalationSummary.routes.escalation_configured_count}, driftRoutes=${escalationSummary.routes.drift_configured_count}, driftEscalationRoutes=${escalationSummary.routes.drift_escalation_configured_count}, qualityRoutes=${escalationSummary.routes.quality_configured_count}, qualityEscalationRoutes=${escalationSummary.routes.quality_escalation_configured_count}, reminderEscalationDue=${escalationSummary.routes.reminder_escalation_due_count}`
     );
   }
   if (ackStatePath) {
@@ -557,6 +687,11 @@ async function main() {
   const escalationRoutes = parseRoutes("ALERT_ESCALATION_WEBHOOK_URL", "ALERT_ESCALATION_WEBHOOK_URLS");
   const driftRoutes = parseRoutes("ALERT_DRIFT_WEBHOOK_URL", "ALERT_DRIFT_WEBHOOK_URLS");
   const driftEscalationRoutes = parseRoutes("ALERT_DRIFT_ESCALATION_WEBHOOK_URL", "ALERT_DRIFT_ESCALATION_WEBHOOK_URLS");
+  const qualityRoutes = parseRoutes("ALERT_QUALITY_WEBHOOK_URL", "ALERT_QUALITY_WEBHOOK_URLS");
+  const qualityEscalationRoutes = parseRoutes(
+    "ALERT_QUALITY_ESCALATION_WEBHOOK_URL",
+    "ALERT_QUALITY_ESCALATION_WEBHOOK_URLS"
+  );
   const ackReminderRoutes = parseRoutes("ALERT_ACK_REMINDER_WEBHOOK_URL", "ALERT_ACK_REMINDER_WEBHOOK_URLS");
   const ackReminderEscalationRoutes = parseRoutes(
     "ALERT_ACK_REMINDER_ESCALATION_WEBHOOK_URL",
@@ -568,17 +703,27 @@ async function main() {
   const runDate = String(process.env.RUN_DATE || "");
   const repo = String(process.env.REPO || "unknown");
   const branch = String(process.env.BRANCH_REF || "unknown");
+  const ackPolicyConfig = readAckEscalationPolicy();
   const ackKey = buildAckKey({ incident, runMode, runDate, repo, branch });
-  const ackMarker = buildAckMarker({ ackKey, incident, runMode, runDate });
+  const ackPolicy = resolveAckPolicy({
+    incident,
+    runMode,
+    policyConfig: ackPolicyConfig.config,
+  });
+  const ackMarker = buildAckMarker({ ackKey, ackPolicy });
   const ackStatePath = String(process.env.ALERT_ACK_STATE_PATH || "").trim();
   const ackState = readAckState(ackStatePath);
-  const ackReminderIntervalMinutes = toPositiveIntegerOrNull(process.env.ALERT_ACK_REMINDER_INTERVAL_MINUTES) ?? 30;
-  const ackEscalateAfterReminders = toPositiveIntegerOrNull(process.env.ALERT_ACK_ESCALATE_AFTER_REMINDERS) ?? 2;
-  const ackStaleAfterMinutes = toPositiveIntegerOrNull(process.env.ALERT_ACK_STALE_AFTER_MINUTES) ?? 1440;
+  const ackReminderIntervalMinutes = ackPolicy.ack_reminder_interval_minutes;
+  const ackEscalateAfterReminders = ackPolicy.ack_escalate_after_reminders;
+  const ackStaleAfterMinutes = ackPolicy.ack_stale_after_minutes;
   const ackEvidenceMarkers = new Set(parseAckEvidenceTokens(process.env.ALERT_ACK_EVIDENCE_MARKERS));
   const ackEvidenceKeys = new Set(parseAckEvidenceTokens(process.env.ALERT_ACK_EVIDENCE_KEYS));
   const ackEvidenceSummary = parseAckEvidenceSummary(process.env.ALERT_ACK_EVIDENCE_JSON);
   const nowIso = new Date().toISOString();
+
+  if (ackPolicyConfig.parse_error) {
+    console.warn(ackPolicyConfig.parse_error);
+  }
 
   const existing = ackState.incidents[ackKey];
   const nextIncident = {
@@ -671,16 +816,23 @@ async function main() {
     incident.drift_related &&
     driftEscalationRoutes.length > 0 &&
     escalationWindows.some((window) => isWindowMatch(window, nowEt));
+  const qualityEscalationEnabled =
+    incident.quality_related &&
+    qualityEscalationRoutes.length > 0 &&
+    escalationWindows.some((window) => isWindowMatch(window, nowEt));
   const escalationSummary = buildEscalationSummary({
     incident,
     nowEt,
     escalationEnabled,
     driftEscalationEnabled,
+    qualityEscalationEnabled,
     escalationWindows,
     baseRoutes,
     escalationRoutes,
     driftRoutes,
     driftEscalationRoutes,
+    qualityRoutes,
+    qualityEscalationRoutes,
     ackReminderRoutes,
     ackReminderEscalationRoutes,
     reminderSummary,
@@ -691,6 +843,8 @@ async function main() {
     ...(escalationEnabled ? escalationRoutes : []),
     ...(incident.drift_related ? driftRoutes : []),
     ...(driftEscalationEnabled ? driftEscalationRoutes : []),
+    ...(incident.quality_related ? qualityRoutes : []),
+    ...(qualityEscalationEnabled ? qualityEscalationRoutes : []),
     ...(reminderSummary.length > 0 ? ackReminderRoutes : []),
     ...(reminderSummary.some((item) => item.reminder_escalation_due)
       ? ackReminderEscalationRoutes.length > 0
@@ -705,6 +859,7 @@ async function main() {
     text: buildAlertText({
       escalationEnabled,
       driftEscalationEnabled,
+      qualityEscalationEnabled,
       incident,
       ackMarker,
       reminderSummary,
@@ -734,6 +889,13 @@ async function main() {
       ack_evidence_stale_entry_count: Number(ackEvidenceSummary?.stale_entry_count || 0),
       ack_evidence_parse_error_count: Number(ackEvidenceSummary?.parse_error_count || 0),
       ack_evidence_json: process.env.ALERT_ACK_EVIDENCE_JSON || null,
+      ack_policy_applied: ackPolicy.ack_policy_applied,
+      ack_policy_parse_error: ackPolicyConfig.parse_error,
+      quality_drift_signal_count: Number(process.env.ALERT_QUALITY_DRIFT_SIGNAL_COUNT || 0),
+      quality_severity_score: Number(process.env.ALERT_QUALITY_SEVERITY_SCORE || 0),
+      quality_gate_breached: toBoolean(process.env.ALERT_QUALITY_GATE_BREACHED),
+      quality_top_lane: process.env.ALERT_QUALITY_TOP_LANE || null,
+      quality_top_lane_severity: process.env.ALERT_QUALITY_TOP_LANE_SEVERITY || null,
     },
   };
   const dryRun = toBoolean(process.env.ALERT_DRY_RUN);
@@ -742,14 +904,18 @@ async function main() {
     routes_total: destinationRoutes.length,
     incident_type: incident.type,
     incident_drift_related: incident.drift_related,
+    incident_quality_related: incident.quality_related,
     base_routes: baseRoutes.length,
     escalation_routes: escalationRoutes.length,
     drift_routes: driftRoutes.length,
     drift_escalation_routes: driftEscalationRoutes.length,
+    quality_routes: qualityRoutes.length,
+    quality_escalation_routes: qualityEscalationRoutes.length,
     ack_reminder_routes: ackReminderRoutes.length,
     ack_reminder_escalation_routes: ackReminderEscalationRoutes.length,
     escalation_enabled: escalationEnabled,
     drift_escalation_enabled: driftEscalationEnabled,
+    quality_escalation_enabled: qualityEscalationEnabled,
     escalation_windows: escalationWindows.map((window) => window.source),
     et_now: `${nowEt.weekday}@${nowEt.hhmm}`,
     ack_key: ackMarker.ack_key,
@@ -765,6 +931,9 @@ async function main() {
     ack_sla_minutes: ackMarker.ack_sla_minutes,
     ack_due_at_utc: ackMarker.ack_due_at_utc,
     ack_marker: ackMarker.ack_marker,
+    ack_policy: ackMarker.ack_policy,
+    ack_policy_applied: ackPolicy.ack_policy_applied,
+    ack_policy_parse_error: ackPolicyConfig.parse_error,
     ack_evidence_active_marker_count: Number(ackEvidenceSummary?.active_marker_count || 0),
     ack_evidence_active_key_count: Number(ackEvidenceSummary?.active_key_count || 0),
     ack_evidence_stale_entry_count: Number(ackEvidenceSummary?.stale_entry_count || 0),
@@ -785,6 +954,9 @@ async function main() {
       ack_required: true,
       ack_key: ackMarker.ack_key,
       ack_marker: ackMarker.ack_marker,
+      ack_policy: ackMarker.ack_policy,
+      ack_policy_applied: ackPolicy.ack_policy_applied,
+      ack_policy_parse_error: ackPolicyConfig.parse_error,
       ack_sla_minutes: ackMarker.ack_sla_minutes,
       ack_due_at_utc: ackMarker.ack_due_at_utc,
       ack_due_at_et: ackMarker.ack_due_at_et,

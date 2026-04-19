@@ -282,15 +282,33 @@ Runtime notes:
   - optional drift-incident route config (used when drift signals exist):
     - `HYBRID_ALERT_DRIFT_WEBHOOK_URL`
     - `HYBRID_ALERT_DRIFT_WEBHOOK_URLS`
+  - optional quality-drift route config (used when meeting-prep quality drift signals exist):
+    - `HYBRID_ALERT_QUALITY_WEBHOOK_URL`
+    - `HYBRID_ALERT_QUALITY_WEBHOOK_URLS`
   - optional escalation route config:
     - `HYBRID_ALERT_ESCALATION_WEBHOOK_URL`
     - `HYBRID_ALERT_ESCALATION_WEBHOOK_URLS`
   - optional drift-escalation route config:
     - `HYBRID_ALERT_DRIFT_ESCALATION_WEBHOOK_URL`
     - `HYBRID_ALERT_DRIFT_ESCALATION_WEBHOOK_URLS`
+  - optional quality-escalation route config:
+    - `HYBRID_ALERT_QUALITY_ESCALATION_WEBHOOK_URL`
+    - `HYBRID_ALERT_QUALITY_ESCALATION_WEBHOOK_URLS`
     - `HYBRID_ALERT_ESCALATION_WINDOWS_ET` (repo variable, defaults to `always`)
   - optional ACK SLA override:
-    - `HYBRID_ALERT_ACK_SLA_MINUTES` (repo variable; defaults are deterministic by incident type/mode)
+    - `HYBRID_ALERT_ACK_SLA_MINUTES` (repo variable; hard override for SLA minutes across all incidents)
+  - optional ACK escalation policy JSON override (repo variable):
+    - `HYBRID_ALERT_ACK_ESCALATION_POLICY_JSON`
+    - schema:
+      - `default`
+      - `run_mode.<canary|live>`
+      - `incident_severity.<medium|high>`
+      - `incident_type.<health_gate_breach|drift_signal_detected|drift_gate_breach|quality_drift_signal_detected|quality_drift_gate_breach>`
+    - each node supports:
+      - `ack_sla_minutes`
+      - `ack_reminder_interval_minutes`
+      - `ack_escalate_after_reminders`
+      - `ack_stale_after_minutes`
   - optional ACK reminder route config:
     - `HYBRID_ALERT_ACK_REMINDER_WEBHOOK_URL`
     - `HYBRID_ALERT_ACK_REMINDER_WEBHOOK_URLS`
@@ -326,6 +344,7 @@ Runtime notes:
     - examples: `mon-fri@08:00-18:00;sat@09:00-12:00`, `sun@00:00-23:59`
   - on health-gate failure, workflow dispatches one JSON payload (`text` + `metadata`) to all base routes; escalation routes are included only when current ET time is inside configured escalation windows
   - when drift signals are present (`signal_count > 0` or drift gate breached), drift routes are also included; drift escalation routes are ET-window gated like base escalation
+  - when meeting-prep quality drift signals are present (`quality_signal_count > 0` or quality gate breached), quality routes are also included; quality escalation routes are ET-window gated like base escalation
   - live-mode alerts include manual-approval context and emergency control state:
     - approval required flag + environment
     - triggering actor + dispatch actor
@@ -339,16 +358,24 @@ Runtime notes:
     - `ack_sla_minutes`
     - `ack_due_at_utc`
     - `ack_due_at_et`
-    - `ack_policy` (`deterministic_v1`)
+    - `ack_policy` (`deterministic_v2`)
+    - `ack_policy_applied` (ordered policy source list)
+    - `ack_policy_parse_error` (non-empty only when `HYBRID_ALERT_ACK_ESCALATION_POLICY_JSON` is invalid)
+    - quality drift context:
+      - `quality_drift_signal_count`
+      - `quality_severity_score`
+      - `quality_gate_breached`
+      - `quality_top_lane`
+      - `quality_top_lane_severity`
   - dispatcher persists ACK state to `ALERT_ACK_STATE_PATH` and reconciles acknowledged incidents via marker/key evidence on subsequent runs
   - unresolved ACK incidents that breach SLA emit reminder metadata (`ack_reminders_due_count`) and can fan out to reminder/escalation routes
   - stale ACK state is surfaced in metadata (`ack_stale_after_minutes`, `ack_stale_pending_count`, `ack_newly_stale_count`) and excluded from reminder routing
   - ACK evidence ingestion summary is surfaced in metadata (`ack_evidence_active_marker_count`, `ack_evidence_active_key_count`, `ack_evidence_stale_entry_count`, `ack_evidence_parse_error_count`, `ack_evidence_json`)
   - escalation summary contract is emitted in alert metadata under `escalation_summary` with deterministic policy + route fields:
-    - `policy.windows_et`, `policy.et_now`, `policy.incident_type`, `policy.incident_drift_related`
-    - `routes.base_configured_count`, `routes.escalation_configured_count`, `routes.drift_configured_count`, `routes.drift_escalation_configured_count`
+    - `policy.windows_et`, `policy.et_now`, `policy.incident_type`, `policy.incident_drift_related`, `policy.incident_quality_related`
+    - `routes.base_configured_count`, `routes.escalation_configured_count`, `routes.drift_configured_count`, `routes.drift_escalation_configured_count`, `routes.quality_configured_count`, `routes.quality_escalation_configured_count`
     - `routes.ack_reminder_configured_count`, `routes.ack_reminder_escalation_configured_count`
-    - `routes.escalation_enabled`, `routes.drift_escalation_enabled`, `routes.reminder_escalation_due_count`
+    - `routes.escalation_enabled`, `routes.drift_escalation_enabled`, `routes.quality_escalation_enabled`, `routes.reminder_escalation_due_count`
 
 ## Retrieval/query layer (roadmap tranche option #2)
 
