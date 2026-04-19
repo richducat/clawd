@@ -181,16 +181,28 @@ Triggers:
   - `date`
   - `use_fixtures`
   - `skip_kb`
+  - `max_lag_hours`
+  - `max_seen_drift_hours`
+  - `max_artifact_issues`
 
 Artifacts:
 - `meeting-prep-YYYY-MM-DD.md`
 - `pipeline-summary-YYYY-MM-DD.json`
+- `ingestion-health-YYYY-MM-DD.md`
+- `ingestion-health-YYYY-MM-DD.json`
 - uploaded as workflow artifact `hybrid-daily-YYYY-MM-DD` with `retention-days: 14`
 
 Runtime notes:
 - CI sets `OPENCLAW_DB_ROOT` to a workspace-local temp directory so no DB files are committed.
 - Default mode uses repository fixtures for deterministic scheduled checks.
 - To run against live connector data, use a self-hosted runner environment where the live source prerequisites are available and set `use_fixtures=false` on manual dispatch.
+- The workflow runs `db:hybrid:health` after the daily pipeline:
+  - markdown report mode (artifact-only)
+  - threshold-gated JSON mode with defaults:
+    - `--max-lag-hours 24`
+    - `--max-seen-drift-hours 48`
+    - `--max-artifact-issues 0`
+- Threshold breaches return exit code `2`, causing the workflow job to fail while still uploading artifacts via `if: always()`.
 
 ## Retrieval/query layer (roadmap tranche option #2)
 

@@ -21,6 +21,18 @@ on:
         required: true
         type: boolean
         default: false
+      max_lag_hours:
+        description: "Health gate: max ingestion lag hours before breach"
+        required: false
+        default: "24"
+      max_seen_drift_hours:
+        description: "Health gate: max seen drift hours before breach"
+        required: false
+        default: "48"
+      max_artifact_issues:
+        description: "Health gate: max artifact-derived issue count before breach"
+        required: false
+        default: "0"
   schedule:
     - cron: "20 13 * * *"
 
@@ -38,6 +50,9 @@ jobs:
       DATE_INPUT: ${{ inputs.date || '' }}
       USE_FIXTURES_INPUT: ${{ inputs.use_fixtures }}
       SKIP_KB_INPUT: ${{ inputs.skip_kb }}
+      MAX_LAG_HOURS_INPUT: ${{ inputs.max_lag_hours || '24' }}
+      MAX_SEEN_DRIFT_HOURS_INPUT: ${{ inputs.max_seen_drift_hours || '48' }}
+      MAX_ARTIFACT_ISSUES_INPUT: ${{ inputs.max_artifact_issues || '0' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -95,6 +110,24 @@ jobs:
           set -euo pipefail
           eval "set -- ${{ steps.args.outputs.args }}"
           npm run db:hybrid:daily -- "$@" | tee "artifacts/pipeline-summary-${{ steps.args.outputs.run_date }}.json"
+
+      - name: Run ingestion health threshold gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_date="${{ steps.args.outputs.run_date }}"
+
+          npm run db:hybrid:health -- \
+            --artifact-dir artifacts \
+            > "artifacts/ingestion-health-${run_date}.md"
+
+          npm run db:hybrid:health -- \
+            --json \
+            --artifact-dir artifacts \
+            --max-lag-hours "${MAX_LAG_HOURS_INPUT}" \
+            --max-seen-drift-hours "${MAX_SEEN_DRIFT_HOURS_INPUT}" \
+            --max-artifact-issues "${MAX_ARTIFACT_ISSUES_INPUT}" \
+            | tee "artifacts/ingestion-health-${run_date}.json"
 
       - name: Upload artifacts
         if: always()
