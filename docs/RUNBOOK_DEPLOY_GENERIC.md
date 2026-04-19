@@ -183,12 +183,22 @@ Include:
 - Workflow: `.github/workflows/hybrid-daily-pipeline.yml`
 - Runs:
   - daily at `13:20 UTC`
-  - manual dispatch with inputs (`account`, `date`, `use_fixtures`, `skip_kb`)
+  - manual dispatch with inputs (`account`, `date`, `use_fixtures`, `skip_kb`, `max_lag_hours`, `max_seen_drift_hours`, `max_artifact_issues`)
 - Artifacts kept for 14 days:
   - `meeting-prep-YYYY-MM-DD.md`
   - `pipeline-summary-YYYY-MM-DD.json`
+  - `ingestion-health-YYYY-MM-DD.md`
+  - `ingestion-health-YYYY-MM-DD.json`
 - Default scheduled/manual behavior uses repository fixtures for deterministic canary runs.
 - For live-source execution, run manually on an environment with live source prerequisites and set `use_fixtures=false`.
+- Workflow health gate:
+  - runs `db:hybrid:health` after `db:hybrid:daily`
+  - emits both markdown and JSON health artifacts
+  - default breach thresholds:
+    - `max_lag_hours=24`
+    - `max_seen_drift_hours=48`
+    - `max_artifact_issues=0`
+  - threshold breach exits `2` and fails the run (artifacts still upload because upload step uses `if: always()`)
 
 ## 16) Hybrid retrieval query (entities + chunks)
 - Run ranked retrieval:
