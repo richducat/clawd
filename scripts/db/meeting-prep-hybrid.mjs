@@ -390,6 +390,16 @@ async function main() {
         crossOwnerDependencySignoffPack,
         ownerEscalationPrompts,
       });
+      const readinessCadenceContractPack = buildReadinessCadenceContractPack({
+        title: event.title || '',
+        attendees: attendeeBriefs,
+        closeReadinessGateMatrix,
+        stakeholderSignoffEscalationLadder,
+        crossOwnerDependencySignoffPack,
+        riskWeightedClosePlanSequencing,
+        commitmentRiskAging,
+        ownerEscalationPrompts,
+      });
       const prepQuality = buildMeetingPrepQuality({
         attendees: attendeeBriefs,
         relationshipRiskSignals,
@@ -415,6 +425,7 @@ async function main() {
         crossOwnerDependencySignoffPack,
         closeReadinessGateMatrix,
         stakeholderSignoffEscalationLadder,
+        readinessCadenceContractPack,
       });
 
       if (insertSnapshotStmt) {
@@ -478,6 +489,7 @@ async function main() {
         actionOwnerLoadBalancing,
         closeReadinessGateMatrix,
         stakeholderSignoffEscalationLadder,
+        readinessCadenceContractPack,
         prepQuality,
       });
     }
@@ -906,6 +918,32 @@ function printMarkdownBrief({ account, date, timezone, internalDomains, meetings
         }
         if (row.slaWindow) {
           console.log(`    - SLA window: ${row.slaWindow}`);
+        }
+      }
+    }
+    if (meeting.readinessCadenceContractPack) {
+      const cadencePack = meeting.readinessCadenceContractPack;
+      if (cadencePack.summary) {
+        console.log(`- Readiness-cadence contract pack: ${cadencePack.summary}`);
+      }
+      if (Array.isArray(cadencePack.lanes) && cadencePack.lanes.length) {
+        for (const lane of cadencePack.lanes) {
+          const dependsOn = Array.isArray(lane.dependsOn) && lane.dependsOn.length
+            ? ` [depends_on=${lane.dependsOn.join(', ')}]`
+            : '';
+          console.log(`  - [${lane.priority}] cadence=${lane.cadence}: ${lane.trigger}${dependsOn}`);
+          if (lane.contractQuestion) {
+            console.log(`    - Contract question: ${lane.contractQuestion}`);
+          }
+          if (lane.owner) {
+            console.log(`    - Owner: ${lane.owner}`);
+          }
+          if (lane.evidenceRequirement) {
+            console.log(`    - Evidence requirement: ${lane.evidenceRequirement}`);
+          }
+          if (lane.escalationTrigger) {
+            console.log(`    - Escalation trigger: ${lane.escalationTrigger}`);
+          }
         }
       }
     }
@@ -3701,6 +3739,152 @@ function buildStakeholderSignoffEscalationLadder({
   return ladder.slice(0, maxRows);
 }
 
+function buildReadinessCadenceContractPack({
+  title,
+  attendees,
+  closeReadinessGateMatrix,
+  stakeholderSignoffEscalationLadder,
+  crossOwnerDependencySignoffPack,
+  riskWeightedClosePlanSequencing,
+  commitmentRiskAging,
+  ownerEscalationPrompts,
+}) {
+  const lanes = [];
+  const maxRows = 6;
+  const failedGates = (closeReadinessGateMatrix?.gates || []).filter((gate) => gate?.status === 'fail');
+  const warningGates = (closeReadinessGateMatrix?.gates || []).filter((gate) => gate?.status === 'warn');
+  const escalationHigh = (stakeholderSignoffEscalationLadder || []).filter((row) => row?.priority === 'high');
+  const signoffHigh = (crossOwnerDependencySignoffPack || []).filter((row) => row?.priority === 'high');
+  const topWeightedStep = (riskWeightedClosePlanSequencing?.steps || [])[0] || null;
+  const topAgingWindow = (commitmentRiskAging?.windows || [])[0] || null;
+  const topEscalationPrompt = (ownerEscalationPrompts || [])[0] || null;
+  const hasHighRiskAttendee = (attendees || []).some((attendee) => attendee?.relationshipRisk?.level === 'high');
+
+  const push = (code, priority, cadence, trigger, contractQuestion, owner, evidenceRequirement, escalationTrigger, dependsOn = []) => {
+    if (lanes.some((row) => row.code === code)) return;
+    lanes.push({
+      code,
+      priority,
+      cadence,
+      trigger: cleanLine(trigger, 220),
+      contractQuestion: cleanLine(contractQuestion, 260),
+      owner: cleanLine(owner, 120),
+      evidenceRequirement: cleanLine(evidenceRequirement, 240),
+      escalationTrigger: cleanLine(escalationTrigger, 220),
+      dependsOn: dedupeArray(dependsOn).slice(0, 4),
+    });
+  };
+
+  if (failedGates.length > 0) {
+    const topFailed = failedGates[0];
+    push(
+      'cadence_fail_gate_recovery',
+      'high',
+      'every 30 minutes',
+      `Fail gate recovery lane for "${topFailed.gate}".`,
+      'Has the owner posted timestamped recovery evidence and a new checkpoint ETA?',
+      topFailed.ownerHint || 'Meeting owner',
+      topFailed.nextAction || 'Post remediation proof and checkpoint timestamp.',
+      'Escalate immediately if no evidence update by next 30-minute check.',
+      [topFailed.code]
+    );
+  }
+
+  if (warningGates.length > 0) {
+    const topWarn = warningGates[0];
+    push(
+      'cadence_warning_gate_stabilization',
+      topWarn.priority === 'high' ? 'high' : 'medium',
+      'every 2 hours',
+      `Warn gate stabilization lane for "${topWarn.gate}".`,
+      'Did the owner convert warning state into a pass-ready owner/date lane?',
+      topWarn.ownerHint || 'Program owner',
+      topWarn.nextAction || 'Publish owner/date update that resolves the warning gate.',
+      'Escalate if warning remains unresolved by end-of-day checkpoint.',
+      [topWarn.code]
+    );
+  }
+
+  if (signoffHigh.length > 0) {
+    push(
+      'cadence_dependency_signoff',
+      'high',
+      'before follow-up send',
+      'Cross-owner dependency signoff cadence for high-priority dependency lanes.',
+      'Do primary + backup owners confirm signoff question and due window in writing?',
+      signoffHigh[0]?.primaryOwner || 'Program owner',
+      signoffHigh[0]?.signoffQuestion || 'Written dependency signoff confirmation.',
+      'Escalate if either owner has not acknowledged by follow-up send cutoff.',
+      [signoffHigh[0]?.code || 'cross_owner_signoff']
+    );
+  }
+
+  if (escalationHigh.length > 0) {
+    push(
+      'cadence_escalation_lane',
+      'high',
+      'same business day',
+      'Escalation-ladder cadence for high-priority signoff blockers.',
+      'Has the escalation owner acknowledged trigger + SLA in the current business day?',
+      escalationHigh[0]?.escalationOwner || topEscalationPrompt?.ownerHint || 'Escalation owner',
+      escalationHigh[0]?.escalationPrompt || 'Escalation acknowledgement with owner/date commitment.',
+      'Escalate to leadership if SLA window is missed.',
+      [escalationHigh[0]?.code || 'stakeholder_signoff_escalation']
+    );
+  }
+
+  if (topAgingWindow) {
+    push(
+      'cadence_aging_window',
+      topAgingWindow.priority || 'medium',
+      topAgingWindow.window || 'within 24 hours',
+      topAgingWindow.trigger || 'Commitment aging lane requires periodic proof updates.',
+      'Is checkpoint evidence refreshed before aging threshold crosses?',
+      topAgingWindow.ownerHint || 'Execution owner',
+      topAgingWindow.action || 'Update aging checkpoint and evidence timestamp.',
+      'Escalate when threshold is crossed without checkpoint refresh.',
+      ['commitment_risk_aging']
+    );
+  }
+
+  if (topWeightedStep) {
+    push(
+      'cadence_top_weighted_close_step',
+      topWeightedStep.priority || 'medium',
+      'end of day recap',
+      topWeightedStep.trigger || 'Top risk-weighted close step requires visible cadence tracking.',
+      'Has the top weighted close step been completed, or is blocker ownership explicit?',
+      topWeightedStep.ownerHint || 'Meeting owner',
+      topWeightedStep.step || 'Top weighted close-plan step update.',
+      'Escalate if unresolved in end-of-day recap.',
+      [topWeightedStep.code]
+    );
+  }
+
+  if (!lanes.length) {
+    push(
+      'cadence_default',
+      hasHighRiskAttendee || hasKeyword(title, ['decision', 'review', 'planning']) ? 'medium' : 'low',
+      'within 1 business day',
+      'Fallback readiness cadence lane.',
+      'Do we have one owner/date checkpoint and one proof line for the next update?',
+      'Meeting owner',
+      'Post one owner/date checkpoint line in follow-up recap.',
+      'Escalate if no checkpoint update lands by next business day.',
+      ['default']
+    );
+  }
+
+  const summary = failedGates.length > 0
+    ? `Readiness cadence is in recovery mode: ${failedGates.length} fail gate(s), ${warningGates.length} warn gate(s), ${lanes.length} cadence lane(s).`
+    : `Readiness cadence lanes configured: ${lanes.length} lane(s), warn_gate_count=${warningGates.length}, high_priority_lanes=${lanes.filter((lane) => lane.priority === 'high').length}.`;
+
+  return {
+    summary: cleanLine(summary, 260),
+    lanes: lanes.slice(0, maxRows),
+  };
+}
+
 function buildMeetingPrepQuality({
   attendees,
   relationshipRiskSignals,
@@ -3726,6 +3910,7 @@ function buildMeetingPrepQuality({
   crossOwnerDependencySignoffPack,
   closeReadinessGateMatrix,
   stakeholderSignoffEscalationLadder,
+  readinessCadenceContractPack,
 }) {
   const checks = [];
   const push = (code, severity, status, message) => {
@@ -3927,6 +4112,36 @@ function buildMeetingPrepQuality({
     );
   } else {
     push('stakeholder_signoff_escalation_ladder_coverage', 'high', 'fail', 'Missing stakeholder signoff escalation ladder section.');
+  }
+
+  const readinessCadenceHasLanes = has(readinessCadenceContractPack?.lanes);
+  if (readinessCadenceContractPack && readinessCadenceHasLanes) {
+    push(
+      'readiness_cadence_contract_pack_coverage',
+      'low',
+      'pass',
+      `Readiness-cadence contract pack present (${readinessCadenceContractPack.lanes.length} lanes).`
+    );
+  } else if (readinessCadenceContractPack) {
+    push('readiness_cadence_contract_pack_coverage', 'medium', 'warn', 'Readiness-cadence contract pack is present but has no lanes.');
+  } else {
+    push('readiness_cadence_contract_pack_coverage', 'high', 'fail', 'Missing readiness-cadence contract pack section.');
+  }
+
+  if (readinessCadenceHasLanes) {
+    const highPriorityReadinessLanes = (readinessCadenceContractPack.lanes || []).filter((lane) => lane?.priority === 'high');
+    if (highPriorityReadinessLanes.length > 0) {
+      push(
+        'readiness_cadence_high_priority_coverage',
+        'low',
+        'pass',
+        `Readiness-cadence contract pack includes high-priority lanes (${highPriorityReadinessLanes.length}).`
+      );
+    } else {
+      push('readiness_cadence_high_priority_coverage', 'medium', 'warn', 'Readiness-cadence contract pack has no high-priority lane.');
+    }
+  } else {
+    push('readiness_cadence_high_priority_coverage', 'medium', 'warn', 'Cannot verify high-priority readiness-cadence lane coverage.');
   }
 
   if (highRiskSignals.length > 0 && !has(objectionRebuttalPacks)) {

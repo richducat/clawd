@@ -185,6 +185,7 @@ Include:
   - cross-owner dependency signoff pack for explicit multi-owner dependency confirmation (`dependency`, `primaryOwner`, `backupOwner`, `signoffQuestion`, `dueWindow`, `priority`, `dependsOn`)
   - close-readiness gate matrix with deterministic pass/warn/fail gate states and owner/action guidance (`summary`, `gates`)
   - stakeholder signoff escalation ladder for deterministic escalation routing when close gates are blocked (`trigger`, `escalationPrompt`, `primaryOwner`, `escalationOwner`, `slaWindow`, `priority`, `dependsOn`)
+  - readiness-cadence contract pack for deterministic checkpoint cadence contracts (`summary`, `lanes`, including cadence, contractQuestion, evidenceRequirement, escalationTrigger)
   - meeting-prep quality scoring + coverage checks for output completeness (`score`, `level`, `gapCount`, `summary`, `coverageChecks`)
   - attendee confidence calibration telemetry from trailing 30-day snapshot history (`currentConfidenceScore`, trailing baselines, deltas)
   - meeting-level confidence calibration trend summary (`currentAverageConfidence`, `trailingAverageConfidence`, `averageDelta`, trend signals)
