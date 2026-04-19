@@ -331,7 +331,7 @@ Runtime notes:
       - `default`
       - `run_mode.<canary|live>`
       - `incident_severity.<medium|high>`
-      - `incident_type.<health_gate_breach|drift_signal_detected|drift_gate_breach|quality_drift_signal_detected|quality_drift_gate_breach|quality_phase12_signal_detected|quality_phase12_gate_breach|quality_phase13_signal_detected|quality_phase13_gate_breach|quality_phase14_signal_detected|quality_phase14_gate_breach>`
+      - `incident_type.<health_gate_breach|drift_signal_detected|drift_gate_breach|quality_drift_signal_detected|quality_drift_gate_breach|quality_phase12_signal_detected|quality_phase12_gate_breach|quality_phase13_signal_detected|quality_phase13_gate_breach|quality_phase14_signal_detected|quality_phase14_gate_breach|quality_phase15_signal_detected|quality_phase15_gate_breach>`
       - `incident_age_band.<new|fresh|aging|critical>`
     - each node supports:
       - `ack_sla_minutes`
@@ -408,6 +408,10 @@ Runtime notes:
       - `quality_counterfactual_decision_drill_breach_count`
       - `quality_stakeholder_objection_handoff_breach_count`
       - `quality_phase14_top_breach_kind`
+      - `quality_phase15_gate_breached`
+      - `quality_risk_weighted_close_plan_sequencing_breach_count`
+      - `quality_cross_owner_dependency_signoff_breach_count`
+      - `quality_phase15_top_breach_kind`
       - `quality_phase13_gate_breached`
       - `quality_confidence_calibration_breach_count`
       - `quality_owner_assignment_breach_count`
