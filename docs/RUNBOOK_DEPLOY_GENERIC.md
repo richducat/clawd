@@ -198,6 +198,8 @@ Include:
   - `pipeline-summary-YYYY-MM-DD.json`
   - `ingestion-health-YYYY-MM-DD.md`
   - `ingestion-health-YYYY-MM-DD.json`
+  - `ingestion-trends-<UTCSTAMP>.md`
+  - `ingestion-trends-<UTCSTAMP>.json`
   - live lane only:
     - `live-incident-ledger-YYYY-MM-DD-run-<run_id>-attempt-<run_attempt>.json`
     - `live-incident-ledger-YYYY-MM-DD-run-<run_id>-attempt-<run_attempt>.md`
@@ -228,6 +230,8 @@ Include:
 - Workflow health gate:
   - runs `db:hybrid:health` after `db:hybrid:daily`
   - emits both markdown and JSON health artifacts
+  - exports deterministic trend audit artifacts in `artifacts/` (`--trend-artifact-dir artifacts --trend-artifact-prefix ingestion-trends`)
+  - keeps trend artifacts bounded in CI lane by count (`--trend-retention-count 180`)
   - default breach thresholds:
     - `max_lag_hours=24`
     - `max_seen_drift_hours=48`
@@ -287,6 +291,11 @@ Include:
     - `--baseline-sigma-multiplier <n>` MAD-based floor/ceiling band width multiplier (default `3`)
   - trend output controls:
     - `--trend-window-snapshots <n>` persisted baseline snapshots per source used for trend summaries (default `14`)
+  - trend artifact export + retention controls:
+    - `--trend-artifact-dir <path>` writes trend audit snapshot artifacts (`.md` + `.json`)
+    - `--trend-artifact-prefix <stem>` file prefix for exported trend artifacts (default `ingestion-trends`)
+    - `--trend-retention-days <n>` prunes exported trend artifacts older than `n` days
+    - `--trend-retention-count <n>` keeps only the newest `n` exported trend snapshots (markdown+json pair)
   - threshold guards (non-zero exit on breach):
     - `--max-lag-hours <n>`
     - `--max-seen-drift-hours <n>`
@@ -314,11 +323,16 @@ Include:
     - anomaly direction and deltas versus oldest snapshot in configured window
     - directional metric deltas for records/entities/links
   - threshold metadata + explicit breach records in JSON mode
+  - trend artifact export metadata (`trend_artifacts`) with written/pruned files when export is enabled
 
 CI/alerting example:
 ```bash
 npm run db:hybrid:health -- \
   --json \
+  --trend-artifact-dir artifacts/trend-audits \
+  --trend-artifact-prefix ingestion-trends \
+  --trend-retention-days 90 \
+  --trend-retention-count 120 \
   --max-lag-hours 24 \
   --max-seen-drift-hours 48 \
   --max-artifact-issues 0

@@ -12,6 +12,10 @@ const artifactDirArg = getArg(args, '--artifact-dir') || 'artifacts';
 const artifactsMax = toSafeInt(getArg(args, '--artifacts-max'), 8, 1, 100);
 const jsonMode = hasFlag(args, '--json');
 const trendWindowSnapshots = toSafeInt(getArg(args, '--trend-window-snapshots'), 14, 2, 365);
+const trendArtifactDirArg = getArg(args, '--trend-artifact-dir');
+const trendArtifactPrefix = sanitizeFileStem(getArg(args, '--trend-artifact-prefix') || 'ingestion-trends');
+const trendRetentionDays = readOptionalNumberArg(args, '--trend-retention-days');
+const trendRetentionCount = readOptionalNumberArg(args, '--trend-retention-count');
 const baselineConfig = {
   window_runs: toSafeInt(getArg(args, '--baseline-window-runs'), 14, 3, 180),
   min_samples: toSafeInt(getArg(args, '--baseline-min-samples'), 5, 2, 50),
@@ -92,6 +96,14 @@ async function main() {
       },
       breaches,
     };
+
+    const trendArtifacts = exportTrendArtifacts(result, {
+      dirArg: trendArtifactDirArg,
+      prefix: trendArtifactPrefix,
+      retentionDays: trendRetentionDays,
+      retentionCount: trendRetentionCount,
+    });
+    result.trend_artifacts = trendArtifacts;
 
     if (jsonMode) {
       console.log(JSON.stringify(result, null, 2));
@@ -376,6 +388,30 @@ function printMarkdown(result, artifactDirInput) {
       console.log(`  - records_scanned: latest=${formatNumber(source.metrics.records_scanned.latest)}, avg=${formatNumber(source.metrics.records_scanned.avg)}, direction=${source.metrics.records_scanned.direction}, delta_vs_oldest=${formatNumber(source.metrics.records_scanned.delta_vs_oldest)}, delta_vs_oldest_pct=${formatNumber(source.metrics.records_scanned.delta_vs_oldest_pct)}`);
       console.log(`  - entities_upserted: latest=${formatNumber(source.metrics.entities_upserted.latest)}, avg=${formatNumber(source.metrics.entities_upserted.avg)}, direction=${source.metrics.entities_upserted.direction}, delta_vs_oldest=${formatNumber(source.metrics.entities_upserted.delta_vs_oldest)}, delta_vs_oldest_pct=${formatNumber(source.metrics.entities_upserted.delta_vs_oldest_pct)}`);
       console.log(`  - links_upserted: latest=${formatNumber(source.metrics.links_upserted.latest)}, avg=${formatNumber(source.metrics.links_upserted.avg)}, direction=${source.metrics.links_upserted.direction}, delta_vs_oldest=${formatNumber(source.metrics.links_upserted.delta_vs_oldest)}, delta_vs_oldest_pct=${formatNumber(source.metrics.links_upserted.delta_vs_oldest_pct)}`);
+    }
+  }
+  console.log('');
+
+  console.log('## Trend Artifact Export');
+  if (!result.trend_artifacts?.enabled) {
+    console.log(`- ${result.trend_artifacts?.note || 'trend artifact export disabled'}`);
+  } else {
+    console.log(`- artifact_dir=${result.trend_artifacts.artifact_dir}`);
+    if (result.trend_artifacts.written?.length) {
+      for (const file of result.trend_artifacts.written) {
+        console.log(`- [written] ${file.file}`);
+      }
+    } else {
+      console.log('- no files written');
+    }
+
+    if (result.trend_artifacts.pruned?.length) {
+      for (const file of result.trend_artifacts.pruned) {
+        const reason = file.reason ? ` reason=${file.reason}` : '';
+        console.log(`- [pruned] ${file.file}${reason}`);
+      }
+    } else {
+      console.log('- no files pruned');
     }
   }
   console.log('');
@@ -1130,6 +1166,194 @@ function evaluateThresholdBreaches({ sources, failures, reconciliation, baseline
   return breaches;
 }
 
+function exportTrendArtifacts(result, options) {
+  const dirArg = options?.dirArg;
+  if (!dirArg) {
+    return {
+      enabled: false,
+      note: 'set --trend-artifact-dir to enable trend artifact export',
+    };
+  }
+
+  const artifactDir = path.resolve(dirArg);
+  fs.mkdirSync(artifactDir, { recursive: true });
+
+  const stamped = toStamp(result.as_of);
+  const stem = `${options.prefix}-${stamped}`;
+  const jsonFile = `${stem}.json`;
+  const mdFile = `${stem}.md`;
+  const jsonPath = path.join(artifactDir, jsonFile);
+  const mdPath = path.join(artifactDir, mdFile);
+
+  const payload = buildTrendArtifactPayload(result);
+  fs.writeFileSync(jsonPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(mdPath, `${buildTrendArtifactMarkdown(payload)}\n`, 'utf8');
+
+  const pruned = pruneTrendArtifacts({
+    artifactDir,
+    prefix: options.prefix,
+    retentionDays: options.retentionDays,
+    retentionCount: options.retentionCount,
+  });
+
+  return {
+    enabled: true,
+    note: null,
+    artifact_dir: artifactDir,
+    written: [
+      { file: jsonFile, path: jsonPath },
+      { file: mdFile, path: mdPath },
+    ],
+    retention: {
+      days: options.retentionDays,
+      count: options.retentionCount,
+    },
+    pruned,
+  };
+}
+
+function buildTrendArtifactPayload(result) {
+  return {
+    generated_at: result.as_of,
+    db: result.db,
+    trend_config: result.trend_config,
+    baseline_config: result.baseline_config,
+    totals: {
+      entities: Number(result.totals?.entities || 0),
+      chunks: Number(result.totals?.chunks || 0),
+      failures_scanned_files: Number(result.failures?.scanned_files || 0),
+      failures_issue_count: Array.isArray(result.failures?.issues) ? result.failures.issues.length : 0,
+      baseline_anomalies: Number(result.baselines?.totals?.anomalies || 0),
+      breach_count: Array.isArray(result.breaches) ? result.breaches.length : 0,
+    },
+    sources: result.sources || [],
+    reconciliation: result.reconciliation || null,
+    baselines: result.baselines || null,
+    trends: result.trends || null,
+    thresholds: result.thresholds || null,
+    breaches: result.breaches || [],
+  };
+}
+
+function buildTrendArtifactMarkdown(payload) {
+  const lines = [];
+  lines.push('# Ingestion Trend Audit Snapshot');
+  lines.push('');
+  lines.push(`- generated_at: ${payload.generated_at}`);
+  lines.push(`- db: ${payload.db}`);
+  lines.push(`- trend_window_snapshots: ${payload.trend_config?.window_snapshots ?? 'n/a'}`);
+  lines.push(`- baseline_window_runs: ${payload.baseline_config?.window_runs ?? 'n/a'}`);
+  lines.push(`- baseline_anomalies: ${payload.totals?.baseline_anomalies ?? 0}`);
+  lines.push(`- breaches: ${payload.totals?.breach_count ?? 0}`);
+  lines.push('');
+
+  lines.push('## Source Trends');
+  const trendSources = Array.isArray(payload.trends?.sources) ? payload.trends.sources : [];
+  if (!trendSources.length) {
+    lines.push('- no trend sources available');
+  } else {
+    for (const source of trendSources) {
+      lines.push(`- ${source.source}: status=${source.status}, snapshots=${source.snapshot_count}, latest_health_run_at=${source.latest_health_run_at || 'n/a'}, oldest_health_run_at=${source.oldest_health_run_at || 'n/a'}`);
+      if (source.status !== 'ok') continue;
+      lines.push(`  - anomalies_latest=${formatNumber(source.anomaly_count?.latest)}, anomalies_direction=${source.anomaly_count?.direction || 'flat'}, anomalies_delta_vs_oldest=${formatNumber(source.anomaly_count?.delta_vs_oldest)}`);
+      lines.push(`  - records_latest=${formatNumber(source.metrics?.records_scanned?.latest)}, records_direction=${source.metrics?.records_scanned?.direction || 'flat'}, records_delta_vs_oldest=${formatNumber(source.metrics?.records_scanned?.delta_vs_oldest)}`);
+      lines.push(`  - entities_latest=${formatNumber(source.metrics?.entities_upserted?.latest)}, entities_direction=${source.metrics?.entities_upserted?.direction || 'flat'}, entities_delta_vs_oldest=${formatNumber(source.metrics?.entities_upserted?.delta_vs_oldest)}`);
+      lines.push(`  - links_latest=${formatNumber(source.metrics?.links_upserted?.latest)}, links_direction=${source.metrics?.links_upserted?.direction || 'flat'}, links_delta_vs_oldest=${formatNumber(source.metrics?.links_upserted?.delta_vs_oldest)}`);
+    }
+  }
+  lines.push('');
+
+  lines.push('## Breaches');
+  if (!Array.isArray(payload.breaches) || !payload.breaches.length) {
+    lines.push('- none');
+  } else {
+    for (const breach of payload.breaches) {
+      const source = breach.source ? `${breach.source} ` : '';
+      const actual = breach.actual === undefined ? 'n/a' : breach.actual;
+      const limit = breach.limit === undefined ? 'n/a' : breach.limit;
+      lines.push(`- ${source}${breach.kind}: actual=${actual}, limit=${limit}`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+function pruneTrendArtifacts({ artifactDir, prefix, retentionDays, retentionCount }) {
+  if (retentionDays === null && retentionCount === null) {
+    return [];
+  }
+
+  const nowMs = Date.now();
+  const extPattern = /\.(json|md)$/i;
+  const files = fs.readdirSync(artifactDir)
+    .filter((name) => name.startsWith(`${prefix}-`) && extPattern.test(name))
+    .map((name) => {
+      const fullPath = path.join(artifactDir, name);
+      const stat = fs.statSync(fullPath);
+      return {
+        name,
+        path: fullPath,
+        mtimeMs: Number(stat.mtimeMs || 0),
+      };
+    })
+    .sort((a, b) => b.mtimeMs - a.mtimeMs || a.name.localeCompare(b.name));
+
+  const groups = new Map();
+  for (const file of files) {
+    const snapshotStem = file.name.replace(extPattern, '');
+    if (!groups.has(snapshotStem)) {
+      groups.set(snapshotStem, {
+        stem: snapshotStem,
+        latestMtimeMs: file.mtimeMs,
+        files: [],
+      });
+    }
+    const group = groups.get(snapshotStem);
+    group.latestMtimeMs = Math.max(group.latestMtimeMs, file.mtimeMs);
+    group.files.push(file);
+  }
+
+  const snapshots = Array.from(groups.values())
+    .sort((a, b) => b.latestMtimeMs - a.latestMtimeMs || a.stem.localeCompare(b.stem));
+
+  const pruneMap = new Map();
+  if (retentionCount !== null) {
+    snapshots.slice(retentionCount).forEach((snapshot) => {
+      for (const file of snapshot.files) {
+        pruneMap.set(file.path, { ...file, reason: 'retention_count' });
+      }
+    });
+  }
+
+  if (retentionDays !== null) {
+    const maxAgeMs = retentionDays * 24 * 60 * 60 * 1000;
+    for (const snapshot of snapshots) {
+      if (nowMs - snapshot.latestMtimeMs <= maxAgeMs) continue;
+      for (const file of snapshot.files) {
+        if (!pruneMap.has(file.path)) {
+          pruneMap.set(file.path, { ...file, reason: 'retention_days' });
+        }
+      }
+    }
+  }
+
+  const pruned = [];
+  for (const file of pruneMap.values()) {
+    try {
+      fs.unlinkSync(file.path);
+      pruned.push({
+        file: file.name,
+        path: file.path,
+        reason: file.reason,
+      });
+    } catch {
+      // Ignore failed prune to keep report generation resilient.
+    }
+  }
+
+  return pruned;
+}
+
 function ratio(numerator, denominator) {
   if (!denominator) return 0;
   return Number((numerator / denominator).toFixed(6));
@@ -1156,4 +1380,20 @@ function toNumberOrNull(value) {
   if (value === null || value === undefined) return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function toStamp(iso) {
+  const d = parseIso(iso) || new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
+}
+
+function sanitizeFileStem(value) {
+  const cleaned = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return cleaned || 'ingestion-trends';
 }

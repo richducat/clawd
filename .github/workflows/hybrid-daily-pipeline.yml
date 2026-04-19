@@ -143,6 +143,9 @@ jobs:
           npm run db:hybrid:health -- \
             --json \
             --artifact-dir artifacts \
+            --trend-artifact-dir artifacts \
+            --trend-artifact-prefix ingestion-trends \
+            --trend-retention-count 180 \
             --max-lag-hours "${MAX_LAG_HOURS_INPUT}" \
             --max-seen-drift-hours "${MAX_SEEN_DRIFT_HOURS_INPUT}" \
             --max-artifact-issues "${MAX_ARTIFACT_ISSUES_INPUT}" \
@@ -348,6 +351,9 @@ jobs:
           npm run db:hybrid:health -- \
             --json \
             --artifact-dir artifacts \
+            --trend-artifact-dir artifacts \
+            --trend-artifact-prefix ingestion-trends \
+            --trend-retention-count 180 \
             --max-lag-hours "${MAX_LAG_HOURS_INPUT}" \
             --max-seen-drift-hours "${MAX_SEEN_DRIFT_HOURS_INPUT}" \
             --max-artifact-issues "${MAX_ARTIFACT_ISSUES_INPUT}" \
