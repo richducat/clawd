@@ -198,3 +198,22 @@ Include:
   - `--domain <crm|kb|ops|mixed>` (repeatable) to scope domains
   - `--type <entity_type>` (repeatable) to scope entity kinds
   - `--json` for machine-readable result output
+
+## 17) Hybrid ingestion health dashboard (cursor drift + coverage)
+- Run operator health summary:
+  ```bash
+  npm run db:hybrid:health
+  ```
+- JSON mode for automation:
+  ```bash
+  npm run db:hybrid:health -- --json
+  ```
+- Optional controls:
+  - `--as-of <iso>` evaluates lag against a fixed timestamp
+  - `--artifact-dir <path>` scans `pipeline-summary-*.json` artifacts for recent failure signals
+  - `--artifacts-max <n>` controls how many recent artifact files to inspect
+- Report fields include:
+  - source cursor lag/drift for `gmail`, `google_calendar`, and `kb_ingest`
+  - entity/chunk coverage totals and grouped `domain/type` counts
+  - recent entity update snapshots
+  - recent artifact-derived error/failure indicators (when artifacts exist)
