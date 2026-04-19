@@ -313,7 +313,7 @@ Include:
       - `default`
       - `run_mode.<canary|live>`
       - `incident_severity.<medium|high>`
-      - `incident_type.<health_gate_breach|drift_signal_detected|drift_gate_breach|quality_drift_signal_detected|quality_drift_gate_breach|quality_phase12_signal_detected|quality_phase12_gate_breach|quality_phase13_signal_detected|quality_phase13_gate_breach|quality_phase14_signal_detected|quality_phase14_gate_breach|quality_phase15_signal_detected|quality_phase15_gate_breach>`
+      - `incident_type.<health_gate_breach|drift_signal_detected|drift_gate_breach|quality_drift_signal_detected|quality_drift_gate_breach|quality_phase12_signal_detected|quality_phase12_gate_breach|quality_phase13_signal_detected|quality_phase13_gate_breach|quality_phase14_signal_detected|quality_phase14_gate_breach|quality_phase15_signal_detected|quality_phase15_gate_breach|quality_phase16_signal_detected|quality_phase16_gate_breach>`
       - `incident_age_band.<new|fresh|aging|critical>`
     - each node supports:
       - `ack_sla_minutes`
@@ -373,6 +373,7 @@ Include:
       - quality drift metadata (`quality_drift_signal_count`, `quality_severity_score`, `quality_gate_breached`, `quality_top_lane`, `quality_top_lane_severity`)
       - phase-14 quality breach metadata (`quality_phase14_gate_breached`, `quality_counterfactual_decision_drill_breach_count`, `quality_stakeholder_objection_handoff_breach_count`, `quality_phase14_top_breach_kind`)
       - phase-15 quality breach metadata (`quality_phase15_gate_breached`, `quality_risk_weighted_close_plan_sequencing_breach_count`, `quality_cross_owner_dependency_signoff_breach_count`, `quality_phase15_top_breach_kind`)
+      - phase-16 quality breach metadata (`quality_phase16_gate_breached`, `quality_close_readiness_gate_matrix_breach_count`, `quality_stakeholder_signoff_escalation_ladder_breach_count`, `quality_phase16_top_breach_kind`)
       - phase-13 quality breach metadata (`quality_phase13_gate_breached`, `quality_confidence_calibration_breach_count`, `quality_owner_assignment_breach_count`, `quality_phase13_top_breach_kind`)
       - phase-12 quality breach metadata (`quality_phase12_gate_breached`, `quality_failure_mode_rehearsal_breach_count`, `quality_stakeholder_proof_request_breach_count`, `quality_phase12_top_breach_kind`)
       - ACK reconciliation/reminder metadata (`ack_reconciled`, `ack_reconciliation_source`, `ack_reminders_due_count`, `ack_reminder_escalations_due_count`)
