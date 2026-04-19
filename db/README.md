@@ -332,6 +332,12 @@ Optional flags:
   - `--trend-artifact-prefix <stem>`: file prefix for exported trend artifacts (default `ingestion-trends`)
   - `--trend-retention-days <n>`: prune exported trend artifact files older than `n` days (non-negative)
   - `--trend-retention-count <n>`: keep only the newest `n` exported trend snapshots (markdown+json pair)
+- weekly SLO digest controls:
+  - `--slo-window-days <n>`: digest window size in days for snapshot + breach rollup summaries (default `7`)
+  - `--slo-digest-dir <path>`: write weekly SLO digest artifacts (`.md` + `.json`) to this directory
+  - `--slo-digest-prefix <stem>`: file prefix for exported SLO digest artifacts (default `ingestion-slo-weekly`)
+  - `--slo-retention-days <n>`: prune exported SLO digest files older than `n` days
+  - `--slo-retention-count <n>`: keep only the newest `n` exported SLO digest snapshots (markdown+json pair)
 - threshold guards (optional, non-zero exit when breached):
   - `--max-lag-hours <n>`
   - `--max-seen-drift-hours <n>`
@@ -349,6 +355,10 @@ npm run db:hybrid:health -- \
   --trend-artifact-prefix ingestion-trends \
   --trend-retention-days 90 \
   --trend-retention-count 120 \
+  --slo-digest-dir artifacts/slo-digests \
+  --slo-digest-prefix ingestion-slo-weekly \
+  --slo-window-days 7 \
+  --slo-retention-count 52 \
   --max-lag-hours 24 \
   --max-seen-drift-hours 48 \
   --max-artifact-issues 0
@@ -378,5 +388,13 @@ Output includes:
 - source-level trend summaries from persisted baseline snapshots:
   - anomaly count direction (`up`/`down`/`flat`) versus oldest snapshot in window
   - directional deltas for `records_scanned`, `entities_upserted`, `links_upserted`
+- weekly SLO digest summary from persisted baseline snapshots:
+  - window coverage (`window_start`, `window_end`, `window_days`)
+  - source-level anomaly-free coverage and anomaly rates
+  - source-level average/latest anomaly counts
+- breach rollup feed for digest window:
+  - scans `ingestion-trends-*.json` and `ingestion-health-*.json`
+  - aggregates breach events by severity and source/top breach kinds
 - threshold metadata (`thresholds`) and explicit breach records (`breaches`)
 - trend artifact export metadata (`trend_artifacts`) with written/pruned file paths when enabled
+- weekly SLO digest artifact export metadata (`slo_digest_artifacts`) with written/pruned file paths when enabled

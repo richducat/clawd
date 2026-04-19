@@ -157,6 +157,10 @@ jobs:
             --trend-artifact-dir artifacts \
             --trend-artifact-prefix ingestion-trends \
             --trend-retention-count 180 \
+            --slo-digest-dir artifacts \
+            --slo-digest-prefix ingestion-slo-weekly \
+            --slo-window-days 7 \
+            --slo-retention-count 52 \
             --max-lag-hours "${MAX_LAG_HOURS_INPUT}" \
             --max-seen-drift-hours "${MAX_SEEN_DRIFT_HOURS_INPUT}" \
             --max-artifact-issues "${MAX_ARTIFACT_ISSUES_INPUT}" \
@@ -367,6 +371,10 @@ jobs:
             --trend-artifact-dir artifacts \
             --trend-artifact-prefix ingestion-trends \
             --trend-retention-count 180 \
+            --slo-digest-dir artifacts \
+            --slo-digest-prefix ingestion-slo-weekly \
+            --slo-window-days 7 \
+            --slo-retention-count 52 \
             --max-lag-hours "${MAX_LAG_HOURS_INPUT}" \
             --max-seen-drift-hours "${MAX_SEEN_DRIFT_HOURS_INPUT}" \
             --max-artifact-issues "${MAX_ARTIFACT_ISSUES_INPUT}" \

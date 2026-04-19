@@ -16,6 +16,11 @@ const trendArtifactDirArg = getArg(args, '--trend-artifact-dir');
 const trendArtifactPrefix = sanitizeFileStem(getArg(args, '--trend-artifact-prefix') || 'ingestion-trends');
 const trendRetentionDays = readOptionalNumberArg(args, '--trend-retention-days');
 const trendRetentionCount = readOptionalNumberArg(args, '--trend-retention-count');
+const sloDigestDirArg = getArg(args, '--slo-digest-dir');
+const sloDigestPrefix = sanitizeFileStem(getArg(args, '--slo-digest-prefix') || 'ingestion-slo-weekly');
+const sloWindowDays = toSafeInt(getArg(args, '--slo-window-days'), 7, 2, 90);
+const sloRetentionDays = readOptionalNumberArg(args, '--slo-retention-days');
+const sloRetentionCount = readOptionalNumberArg(args, '--slo-retention-count');
 const baselineConfig = {
   window_runs: toSafeInt(getArg(args, '--baseline-window-runs'), 14, 3, 180),
   min_samples: toSafeInt(getArg(args, '--baseline-min-samples'), 5, 2, 50),
@@ -65,6 +70,11 @@ async function main() {
     const trends = readBaselineTrends(db, {
       window_snapshots: trendWindowSnapshots,
     });
+    const sloDigest = buildWeeklySloDigest(db, {
+      asOf,
+      windowDays: sloWindowDays,
+      artifactDirInput: artifactDirArg,
+    });
     const breaches = evaluateThresholdBreaches({
       sources: sourceHealth,
       failures: failureSummary,
@@ -89,12 +99,16 @@ async function main() {
       trend_config: {
         window_snapshots: trendWindowSnapshots,
       },
+      slo_config: {
+        window_days: sloWindowDays,
+      },
       baseline_config: baselineConfig,
       thresholds: {
         configured: hasThresholds,
         ...thresholds,
       },
       breaches,
+      slo_digest: sloDigest,
     };
 
     const trendArtifacts = exportTrendArtifacts(result, {
@@ -104,6 +118,12 @@ async function main() {
       retentionCount: trendRetentionCount,
     });
     result.trend_artifacts = trendArtifacts;
+    result.slo_digest_artifacts = exportSloDigestArtifacts(result, {
+      dirArg: sloDigestDirArg,
+      prefix: sloDigestPrefix,
+      retentionDays: sloRetentionDays,
+      retentionCount: sloRetentionCount,
+    });
 
     if (jsonMode) {
       console.log(JSON.stringify(result, null, 2));
@@ -392,6 +412,35 @@ function printMarkdown(result, artifactDirInput) {
   }
   console.log('');
 
+  console.log('## Weekly SLO Digest');
+  if (!result.slo_digest?.available) {
+    console.log(`- ${result.slo_digest?.note || 'weekly SLO digest unavailable'}`);
+  } else {
+    console.log(`- window_start=${result.slo_digest.window_start}, window_end=${result.slo_digest.window_end}, window_days=${result.slo_config?.window_days}`);
+    console.log(`- total_snapshots=${result.slo_digest.total_snapshots}, healthy_snapshots=${result.slo_digest.healthy_snapshots}, anomaly_snapshots=${result.slo_digest.anomaly_snapshots}`);
+    for (const source of result.slo_digest.sources || []) {
+      console.log(`- ${source.source}: snapshots=${source.snapshots}, healthy=${source.healthy_snapshots}, anomaly=${source.anomaly_snapshots}, anomaly_free_pct=${formatNumber(source.anomaly_free_pct)}, avg_anomalies=${formatNumber(source.avg_anomaly_count)}, latest_anomalies=${formatNumber(source.latest_anomaly_count)}, latest_health_run_at=${source.latest_health_run_at || 'n/a'}`);
+    }
+  }
+  console.log('');
+
+  console.log('## Breach Rollup Feed');
+  if (!result.slo_digest?.available) {
+    console.log('- breach rollup unavailable (SLO digest unavailable)');
+  } else if (!result.slo_digest?.breach_rollup?.total_events) {
+    console.log('- no breach events found in digest window');
+  } else {
+    console.log(`- total_events=${result.slo_digest.breach_rollup.total_events}, scanned_artifacts=${result.slo_digest.breach_rollup.scanned_artifacts}`);
+    for (const severity of result.slo_digest.breach_rollup.by_severity || []) {
+      console.log(`- severity=${severity.severity}: count=${severity.count}`);
+    }
+    for (const source of result.slo_digest.breach_rollup.by_source || []) {
+      const topKinds = (source.top_kinds || []).map((k) => `${k.kind}:${k.count}`).join(', ');
+      console.log(`- source=${source.source}: count=${source.count}, top_kinds=${topKinds || 'n/a'}`);
+    }
+  }
+  console.log('');
+
   console.log('## Trend Artifact Export');
   if (!result.trend_artifacts?.enabled) {
     console.log(`- ${result.trend_artifacts?.note || 'trend artifact export disabled'}`);
@@ -407,6 +456,30 @@ function printMarkdown(result, artifactDirInput) {
 
     if (result.trend_artifacts.pruned?.length) {
       for (const file of result.trend_artifacts.pruned) {
+        const reason = file.reason ? ` reason=${file.reason}` : '';
+        console.log(`- [pruned] ${file.file}${reason}`);
+      }
+    } else {
+      console.log('- no files pruned');
+    }
+  }
+  console.log('');
+
+  console.log('## SLO Digest Artifact Export');
+  if (!result.slo_digest_artifacts?.enabled) {
+    console.log(`- ${result.slo_digest_artifacts?.note || 'SLO digest artifact export disabled'}`);
+  } else {
+    console.log(`- artifact_dir=${result.slo_digest_artifacts.artifact_dir}`);
+    if (result.slo_digest_artifacts.written?.length) {
+      for (const file of result.slo_digest_artifacts.written) {
+        console.log(`- [written] ${file.file}`);
+      }
+    } else {
+      console.log('- no files written');
+    }
+
+    if (result.slo_digest_artifacts.pruned?.length) {
+      for (const file of result.slo_digest_artifacts.pruned) {
         const reason = file.reason ? ` reason=${file.reason}` : '';
         console.log(`- [pruned] ${file.file}${reason}`);
       }
@@ -1212,6 +1285,177 @@ function exportTrendArtifacts(result, options) {
   };
 }
 
+function buildWeeklySloDigest(db, { asOf, windowDays, artifactDirInput }) {
+  if (!tableExists(db, 'ingestion_baseline_snapshots')) {
+    return {
+      available: false,
+      note: 'ingestion_baseline_snapshots table missing (run npm run db:hybrid:init)',
+    };
+  }
+
+  const windowEnd = asOf.toISOString();
+  const windowStartDate = new Date(asOf.getTime() - windowDays * 24 * 60 * 60 * 1000);
+  const windowStart = windowStartDate.toISOString();
+
+  const rows = db.prepare(`
+    SELECT source, health_run_at, anomaly_count
+    FROM ingestion_baseline_snapshots
+    WHERE source IN (${DEFAULT_SOURCES.map(() => '?').join(',')})
+      AND health_run_at >= ?
+      AND health_run_at <= ?
+    ORDER BY source ASC, health_run_at DESC
+  `).all(...DEFAULT_SOURCES, windowStart, windowEnd);
+
+  const grouped = new Map();
+  for (const row of rows) {
+    const source = String(row.source);
+    if (!grouped.has(source)) grouped.set(source, []);
+    grouped.get(source).push({
+      health_run_at: toIsoOrNull(row.health_run_at),
+      anomaly_count: Number(row.anomaly_count || 0),
+    });
+  }
+
+  const sources = DEFAULT_SOURCES.map((source) => {
+    const history = grouped.get(source) || [];
+    const snapshots = history.length;
+    const anomalySnapshots = history.filter((row) => Number(row.anomaly_count || 0) > 0).length;
+    const healthySnapshots = snapshots - anomalySnapshots;
+    const avgAnomalyCount = snapshots
+      ? Number((history.reduce((sum, row) => sum + Number(row.anomaly_count || 0), 0) / snapshots).toFixed(3))
+      : null;
+    const latestAnomalyCount = snapshots ? Number(history[0].anomaly_count || 0) : null;
+
+    return {
+      source,
+      snapshots,
+      healthy_snapshots: healthySnapshots,
+      anomaly_snapshots: anomalySnapshots,
+      anomaly_free_pct: snapshots ? Number(((healthySnapshots / snapshots) * 100).toFixed(3)) : null,
+      avg_anomaly_count: avgAnomalyCount,
+      latest_anomaly_count: latestAnomalyCount,
+      latest_health_run_at: history[0]?.health_run_at || null,
+    };
+  });
+
+  const totalSnapshots = sources.reduce((sum, source) => sum + source.snapshots, 0);
+  const healthySnapshots = sources.reduce((sum, source) => sum + source.healthy_snapshots, 0);
+  const anomalySnapshots = sources.reduce((sum, source) => sum + source.anomaly_snapshots, 0);
+
+  const breachRollup = readBreachRollupFeed({
+    artifactDirInput,
+    windowStart,
+    windowEnd,
+  });
+
+  return {
+    available: true,
+    note: totalSnapshots ? null : 'no baseline snapshots found in digest window',
+    window_start: windowStart,
+    window_end: windowEnd,
+    total_snapshots: totalSnapshots,
+    healthy_snapshots: healthySnapshots,
+    anomaly_snapshots: anomalySnapshots,
+    anomaly_free_pct: totalSnapshots ? Number(((healthySnapshots / totalSnapshots) * 100).toFixed(3)) : null,
+    sources,
+    breach_rollup: breachRollup,
+  };
+}
+
+function readBreachRollupFeed({ artifactDirInput, windowStart, windowEnd }) {
+  const artifactDir = path.resolve(artifactDirInput || 'artifacts');
+  if (!fs.existsSync(artifactDir)) {
+    return {
+      total_events: 0,
+      scanned_artifacts: 0,
+      by_severity: [],
+      by_source: [],
+      note: 'artifact directory not found',
+    };
+  }
+
+  const startMs = Date.parse(windowStart);
+  const endMs = Date.parse(windowEnd);
+  const candidates = fs.readdirSync(artifactDir)
+    .filter((name) => /^ingestion-(trends|health)-.*\.json$/i.test(name))
+    .sort((a, b) => a.localeCompare(b));
+
+  const events = [];
+  let scanned = 0;
+  for (const name of candidates) {
+    const fullPath = path.join(artifactDir, name);
+    const parsed = safeJson(readTextFile(fullPath));
+    if (!parsed || typeof parsed !== 'object') continue;
+
+    const ts = toIsoOrNull(parsed.generated_at || parsed.as_of);
+    if (!ts) continue;
+    const tsMs = Date.parse(ts);
+    if (!Number.isFinite(tsMs) || tsMs < startMs || tsMs > endMs) continue;
+
+    scanned += 1;
+    const breaches = Array.isArray(parsed.breaches) ? parsed.breaches : [];
+    for (const breach of breaches) {
+      const kind = String(breach?.kind || 'unknown');
+      const source = String(breach?.source || 'global');
+      events.push({
+        occurred_at: ts,
+        source,
+        kind,
+        severity: severityForBreachKind(kind),
+      });
+    }
+  }
+
+  const severityCounts = new Map();
+  const sourceCounts = new Map();
+  for (const event of events) {
+    severityCounts.set(event.severity, (severityCounts.get(event.severity) || 0) + 1);
+    if (!sourceCounts.has(event.source)) {
+      sourceCounts.set(event.source, { source: event.source, count: 0, kinds: new Map() });
+    }
+    const bucket = sourceCounts.get(event.source);
+    bucket.count += 1;
+    bucket.kinds.set(event.kind, (bucket.kinds.get(event.kind) || 0) + 1);
+  }
+
+  const bySeverity = ['high', 'medium', 'low']
+    .map((severity) => ({
+      severity,
+      count: Number(severityCounts.get(severity) || 0),
+    }))
+    .filter((row) => row.count > 0);
+
+  const bySource = Array.from(sourceCounts.values())
+    .map((bucket) => ({
+      source: bucket.source,
+      count: bucket.count,
+      top_kinds: Array.from(bucket.kinds.entries())
+        .map(([kind, count]) => ({ kind, count }))
+        .sort((a, b) => b.count - a.count || a.kind.localeCompare(b.kind))
+        .slice(0, 5),
+    }))
+    .sort((a, b) => b.count - a.count || a.source.localeCompare(b.source));
+
+  return {
+    total_events: events.length,
+    scanned_artifacts: scanned,
+    by_severity: bySeverity,
+    by_source: bySource,
+    note: events.length ? null : 'no breaches found in scanned digest window artifacts',
+  };
+}
+
+function severityForBreachKind(kind) {
+  const k = String(kind || '').toLowerCase();
+  if (['lag_hours', 'seen_drift_hours', 'baseline_anomalies_count', 'reconciliation_unavailable'].includes(k)) {
+    return 'high';
+  }
+  if (['entity_delta_pct', 'chunk_ratio_delta', 'link_delta_pct', 'artifact_issues_count'].includes(k)) {
+    return 'medium';
+  }
+  return 'low';
+}
+
 function buildTrendArtifactPayload(result) {
   return {
     generated_at: result.as_of,
@@ -1233,6 +1477,113 @@ function buildTrendArtifactPayload(result) {
     thresholds: result.thresholds || null,
     breaches: result.breaches || [],
   };
+}
+
+function exportSloDigestArtifacts(result, options) {
+  const dirArg = options?.dirArg;
+  if (!dirArg) {
+    return {
+      enabled: false,
+      note: 'set --slo-digest-dir to enable weekly SLO digest artifact export',
+    };
+  }
+
+  const artifactDir = path.resolve(dirArg);
+  fs.mkdirSync(artifactDir, { recursive: true });
+
+  const stamped = toStamp(result.as_of);
+  const stem = `${options.prefix}-${stamped}`;
+  const jsonFile = `${stem}.json`;
+  const mdFile = `${stem}.md`;
+  const jsonPath = path.join(artifactDir, jsonFile);
+  const mdPath = path.join(artifactDir, mdFile);
+
+  const payload = buildSloDigestArtifactPayload(result);
+  fs.writeFileSync(jsonPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(mdPath, `${buildSloDigestArtifactMarkdown(payload)}\n`, 'utf8');
+
+  const pruned = pruneTrendArtifacts({
+    artifactDir,
+    prefix: options.prefix,
+    retentionDays: options.retentionDays,
+    retentionCount: options.retentionCount,
+  });
+
+  return {
+    enabled: true,
+    note: null,
+    artifact_dir: artifactDir,
+    written: [
+      { file: jsonFile, path: jsonPath },
+      { file: mdFile, path: mdPath },
+    ],
+    retention: {
+      days: options.retentionDays,
+      count: options.retentionCount,
+    },
+    pruned,
+  };
+}
+
+function buildSloDigestArtifactPayload(result) {
+  return {
+    generated_at: result.as_of,
+    db: result.db,
+    slo_config: result.slo_config || null,
+    digest: result.slo_digest || null,
+  };
+}
+
+function buildSloDigestArtifactMarkdown(payload) {
+  const digest = payload.digest || {};
+  const lines = [];
+  lines.push('# Weekly SLO Digest');
+  lines.push('');
+  lines.push(`- generated_at: ${payload.generated_at}`);
+  lines.push(`- db: ${payload.db}`);
+  lines.push(`- window_start: ${digest.window_start || 'n/a'}`);
+  lines.push(`- window_end: ${digest.window_end || 'n/a'}`);
+  lines.push(`- window_days: ${payload.slo_config?.window_days ?? 'n/a'}`);
+  lines.push(`- total_snapshots: ${digest.total_snapshots ?? 0}`);
+  lines.push(`- healthy_snapshots: ${digest.healthy_snapshots ?? 0}`);
+  lines.push(`- anomaly_snapshots: ${digest.anomaly_snapshots ?? 0}`);
+  lines.push(`- anomaly_free_pct: ${formatNumber(digest.anomaly_free_pct)}`);
+  lines.push('');
+
+  lines.push('## Sources');
+  const sources = Array.isArray(digest.sources) ? digest.sources : [];
+  if (!sources.length) {
+    lines.push('- no source snapshots in window');
+  } else {
+    for (const source of sources) {
+      lines.push(`- ${source.source}: snapshots=${source.snapshots}, healthy=${source.healthy_snapshots}, anomaly=${source.anomaly_snapshots}, anomaly_free_pct=${formatNumber(source.anomaly_free_pct)}, avg_anomaly_count=${formatNumber(source.avg_anomaly_count)}, latest_anomaly_count=${formatNumber(source.latest_anomaly_count)}`);
+    }
+  }
+  lines.push('');
+
+  lines.push('## Breach Rollup');
+  const rollup = digest.breach_rollup || {};
+  lines.push(`- total_events: ${rollup.total_events ?? 0}`);
+  lines.push(`- scanned_artifacts: ${rollup.scanned_artifacts ?? 0}`);
+  const bySeverity = Array.isArray(rollup.by_severity) ? rollup.by_severity : [];
+  if (!bySeverity.length) {
+    lines.push('- severities: none');
+  } else {
+    for (const row of bySeverity) {
+      lines.push(`- severity=${row.severity}: count=${row.count}`);
+    }
+  }
+  const bySource = Array.isArray(rollup.by_source) ? rollup.by_source : [];
+  if (!bySource.length) {
+    lines.push('- sources: none');
+  } else {
+    for (const row of bySource) {
+      const topKinds = (row.top_kinds || []).map((k) => `${k.kind}:${k.count}`).join(', ');
+      lines.push(`- source=${row.source}: count=${row.count}, top_kinds=${topKinds || 'n/a'}`);
+    }
+  }
+
+  return lines.join('\n');
 }
 
 function buildTrendArtifactMarkdown(payload) {
