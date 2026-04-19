@@ -218,13 +218,23 @@ Include:
     - `max_artifact_issues=0`
   - threshold breach exits `2` and fails the run (artifacts still upload because upload step uses `if: always()`)
 - Optional breach alert hook:
-  - set repo secret `HYBRID_ALERT_WEBHOOK_URL` to enable outbound notifications
-  - on health-gate failure, workflow posts a JSON payload (`text`) with:
+  - base route config:
+    - `HYBRID_ALERT_WEBHOOK_URL` (single route)
+    - `HYBRID_ALERT_WEBHOOK_URLS` (comma/newline multi-route fan-out)
+  - optional escalation route config:
+    - `HYBRID_ALERT_ESCALATION_WEBHOOK_URL`
+    - `HYBRID_ALERT_ESCALATION_WEBHOOK_URLS`
+    - `HYBRID_ALERT_ESCALATION_WINDOWS_ET` (repo variable, defaults to `always`)
+  - escalation window format (`ET`):
+    - `always`
+    - or semicolon-delimited entries in `daySpec@HH:MM-HH:MM`
+    - examples: `mon-fri@08:00-18:00;sat@09:00-12:00`, `sun@00:00-23:59`
+  - on health-gate failure, workflow posts a JSON payload (`text`) to all configured base routes and includes escalation routes only when current ET falls inside configured escalation windows. Payload includes:
     - run mode (`canary` or `live`)
     - run URL
     - run date + threshold values
     - artifact label (`hybrid-daily-<mode>-YYYY-MM-DD`)
-  - if the secret is not set, workflow logs a warning and skips notification
+  - if no webhook routes are configured, workflow logs and skips outbound notification
 
 ## 16) Hybrid retrieval query (entities + chunks)
 - Run ranked retrieval:
