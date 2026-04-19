@@ -201,6 +201,7 @@ Triggers:
   - `max_seen_drift_hours`
   - `max_artifact_issues`
   - `max_drift_signals` (optional live drift gate; blank = report-only)
+  - `max_drift_severity_score` (optional weighted live drift gate; blank = report-only)
 
 Artifacts:
 - `meeting-prep-YYYY-MM-DD.md`
@@ -255,6 +256,8 @@ Runtime notes:
   - emits deterministic drift evidence artifacts (`canary-live-drift-YYYY-MM-DD.{json,md}`)
   - if canary baseline is unavailable, drift report is emitted as `status=baseline_unavailable` (non-failing report path)
   - if `max_drift_signals` workflow input is set, drift step exits `2` when signal count exceeds that threshold
+  - if `max_drift_severity_score` workflow input is set, drift step exits `2` when severity-weight total exceeds that threshold
+  - drift signals include deterministic taxonomy fields (`category`, `severity_weight`) plus rollups (`severity_counts`, `category_counts`, `total_severity_score`)
 - Optional breach alerting:
   - base route config:
     - `HYBRID_ALERT_WEBHOOK_URL` (single route)
@@ -273,7 +276,7 @@ Runtime notes:
     - triggering actor + dispatch actor
     - emergency stop + break-glass flag/reason
     - incident-ledger artifact paths (json + markdown)
-    - canary-vs-live drift summary (`status`, `signal_count`, `gate_breached`)
+    - canary-vs-live drift summary (`status`, `signal_count`, `total_severity_score`, `gate_breached`, `gate_breached_by_signal_count`, `gate_breached_by_severity_score`)
     - canary-vs-live drift artifact paths (json + markdown)
 
 ## Retrieval/query layer (roadmap tranche option #2)

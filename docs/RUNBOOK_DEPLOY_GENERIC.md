@@ -192,7 +192,7 @@ Include:
 - Workflow: `.github/workflows/hybrid-daily-pipeline.yml`
 - Runs:
   - daily at `13:20 UTC`
-  - manual dispatch with inputs (`account`, `date`, `use_fixtures`, `live_mode`, `break_glass`, `break_glass_reason`, `skip_kb`, `max_lag_hours`, `max_seen_drift_hours`, `max_artifact_issues`, `max_drift_signals`)
+  - manual dispatch with inputs (`account`, `date`, `use_fixtures`, `live_mode`, `break_glass`, `break_glass_reason`, `skip_kb`, `max_lag_hours`, `max_seen_drift_hours`, `max_artifact_issues`, `max_drift_signals`, `max_drift_severity_score`)
 - Artifacts kept for 14 days:
   - `meeting-prep-YYYY-MM-DD.md`
   - `pipeline-summary-YYYY-MM-DD.json`
@@ -245,6 +245,8 @@ Include:
   - always emits evidence artifacts (`canary-live-drift-YYYY-MM-DD.{json,md}`)
   - if `max_drift_signals` input is blank, drift check is report-only
   - if `max_drift_signals` is set, drift check exits `2` when signal count exceeds threshold
+  - if `max_drift_severity_score` is set, drift check exits `2` when severity-weighted total exceeds threshold
+  - drift output includes deterministic signal taxonomy and rollups (`category`, `severity_weight`, `severity_counts`, `category_counts`, `total_severity_score`)
 - Optional breach alert hook:
   - base route config:
     - `HYBRID_ALERT_WEBHOOK_URL` (single route)
@@ -267,7 +269,7 @@ Include:
       - triggering actor + dispatch actor
       - emergency stop + break-glass flag/reason
       - incident-ledger artifact paths (json + markdown)
-      - canary-vs-live drift summary (`status`, `signal_count`, `gate_breached`)
+      - canary-vs-live drift summary (`status`, `signal_count`, `total_severity_score`, `gate_breached`, `gate_breached_by_signal_count`, `gate_breached_by_severity_score`)
       - canary-vs-live drift artifact paths (json + markdown)
   - if no webhook routes are configured, workflow logs and skips outbound notification
 

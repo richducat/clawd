@@ -51,6 +51,10 @@ on:
         description: "Optional drift gate in live mode: fail when canary-vs-live drift signals exceed this count"
         required: false
         default: ""
+      max_drift_severity_score:
+        description: "Optional weighted drift gate in live mode: fail when drift severity score exceeds this threshold"
+        required: false
+        default: ""
   schedule:
     - cron: "20 13 * * *"
 
@@ -78,6 +82,7 @@ jobs:
       MAX_SEEN_DRIFT_HOURS_INPUT: ${{ inputs.max_seen_drift_hours || '48' }}
       MAX_ARTIFACT_ISSUES_INPUT: ${{ inputs.max_artifact_issues || '0' }}
       MAX_DRIFT_SIGNALS_INPUT: ${{ inputs.max_drift_signals || '' }}
+      MAX_DRIFT_SEVERITY_SCORE_INPUT: ${{ inputs.max_drift_severity_score || '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -206,6 +211,7 @@ jobs:
       MAX_SEEN_DRIFT_HOURS_INPUT: ${{ inputs.max_seen_drift_hours || '48' }}
       MAX_ARTIFACT_ISSUES_INPUT: ${{ inputs.max_artifact_issues || '0' }}
       MAX_DRIFT_SIGNALS_INPUT: ${{ inputs.max_drift_signals || '' }}
+      MAX_DRIFT_SEVERITY_SCORE_INPUT: ${{ inputs.max_drift_severity_score || '' }}
       LIVE_ALLOWED_ACTORS_INPUT: ${{ vars.HYBRID_LIVE_ALLOWED_ACTORS || 'richducat' }}
       LIVE_EMERGENCY_STOP_INPUT: ${{ vars.HYBRID_LIVE_EMERGENCY_STOP || 'false' }}
       LIVE_APPROVAL_ENVIRONMENT: hybrid-live
@@ -439,6 +445,9 @@ jobs:
           if [[ -n "${MAX_DRIFT_SIGNALS_INPUT:-}" ]]; then
             cmd+=(--max-drift-signals "${MAX_DRIFT_SIGNALS_INPUT}")
           fi
+          if [[ -n "${MAX_DRIFT_SEVERITY_SCORE_INPUT:-}" ]]; then
+            cmd+=(--max-drift-severity-score "${MAX_DRIFT_SEVERITY_SCORE_INPUT}")
+          fi
 
           "${cmd[@]}"
 
@@ -479,7 +488,10 @@ jobs:
           ALERT_INCIDENT_LEDGER_MD: ${{ steps.ledger.outputs.ledger_md_path }}
           ALERT_DRIFT_STATUS: ${{ steps.drift.outputs.drift_status }}
           ALERT_DRIFT_SIGNAL_COUNT: ${{ steps.drift.outputs.drift_signal_count }}
+          ALERT_DRIFT_TOTAL_SEVERITY_SCORE: ${{ steps.drift.outputs.drift_total_severity_score }}
           ALERT_DRIFT_GATE_BREACHED: ${{ steps.drift.outputs.drift_gate_breached }}
+          ALERT_DRIFT_GATE_BREACHED_BY_SIGNAL_COUNT: ${{ steps.drift.outputs.drift_gate_breached_by_signal_count }}
+          ALERT_DRIFT_GATE_BREACHED_BY_SEVERITY_SCORE: ${{ steps.drift.outputs.drift_gate_breached_by_severity_score }}
           ALERT_DRIFT_JSON: ${{ steps.drift.outputs.drift_json_path }}
           ALERT_DRIFT_MD: ${{ steps.drift.outputs.drift_md_path }}
         shell: bash
