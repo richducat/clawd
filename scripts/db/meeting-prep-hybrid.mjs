@@ -372,6 +372,24 @@ async function main() {
         meetingRecommendations,
         commitmentCloseChecklist,
       });
+      const closeReadinessGateMatrix = buildCloseReadinessGateMatrix({
+        attendees: attendeeBriefs,
+        relationshipRiskSignals,
+        commitmentRiskAging,
+        ownerEscalationPrompts,
+        decisionCommitmentSequencing,
+        stakeholderProofRequests,
+        stakeholderObjectionResponseHandoffMap,
+        riskWeightedClosePlanSequencing,
+        crossOwnerDependencySignoffPack,
+      });
+      const stakeholderSignoffEscalationLadder = buildStakeholderSignoffEscalationLadder({
+        attendees: attendeeBriefs,
+        relationshipRiskSignals,
+        closeReadinessGateMatrix,
+        crossOwnerDependencySignoffPack,
+        ownerEscalationPrompts,
+      });
       const prepQuality = buildMeetingPrepQuality({
         attendees: attendeeBriefs,
         relationshipRiskSignals,
@@ -395,6 +413,8 @@ async function main() {
         stakeholderObjectionResponseHandoffMap,
         riskWeightedClosePlanSequencing,
         crossOwnerDependencySignoffPack,
+        closeReadinessGateMatrix,
+        stakeholderSignoffEscalationLadder,
       });
 
       if (insertSnapshotStmt) {
@@ -456,6 +476,8 @@ async function main() {
         riskWeightedClosePlanSequencing,
         crossOwnerDependencySignoffPack,
         actionOwnerLoadBalancing,
+        closeReadinessGateMatrix,
+        stakeholderSignoffEscalationLadder,
         prepQuality,
       });
     }
@@ -840,6 +862,50 @@ function printMarkdownBrief({ account, date, timezone, internalDomains, meetings
             ? `${assignment.ownerName} <${assignment.ownerEmail}>`
             : assignment.ownerEmail;
           console.log(`  - Assignment: [${assignment.priority}] ${assignment.action} -> ${who}`);
+        }
+      }
+    }
+    if (meeting.closeReadinessGateMatrix) {
+      const matrix = meeting.closeReadinessGateMatrix;
+      if (matrix.summary) {
+        console.log(`- Close-readiness gate matrix: ${matrix.summary}`);
+      }
+      if (Array.isArray(matrix.gates) && matrix.gates.length) {
+        for (const gate of matrix.gates) {
+          const dependsOn = Array.isArray(gate.dependsOn) && gate.dependsOn.length
+            ? ` [depends_on=${gate.dependsOn.join(', ')}]`
+            : '';
+          console.log(`  - [${gate.priority}] [${gate.status}] ${gate.gate}${dependsOn}`);
+          if (gate.evidence) {
+            console.log(`    - Evidence: ${gate.evidence}`);
+          }
+          if (gate.ownerHint) {
+            console.log(`    - Owner hint: ${gate.ownerHint}`);
+          }
+          if (gate.nextAction) {
+            console.log(`    - Next action: ${gate.nextAction}`);
+          }
+        }
+      }
+    }
+    if (Array.isArray(meeting.stakeholderSignoffEscalationLadder) && meeting.stakeholderSignoffEscalationLadder.length) {
+      console.log('- Stakeholder signoff escalation ladder:');
+      for (const row of meeting.stakeholderSignoffEscalationLadder) {
+        const dependsOn = Array.isArray(row.dependsOn) && row.dependsOn.length
+          ? ` [depends_on=${row.dependsOn.join(', ')}]`
+          : '';
+        console.log(`  - [${row.priority}] ${row.trigger}${dependsOn}`);
+        if (row.escalationPrompt) {
+          console.log(`    - Escalation prompt: ${row.escalationPrompt}`);
+        }
+        if (row.primaryOwner) {
+          console.log(`    - Primary owner: ${row.primaryOwner}`);
+        }
+        if (row.escalationOwner) {
+          console.log(`    - Escalation owner: ${row.escalationOwner}`);
+        }
+        if (row.slaWindow) {
+          console.log(`    - SLA window: ${row.slaWindow}`);
         }
       }
     }
@@ -3291,6 +3357,350 @@ function buildCrossOwnerDependencySignoffPack({
   return pack.slice(0, 6);
 }
 
+function buildCloseReadinessGateMatrix({
+  attendees,
+  relationshipRiskSignals,
+  commitmentRiskAging,
+  ownerEscalationPrompts,
+  decisionCommitmentSequencing,
+  stakeholderProofRequests,
+  stakeholderObjectionResponseHandoffMap,
+  riskWeightedClosePlanSequencing,
+  crossOwnerDependencySignoffPack,
+}) {
+  const gates = [];
+  const attendeeCount = Number(attendees?.length || 0);
+  const highRiskSignals = (relationshipRiskSignals || []).filter((signal) => signal?.severity === 'high').length;
+  const highRiskAttendees = (attendees || []).filter((attendee) => attendee?.relationshipRisk?.level === 'high').length;
+  const sequencingSteps = decisionCommitmentSequencing?.steps || [];
+  const riskWeightedSteps = riskWeightedClosePlanSequencing?.steps || [];
+  const agingWindows = commitmentRiskAging?.windows || [];
+  const highPriorityEscalations = (ownerEscalationPrompts || []).filter((prompt) => prompt?.priority === 'high').length;
+  const highPriorityProof = (stakeholderProofRequests || []).filter((item) => item?.priority === 'high').length;
+  const highPriorityObjection = (stakeholderObjectionResponseHandoffMap || []).filter((item) => item?.priority === 'high').length;
+  const signoffRows = crossOwnerDependencySignoffPack || [];
+  const highPrioritySignoff = signoffRows.filter((row) => row?.priority === 'high').length;
+
+  const push = (code, priority, status, gate, evidence, ownerHint, nextAction, dependsOn = []) => {
+    if (gates.some((row) => row.code === code)) return;
+    gates.push({
+      code,
+      priority,
+      status,
+      gate: cleanLine(gate, 220),
+      evidence: cleanLine(evidence, 260),
+      ownerHint: cleanLine(ownerHint, 120),
+      nextAction: cleanLine(nextAction, 260),
+      dependsOn: dedupeArray(dependsOn).slice(0, 4),
+    });
+  };
+
+  if (sequencingSteps.length > 0) {
+    push(
+      'gate_decision_sequence_lock',
+      'high',
+      'pass',
+      'Decision-commitment sequencing lock is present.',
+      `${sequencingSteps.length} sequencing step(s) detected.`,
+      sequencingSteps[0]?.ownerHint || 'Decision owner',
+      'Keep approved-now vs deferred-now boundary explicit in close recap.',
+      [sequencingSteps[0]?.code || 'decision_commitment_sequence']
+    );
+  } else {
+    push(
+      'gate_decision_sequence_lock',
+      'high',
+      'fail',
+      'Decision-commitment sequencing lock is missing.',
+      'No sequencing steps found in this meeting brief.',
+      'Meeting owner',
+      'Add at least one sequencing step that binds decision boundary and owner/date lock.',
+      ['decision_commitment_sequence']
+    );
+  }
+
+  if (signoffRows.length > 0 && highPrioritySignoff > 0) {
+    push(
+      'gate_dependency_signoff',
+      'high',
+      'pass',
+      'Cross-owner dependency signoff gate is populated.',
+      `${highPrioritySignoff} high-priority dependency signoff lane(s) present.`,
+      signoffRows[0]?.primaryOwner || 'Program owner',
+      'Collect timestamped owner acknowledgements before follow-up send.',
+      [signoffRows[0]?.code || 'cross_owner_signoff']
+    );
+  } else if (signoffRows.length > 0) {
+    push(
+      'gate_dependency_signoff',
+      'medium',
+      'warn',
+      'Cross-owner dependency signoff gate is present but lacks high-priority lane.',
+      `${signoffRows.length} signoff row(s) found with no high-priority dependency path.`,
+      signoffRows[0]?.primaryOwner || 'Program owner',
+      'Promote top dependency signoff lane to high priority for deterministic close readiness.',
+      [signoffRows[0]?.code || 'cross_owner_signoff']
+    );
+  } else {
+    push(
+      'gate_dependency_signoff',
+      'high',
+      'fail',
+      'Cross-owner dependency signoff gate is missing.',
+      'No dependency signoff rows found for this meeting.',
+      'Program owner',
+      'Create a primary/backup owner signoff lane with due window and question.',
+      ['cross_owner_signoff']
+    );
+  }
+
+  if (highPriorityProof > 0) {
+    push(
+      'gate_proof_path',
+      'high',
+      'pass',
+      'Proof-request gate is populated for high-risk stakeholders.',
+      `${highPriorityProof} high-priority proof request(s) detected.`,
+      'Risk owner',
+      'Validate proof artifacts before final signoff broadcast.',
+      ['stakeholder_proof_request_pack']
+    );
+  } else if ((stakeholderProofRequests || []).length > 0) {
+    push(
+      'gate_proof_path',
+      'medium',
+      'warn',
+      'Proof-request gate exists but no high-priority proof lane is set.',
+      `${stakeholderProofRequests.length} proof request(s) present.`,
+      'Risk owner',
+      'Promote at least one proof request to high priority for close readiness.',
+      ['stakeholder_proof_request_pack']
+    );
+  } else {
+    push(
+      'gate_proof_path',
+      'high',
+      'fail',
+      'Proof-request gate is missing.',
+      'No stakeholder proof-request rows found.',
+      'Meeting owner',
+      'Add a proof request for the top-risk attendee with due window and rationale.',
+      ['stakeholder_proof_request_pack']
+    );
+  }
+
+  if (highPriorityObjection > 0) {
+    push(
+      'gate_objection_handoff',
+      'medium',
+      'pass',
+      'Objection-response handoff gate covers high-priority objection lanes.',
+      `${highPriorityObjection} high-priority objection handoff lane(s) present.`,
+      'Response owner',
+      'Confirm objection-response owner/script in closing summary.',
+      ['stakeholder_objection_handoff']
+    );
+  } else if ((stakeholderObjectionResponseHandoffMap || []).length > 0) {
+    push(
+      'gate_objection_handoff',
+      'medium',
+      'warn',
+      'Objection-response handoff gate is present with only medium/low lanes.',
+      `${stakeholderObjectionResponseHandoffMap.length} objection handoff row(s) found.`,
+      'Response owner',
+      'Escalate the top objection lane if unresolved high-risk signals remain.',
+      ['stakeholder_objection_handoff']
+    );
+  } else {
+    push(
+      'gate_objection_handoff',
+      'medium',
+      'fail',
+      'Objection-response handoff gate is missing.',
+      'No stakeholder objection handoff map rows found.',
+      'Meeting owner',
+      'Add one objection handoff lane with response owner/script and proof request.',
+      ['stakeholder_objection_handoff']
+    );
+  }
+
+  if (agingWindows.length > 0 && highPriorityEscalations > 0) {
+    push(
+      'gate_escalation_timing',
+      'medium',
+      'pass',
+      'Escalation timing gate is wired with aging windows and high-priority owner prompts.',
+      `${agingWindows.length} aging window(s), ${highPriorityEscalations} high-priority escalation prompt(s).`,
+      ownerEscalationPrompts[0]?.ownerHint || 'Escalation owner',
+      'Lock escalation trigger timestamp in post-meeting follow-up draft.',
+      [ownerEscalationPrompts[0]?.code || 'owner_escalation']
+    );
+  } else if (agingWindows.length > 0 || (ownerEscalationPrompts || []).length > 0) {
+    push(
+      'gate_escalation_timing',
+      'medium',
+      'warn',
+      'Escalation timing gate is partially wired.',
+      `${agingWindows.length} aging window(s), ${(ownerEscalationPrompts || []).length} escalation prompt(s).`,
+      ownerEscalationPrompts[0]?.ownerHint || 'Escalation owner',
+      'Ensure both aging windows and high-priority escalation prompts are present.',
+      ['owner_escalation', 'commitment_risk_aging']
+    );
+  } else {
+    push(
+      'gate_escalation_timing',
+      'medium',
+      'fail',
+      'Escalation timing gate is missing.',
+      'No aging windows or escalation prompts found.',
+      'Meeting owner',
+      'Add one aging checkpoint and one escalation prompt with owner/date.',
+      ['owner_escalation', 'commitment_risk_aging']
+    );
+  }
+
+  if (riskWeightedSteps.length === 0) {
+    push(
+      'gate_close_plan_weighting',
+      'medium',
+      'warn',
+      'Risk-weighted close-plan sequencing is missing or empty.',
+      'No weighted close-plan steps found.',
+      'Meeting owner',
+      'Add weighted close-plan steps to preserve deterministic high-risk close order.',
+      ['risk_weighted_close_plan']
+    );
+  } else {
+    push(
+      'gate_close_plan_weighting',
+      'low',
+      'pass',
+      'Risk-weighted close-plan sequencing is present.',
+      `${riskWeightedSteps.length} weighted close-plan step(s) found.`,
+      riskWeightedSteps[0]?.ownerHint || 'Meeting owner',
+      'Keep top risk-weighted step visible in close recap.',
+      [riskWeightedSteps[0]?.code || 'risk_weighted_close_plan']
+    );
+  }
+
+  const failCount = gates.filter((gate) => gate.status === 'fail').length;
+  const warnCount = gates.filter((gate) => gate.status === 'warn').length;
+  const summary = failCount > 0
+    ? `Close readiness is blocked: ${failCount} fail gate(s), ${warnCount} warn gate(s), attendees=${attendeeCount}, high-risk attendees=${highRiskAttendees}, high-risk signals=${highRiskSignals}.`
+    : `Close readiness is viable: ${warnCount} warn gate(s), ${gates.length - warnCount} pass gate(s), attendees=${attendeeCount}, high-risk attendees=${highRiskAttendees}, high-risk signals=${highRiskSignals}.`;
+
+  return {
+    summary: cleanLine(summary, 280),
+    gates: gates.slice(0, 8),
+  };
+}
+
+function buildStakeholderSignoffEscalationLadder({
+  attendees,
+  relationshipRiskSignals,
+  closeReadinessGateMatrix,
+  crossOwnerDependencySignoffPack,
+  ownerEscalationPrompts,
+}) {
+  const ladder = [];
+  const highRiskSignals = (relationshipRiskSignals || []).filter((signal) => signal?.severity === 'high');
+  const highRiskAttendees = (attendees || []).filter((attendee) => attendee?.relationshipRisk?.level === 'high');
+  const failedGates = (closeReadinessGateMatrix?.gates || []).filter((gate) => gate?.status === 'fail');
+  const warningGates = (closeReadinessGateMatrix?.gates || []).filter((gate) => gate?.status === 'warn');
+  const topSignoffLane = (crossOwnerDependencySignoffPack || [])[0] || null;
+  const topEscalationPrompt = (ownerEscalationPrompts || [])[0] || null;
+  const maxRows = 6;
+
+  const ownerLabel = (attendee) => {
+    if (!attendee) return 'Meeting owner';
+    return attendee?.name ? `${attendee.name} <${attendee.email}>` : attendee.email;
+  };
+
+  const push = (code, priority, trigger, escalationPrompt, primaryOwner, escalationOwner, slaWindow, dependsOn = []) => {
+    if (ladder.some((row) => row.code === code)) return;
+    ladder.push({
+      code,
+      priority,
+      trigger: cleanLine(trigger, 220),
+      escalationPrompt: cleanLine(escalationPrompt, 260),
+      primaryOwner: cleanLine(primaryOwner, 120),
+      escalationOwner: cleanLine(escalationOwner, 120),
+      slaWindow: cleanLine(slaWindow, 120),
+      dependsOn: dedupeArray(dependsOn).slice(0, 4),
+    });
+  };
+
+  for (const gate of failedGates) {
+    if (ladder.length >= maxRows) break;
+    push(
+      `escalate_fail_${gate.code}`,
+      'high',
+      `Close-readiness gate failed: ${gate.gate}`,
+      `Escalate immediately: ${gate.nextAction || 'Resolve failed gate and publish owner/date checkpoint.'}`,
+      gate.ownerHint || topSignoffLane?.primaryOwner || 'Meeting owner',
+      topEscalationPrompt?.ownerHint || topSignoffLane?.backupOwner || 'Program owner',
+      'within 30 minutes',
+      [gate.code]
+    );
+  }
+
+  for (const gate of warningGates) {
+    if (ladder.length >= maxRows) break;
+    push(
+      `escalate_warn_${gate.code}`,
+      gate.priority === 'high' ? 'high' : 'medium',
+      `Close-readiness warning gate: ${gate.gate}`,
+      `Escalate if unresolved before follow-up send: ${gate.nextAction || 'Convert warning gate to explicit owner/date checkpoint.'}`,
+      gate.ownerHint || 'Meeting owner',
+      topEscalationPrompt?.ownerHint || 'Program owner',
+      'within 2 hours',
+      [gate.code]
+    );
+  }
+
+  if (highRiskAttendees.length > 0 && ladder.length < maxRows) {
+    const topRiskAttendee = highRiskAttendees[0];
+    push(
+      'escalate_high_risk_attendee',
+      'high',
+      `High-risk stakeholder requires explicit signoff lane: ${ownerLabel(topRiskAttendee)}.`,
+      'Request direct owner/date signoff and mitigation proof in the same closeout message.',
+      ownerLabel(topRiskAttendee),
+      topEscalationPrompt?.ownerHint || 'Risk owner',
+      'before close of business today',
+      ['high_individual_risk']
+    );
+  }
+
+  if (highRiskSignals.length > 0 && ladder.length < maxRows) {
+    push(
+      'escalate_high_risk_signal',
+      'high',
+      `High-risk relationship signal count=${highRiskSignals.length}.`,
+      'Escalate to deterministic remediation lane and require timestamped checkpoint evidence.',
+      topSignoffLane?.primaryOwner || 'Meeting owner',
+      topEscalationPrompt?.ownerHint || topSignoffLane?.backupOwner || 'Program owner',
+      'within 1 hour',
+      ['high_risk_signal']
+    );
+  }
+
+  if (!ladder.length) {
+    push(
+      'escalate_default',
+      'low',
+      'No failed/warn gates detected.',
+      'Maintain default signoff monitoring and publish owner/date checkpoint recap.',
+      topSignoffLane?.primaryOwner || 'Meeting owner',
+      topSignoffLane?.backupOwner || 'Program owner',
+      'within 1 business day',
+      ['default']
+    );
+  }
+
+  return ladder.slice(0, maxRows);
+}
+
 function buildMeetingPrepQuality({
   attendees,
   relationshipRiskSignals,
@@ -3314,6 +3724,8 @@ function buildMeetingPrepQuality({
   stakeholderObjectionResponseHandoffMap,
   riskWeightedClosePlanSequencing,
   crossOwnerDependencySignoffPack,
+  closeReadinessGateMatrix,
+  stakeholderSignoffEscalationLadder,
 }) {
   const checks = [];
   const push = (code, severity, status, message) => {
@@ -3490,6 +3902,31 @@ function buildMeetingPrepQuality({
     );
   } else {
     push('cross_owner_dependency_signoff_coverage', 'high', 'fail', 'Missing cross-owner dependency signoff pack section.');
+  }
+
+  const closeReadinessHasGates = has(closeReadinessGateMatrix?.gates);
+  if (closeReadinessGateMatrix && closeReadinessHasGates) {
+    push(
+      'close_readiness_gate_matrix_coverage',
+      'low',
+      'pass',
+      `Close-readiness gate matrix present (${closeReadinessGateMatrix.gates.length} gates).`
+    );
+  } else if (closeReadinessGateMatrix) {
+    push('close_readiness_gate_matrix_coverage', 'medium', 'warn', 'Close-readiness gate matrix is present but has no gates.');
+  } else {
+    push('close_readiness_gate_matrix_coverage', 'high', 'fail', 'Missing close-readiness gate matrix section.');
+  }
+
+  if (has(stakeholderSignoffEscalationLadder)) {
+    push(
+      'stakeholder_signoff_escalation_ladder_coverage',
+      'low',
+      'pass',
+      `Stakeholder signoff escalation ladder present (${stakeholderSignoffEscalationLadder.length} rows).`
+    );
+  } else {
+    push('stakeholder_signoff_escalation_ladder_coverage', 'high', 'fail', 'Missing stakeholder signoff escalation ladder section.');
   }
 
   if (highRiskSignals.length > 0 && !has(objectionRebuttalPacks)) {
