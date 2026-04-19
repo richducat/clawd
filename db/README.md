@@ -294,6 +294,17 @@ Runtime notes:
     - `HYBRID_ALERT_ACK_ESCALATE_AFTER_REMINDERS` (default `2`)
     - `HYBRID_ALERT_ACK_EVIDENCE_MARKERS` (comma/newline/JSON-array list of acknowledged markers)
     - `HYBRID_ALERT_ACK_EVIDENCE_KEYS` (comma/newline/JSON-array list of acknowledged incident keys)
+    - `HYBRID_ALERT_ACK_EVIDENCE_STALE_AFTER_MINUTES` (default `10080`; evidence entries older than this are ignored during ingestion)
+    - `HYBRID_ALERT_ACK_STALE_AFTER_MINUTES` (default `1440`; pending incidents not seen within this window are marked `stale` and removed from reminder routing)
+  - optional ACK evidence ingestion directory:
+    - workflow reads `artifacts/ack-evidence/*.json` on failure and merges parsed markers/keys with repo-variable evidence lists
+    - accepted JSON shapes include:
+      - object/array entries with `ack_marker`, `ack_key`, optional `acknowledged_at_utc`
+      - object fields `ack_markers`, `ack_keys`, `acknowledgements`
+  - ACK evidence ingestion emits deterministic artifacts:
+    - `ack-evidence-YYYY-MM-DD.json`
+    - `ack-evidence-YYYY-MM-DD.md`
+    - summary includes active markers/keys, stale evidence count, and parse-error count
   - window format (`ET`):
     - `always`
     - or semicolon-delimited entries in `daySpec@HH:MM-HH:MM`
@@ -316,6 +327,8 @@ Runtime notes:
     - `ack_policy` (`deterministic_v1`)
   - dispatcher persists ACK state to `ALERT_ACK_STATE_PATH` and reconciles acknowledged incidents via marker/key evidence on subsequent runs
   - unresolved ACK incidents that breach SLA emit reminder metadata (`ack_reminders_due_count`) and can fan out to reminder/escalation routes
+  - stale ACK state is surfaced in metadata (`ack_stale_after_minutes`, `ack_stale_pending_count`, `ack_newly_stale_count`) and excluded from reminder routing
+  - ACK evidence ingestion summary is surfaced in metadata (`ack_evidence_active_marker_count`, `ack_evidence_active_key_count`, `ack_evidence_stale_entry_count`, `ack_evidence_parse_error_count`, `ack_evidence_json`)
 
 ## Retrieval/query layer (roadmap tranche option #2)
 
