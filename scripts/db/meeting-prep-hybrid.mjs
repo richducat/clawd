@@ -190,6 +190,16 @@ async function main() {
         attendees: attendeeBriefs,
         relationshipRiskSignals,
       });
+      const talkingPointSequence = buildTalkingPointSequence({
+        title: event.title || '',
+        attendees: attendeeBriefs,
+        relationshipRiskSignals,
+        roleAwarePrepBrief,
+        agendaGapSignals,
+      });
+      const objectionRebuttalPacks = buildObjectionRebuttalPacks({
+        attendees: attendeeBriefs,
+      });
       const meetingRecommendations = buildMeetingRecommendations({
         title: event.title || '',
         attendees: attendeeBriefs,
@@ -236,6 +246,8 @@ async function main() {
         meetingRiskDelta,
         roleAwarePrepBrief,
         agendaGapSignals,
+        talkingPointSequence,
+        objectionRebuttalPacks,
         meetingRecommendations,
       });
     }
@@ -301,6 +313,26 @@ function printMarkdownBrief({ account, date, timezone, internalDomains, meetings
       console.log('- Agenda gaps:');
       for (const gap of meeting.agendaGapSignals) {
         console.log(`  - [${gap.severity}] ${gap.message} -> ${gap.recommendation}`);
+      }
+    }
+    if (Array.isArray(meeting.talkingPointSequence) && meeting.talkingPointSequence.length) {
+      console.log('- Talking-point sequence:');
+      for (const point of meeting.talkingPointSequence) {
+        const drivers = Array.isArray(point.drivers) && point.drivers.length ? ` [drivers=${point.drivers.join(', ')}]` : '';
+        console.log(`  - (${point.order}) [${point.priority}] ${point.objective} -> ${point.prompt}${drivers}`);
+      }
+    }
+    if (Array.isArray(meeting.objectionRebuttalPacks) && meeting.objectionRebuttalPacks.length) {
+      console.log('- Objection rebuttal packs:');
+      for (const pack of meeting.objectionRebuttalPacks) {
+        const who = pack.attendeeName ? `${pack.attendeeName} <${pack.attendeeEmail}>` : pack.attendeeEmail;
+        console.log(`  - [${pack.priority}] ${who}`);
+        for (const item of pack.objections || []) {
+          console.log(`    - Objection: ${item.objection}`);
+          console.log(`      - Rebuttal: ${item.rebuttal}`);
+          console.log(`      - Evidence: ${item.evidence}`);
+          console.log(`      - Next ask: ${item.nextAsk}`);
+        }
       }
     }
     if (meeting.meetingRiskDelta) {
@@ -880,6 +912,216 @@ function buildAgendaGapSignals({ title, attendees, relationshipRiskSignals }) {
   }
 
   return dedupeByCode(gaps).slice(0, 5);
+}
+
+function buildTalkingPointSequence({
+  title,
+  attendees,
+  relationshipRiskSignals,
+  roleAwarePrepBrief,
+  agendaGapSignals,
+}) {
+  const roleCounts = new Map();
+  for (const attendee of attendees || []) {
+    const role = attendee?.roleProfile?.role || 'observer';
+    roleCounts.set(role, (roleCounts.get(role) || 0) + 1);
+  }
+  const signalByCode = new Map((relationshipRiskSignals || []).map((s) => [s.code, s]));
+  const gapByCode = new Map((agendaGapSignals || []).map((g) => [g.code, g]));
+  const roleByCode = new Map((roleAwarePrepBrief || []).map((item) => [item.code, item]));
+
+  const sequence = [];
+  const push = (code, priority, objective, prompt, drivers = []) => {
+    if (sequence.some((point) => point.code === code)) return;
+    sequence.push({
+      code,
+      priority,
+      objective,
+      prompt,
+      drivers: dedupeArray(drivers).slice(0, 4),
+    });
+  };
+
+  push(
+    'objective_alignment',
+    'high',
+    'Align everyone on objective and success criteria.',
+    'State target outcome, decision required, and completion signal in the first 60 seconds.',
+    ['baseline_opening']
+  );
+
+  if (roleByCode.has('role_new_stakeholder') || gapByCode.has('missing_context_reset')) {
+    push(
+      'context_reset',
+      'medium',
+      'Reset context for new or low-context attendees.',
+      'Summarize current state, what changed since last touchpoint, and what this meeting must resolve.',
+      ['new_stakeholder_present', 'missing_context_reset']
+    );
+  }
+
+  if (Number(roleCounts.get('decision partner') || 0) > 0 || gapByCode.has('missing_decision_block')) {
+    push(
+      'decision_block',
+      'high',
+      'Drive explicit decisions from decision partners.',
+      'Present 2-3 concrete options with tradeoffs, then request a named decision owner and timestamp.',
+      ['decision_partner_present', 'missing_decision_block']
+    );
+  }
+
+  if (signalByCode.has('high_individual_risk') || gapByCode.has('missing_risk_mitigation')) {
+    push(
+      'risk_objection_block',
+      'high',
+      'Surface objections and lock mitigation commitments.',
+      'Run a dedicated risk/objection round: top objections, mitigation owner, and follow-up checkpoint.',
+      ['high_individual_risk', 'missing_risk_mitigation']
+    );
+  }
+
+  if (signalByCode.has('rsvp_unconfirmed') || signalByCode.has('rsvp_declined') || gapByCode.has('missing_rsvp_alignment')) {
+    push(
+      'attendance_alignment',
+      'medium',
+      'Stabilize participation and alignment risks.',
+      'Confirm attendee commitments, fallback delegates, and asynchronous handoff plan before closing.',
+      ['rsvp_instability', 'missing_rsvp_alignment']
+    );
+  }
+
+  if (roleByCode.has('role_execution_owner') || hasKeyword(title, ['kickoff', 'sync', 'review'])) {
+    push(
+      'execution_handoff',
+      'medium',
+      'Convert discussion into execution owners.',
+      'Assign task owner/date per action item and confirm dependencies out loud.',
+      ['execution_handoff']
+    );
+  }
+
+  push(
+    'close_with_commitments',
+    'high',
+    'Close with explicit commitments and next checkpoints.',
+    'Recap decisions, owners, and due dates; confirm distribution channel and follow-up cadence.',
+    ['closeout']
+  );
+
+  return sequence
+    .slice(0, 7)
+    .map((point, idx) => ({
+      order: idx + 1,
+      ...point,
+    }));
+}
+
+function buildObjectionRebuttalPacks({ attendees }) {
+  const packs = [];
+  for (const attendee of attendees || []) {
+    const riskLevel = String(attendee?.relationshipRisk?.level || 'low');
+    const role = String(attendee?.roleProfile?.role || 'observer');
+    const response = String(attendee?.responseStatus || '').toLowerCase();
+    const include =
+      riskLevel !== 'low'
+      || response === 'tentative'
+      || response === 'needsaction'
+      || response === 'declined'
+      || role === 'at-risk stakeholder'
+      || role === 'blocked stakeholder'
+      || role === 'new stakeholder';
+    if (!include) continue;
+
+    const objections = buildAttendeeObjections(attendee);
+    if (!objections.length) continue;
+    packs.push({
+      attendeeEmail: attendee.email,
+      attendeeName: attendee.name,
+      priority: riskLevel === 'high' || response === 'declined' ? 'high' : 'medium',
+      objections: objections.slice(0, 3),
+    });
+  }
+
+  return packs.sort((a, b) => {
+    const pa = a.priority === 'high' ? 0 : 1;
+    const pb = b.priority === 'high' ? 0 : 1;
+    if (pa !== pb) return pa - pb;
+    return String(a.attendeeEmail).localeCompare(String(b.attendeeEmail));
+  });
+}
+
+function buildAttendeeObjections(attendee) {
+  const objections = [];
+  const snapshot = attendee?.relationshipSnapshot || {};
+  const risk = attendee?.relationshipRisk || {};
+  const confidence = attendee?.attendeeConfidence || {};
+  const role = attendee?.roleProfile || {};
+  const response = String(attendee?.responseStatus || '').toLowerCase();
+  const lastTouch = snapshot?.lastTouch;
+
+  const push = (code, objection, rebuttal, evidence, nextAsk) => {
+    objections.push({ code, objection, rebuttal, evidence, nextAsk });
+  };
+
+  if (!lastTouch) {
+    push(
+      'no_context_history',
+      'I do not have enough context to commit.',
+      'We can start with a concise context reset and confirm objective fit before asking for commitments.',
+      `No prior touchpoint found; 90d touchpoints=${Number(snapshot.touchpoints90d || 0)}.`,
+      'Ask for a 2-minute context validation and one confirmed requirement.'
+    );
+  } else if (Number(snapshot.touchpoints30d || 0) <= 1) {
+    push(
+      'thin_recent_history',
+      'This feels disconnected from recent work.',
+      'Anchor discussion on the most recent thread and highlight continuity from prior messages.',
+      `Last touch ${lastTouch.date}; 30d touchpoints=${Number(snapshot.touchpoints30d || 0)}.`,
+      'Reference last thread and request confirmation of top priority for this meeting.'
+    );
+  }
+
+  if (response === 'declined' || response === 'tentative' || response === 'needsaction') {
+    push(
+      'attendance_uncertainty',
+      'I am not sure I can fully participate in this meeting.',
+      'We can agree on a fallback path now: delegate, async input window, and explicit decision checkpoint.',
+      `RSVP status=${response || 'unknown'}.`,
+      'Request an attendance decision or delegate name before close of business.'
+    );
+  }
+
+  if (risk.level === 'high' || role.role === 'at-risk stakeholder' || role.role === 'blocked stakeholder') {
+    push(
+      'alignment_risk',
+      'I am not confident this plan addresses my constraints.',
+      'Run an objection-first segment and convert each concern into a named mitigation owner and due date.',
+      `Risk=${risk.level || 'low'}; role=${role.role || 'observer'}; signals=${(risk.signals || []).join('; ') || 'none'}.`,
+      'Ask for the top blocker and secure one mitigation commitment with owner/date.'
+    );
+  }
+
+  if (Number(confidence.score || 0) < 45) {
+    push(
+      'low_confidence',
+      'I do not have enough signal to make a strong decision.',
+      'Narrow scope to the minimum decision set and define a follow-up data checkpoint.',
+      `Confidence score=${Number(confidence.score || 0)} (${confidence.level || 'low'}).`,
+      'Ask for a yes/no decision boundary and the exact data needed for final approval.'
+    );
+  }
+
+  if (role.role === 'new stakeholder') {
+    push(
+      'new_stakeholder_friction',
+      'I just joined this context and need grounding before committing.',
+      'Provide a short business context + current state + decision frame before deep execution details.',
+      `Role profile=${role.role}; signals=${(role.signals || []).join('; ') || 'none'}.`,
+      'Ask for confirmation that scope and success criteria are understood.'
+    );
+  }
+
+  return dedupeByCode(objections);
 }
 
 function normalizeAttendee(row) {

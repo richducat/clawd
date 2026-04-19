@@ -165,6 +165,8 @@ Include:
   - deterministic next-action recommendations derived from touchpoint recency and RSVP status
   - role-aware prep brief items (priority-tagged) at meeting level
   - agenda-gap detection signals with deterministic recommendations
+  - deterministic talking-point sequence for in-meeting flow control (`order`, `priority`, `objective`, `prompt`, `drivers`)
+  - objection-rebuttal packs for medium/high-risk or unstable attendees (`objection`, `rebuttal`, `evidence`, `nextAsk`)
   - meeting-level recommendations with confidence metadata
   - cross-attendee relationship risk signals for escalation-aware prep
   - meeting-level risk-delta summary vs prior runs
