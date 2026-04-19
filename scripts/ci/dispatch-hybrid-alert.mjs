@@ -421,6 +421,20 @@ function parseAckEvidenceSummary(pathLike) {
   }
 }
 
+function normalizeAckEvidenceSummary(summary, sourcePath) {
+  const parsed = typeof summary === "object" && summary != null ? summary : null;
+  return {
+    schema_version: 1,
+    source_path: sourcePath || null,
+    source_present: Boolean(sourcePath),
+    source_valid: parsed != null,
+    active_marker_count: Number(parsed?.active_marker_count || 0),
+    active_key_count: Number(parsed?.active_key_count || 0),
+    stale_entry_count: Number(parsed?.stale_entry_count || 0),
+    parse_error_count: Number(parsed?.parse_error_count || 0),
+  };
+}
+
 function appendGitHubOutput(kvPairs) {
   const outputFile = process.env.GITHUB_OUTPUT;
   if (!outputFile) return;
@@ -504,6 +518,38 @@ function buildAckMarker({ ackKey, ackPolicy }) {
   };
 }
 
+function buildAckSlaReminderContract({
+  ackPolicy,
+  ackMarker,
+  reminderSummary,
+  staleSummary,
+  nextIncident,
+  incidentAgeProfile,
+}) {
+  return {
+    schema_version: 1,
+    policy_name: ackMarker.ack_policy,
+    policy_applied: ackPolicy.ack_policy_applied,
+    sla_minutes: ackMarker.ack_sla_minutes,
+    reminder_interval_minutes: ackPolicy.ack_reminder_interval_minutes,
+    escalate_after_reminders: ackPolicy.ack_escalate_after_reminders,
+    stale_after_minutes: ackPolicy.ack_stale_after_minutes,
+    ack_required: true,
+    ack_due_at_utc: ackMarker.ack_due_at_utc,
+    ack_due_at_et: ackMarker.ack_due_at_et,
+    ack_reconciled: nextIncident.status === "acknowledged",
+    ack_reconciled_at_utc: nextIncident.acknowledged_at_utc || null,
+    ack_reconciliation_source: nextIncident.acknowledgment_source || null,
+    reminders_due_count: reminderSummary.length,
+    reminder_escalations_due_count: reminderSummary.filter((item) => item.reminder_escalation_due).length,
+    stale_pending_count: staleSummary.stale_pending_count,
+    newly_stale_count: staleSummary.newly_stale_count,
+    incident_age_minutes: incidentAgeProfile.age_minutes,
+    incident_age_band: incidentAgeProfile.band,
+    incident_age_escalation_due: incidentAgeProfile.escalation_due,
+  };
+}
+
 function buildEscalationSummary({
   incident,
   nowEt,
@@ -578,6 +624,19 @@ function toDigestMarkdown(digest) {
     `- Evidence stale entries: \`${digest.evidence.stale_entry_count}\``,
     `- Evidence parse errors: \`${digest.evidence.parse_error_count}\``,
     "",
+    "## ACK SLA Reminder Contract",
+    `- Contract schema version: \`${digest.contracts.ack_sla_reminder.schema_version}\``,
+    `- Policy name: \`${digest.contracts.ack_sla_reminder.policy_name}\``,
+    `- Reminder interval minutes: \`${digest.contracts.ack_sla_reminder.reminder_interval_minutes}\``,
+    `- Escalate after reminders: \`${digest.contracts.ack_sla_reminder.escalate_after_reminders}\``,
+    `- Stale after minutes: \`${digest.contracts.ack_sla_reminder.stale_after_minutes}\``,
+    "",
+    "## ACK Evidence Contract",
+    `- Contract schema version: \`${digest.contracts.ack_evidence.schema_version}\``,
+    `- Source present: \`${digest.contracts.ack_evidence.source_present}\``,
+    `- Source valid: \`${digest.contracts.ack_evidence.source_valid}\``,
+    `- Source path: \`${digest.contracts.ack_evidence.source_path || "n/a"}\``,
+    "",
     "## Escalation Summary Contract",
     `- ET window now: \`${digest.escalation.policy.et_now}\``,
     `- Escalation windows: \`${digest.escalation.policy.windows_et.join(";") || "n/a"}\``,
@@ -617,7 +676,8 @@ function buildAlertText({
   reminderSummary,
   ackStatePath,
   staleSummary,
-  ackEvidenceSummary,
+  ackEvidenceContract,
+  ackSlaReminderContract,
   escalationSummary,
   incidentAgeProfile,
 }) {
@@ -663,6 +723,7 @@ function buildAlertText({
     `Thresholds: lag<=${lag}h, drift<=${drift}h, artifactIssues<=${artifactIssues}`,
     `Incident age: band=${incidentAgeProfile.band}, age=${incidentAgeProfile.age_minutes}m, warning>=${incidentAgeProfile.warning_minutes}m, critical>=${incidentAgeProfile.critical_minutes}m, escalationDue=${incidentAgeProfile.escalation_due}`,
     `ACK: key=${ackMarker.ack_key}, marker=${ackMarker.ack_marker}, required=true, policy=${ackMarker.ack_policy}, sla=${ackMarker.ack_sla_minutes}m, due_utc=${ackMarker.ack_due_at_utc}, due_et=${ackMarker.ack_due_at_et}`,
+    `ACK SLA contract: schema=v${ackSlaReminderContract.schema_version}, reminderInterval=${ackSlaReminderContract.reminder_interval_minutes}m, escalateAfter=${ackSlaReminderContract.escalate_after_reminders}, staleAfter=${ackSlaReminderContract.stale_after_minutes}m`,
   ];
   if (escalationEnabled) {
     lines.push("Escalation: ACTIVE (inside configured ET window)");
@@ -733,11 +794,9 @@ function buildAlertText({
       `ACK stale expiry: stalePending=${staleSummary.stale_pending_count}, staleAfter=${staleSummary.stale_after_minutes}m, newlyStale=${staleSummary.newly_stale_count}`
     );
   }
-  if (ackEvidenceSummary) {
-    lines.push(
-      `ACK evidence ingest: activeMarkers=${ackEvidenceSummary.active_marker_count || 0}, activeKeys=${ackEvidenceSummary.active_key_count || 0}, staleEntries=${ackEvidenceSummary.stale_entry_count || 0}, parseErrors=${ackEvidenceSummary.parse_error_count || 0}`
-    );
-  }
+  lines.push(
+    `ACK evidence ingest: schema=v${ackEvidenceContract.schema_version}, sourcePresent=${ackEvidenceContract.source_present}, sourceValid=${ackEvidenceContract.source_valid}, activeMarkers=${ackEvidenceContract.active_marker_count}, activeKeys=${ackEvidenceContract.active_key_count}, staleEntries=${ackEvidenceContract.stale_entry_count}, parseErrors=${ackEvidenceContract.parse_error_count}`
+  );
   if (escalationSummary) {
     lines.push(
       `Escalation summary: baseRoutes=${escalationSummary.routes.base_configured_count}, escalationRoutes=${escalationSummary.routes.escalation_configured_count}, driftRoutes=${escalationSummary.routes.drift_configured_count}, driftEscalationRoutes=${escalationSummary.routes.drift_escalation_configured_count}, qualityRoutes=${escalationSummary.routes.quality_configured_count}, qualityEscalationRoutes=${escalationSummary.routes.quality_escalation_configured_count}, reminderEscalationDue=${escalationSummary.routes.reminder_escalation_due_count}`
@@ -814,7 +873,9 @@ async function main() {
   const ackStaleAfterMinutes = ackPolicy.ack_stale_after_minutes;
   const ackEvidenceMarkers = new Set(parseAckEvidenceTokens(process.env.ALERT_ACK_EVIDENCE_MARKERS));
   const ackEvidenceKeys = new Set(parseAckEvidenceTokens(process.env.ALERT_ACK_EVIDENCE_KEYS));
-  const ackEvidenceSummary = parseAckEvidenceSummary(process.env.ALERT_ACK_EVIDENCE_JSON);
+  const ackEvidencePath = String(process.env.ALERT_ACK_EVIDENCE_JSON || "").trim();
+  const ackEvidenceSummary = parseAckEvidenceSummary(ackEvidencePath);
+  const ackEvidenceContract = normalizeAckEvidenceSummary(ackEvidenceSummary, ackEvidencePath);
   const nowIso = new Date().toISOString();
 
   if (ackPolicyConfig.parse_error) {
@@ -906,6 +967,14 @@ async function main() {
     stale_pending_count: stalePendingCount,
     newly_stale_count: newlyStaleCount,
   };
+  const ackSlaReminderContract = buildAckSlaReminderContract({
+    ackPolicy,
+    ackMarker,
+    reminderSummary,
+    staleSummary,
+    nextIncident,
+    incidentAgeProfile,
+  });
 
   const escalationWindows = parseEscalationWindows(process.env.ALERT_ESCALATION_WINDOWS_ET);
   const escalationEnabled = escalationRoutes.length > 0 && escalationWindows.some((window) => isWindowMatch(window, nowEt));
@@ -963,7 +1032,8 @@ async function main() {
     reminderSummary,
     ackStatePath,
     staleSummary,
-    ackEvidenceSummary,
+    ackEvidenceContract,
+    ackSlaReminderContract,
     escalationSummary,
     incidentAgeProfile,
   }),
@@ -987,7 +1057,9 @@ async function main() {
       ack_evidence_active_key_count: Number(ackEvidenceSummary?.active_key_count || 0),
       ack_evidence_stale_entry_count: Number(ackEvidenceSummary?.stale_entry_count || 0),
       ack_evidence_parse_error_count: Number(ackEvidenceSummary?.parse_error_count || 0),
-      ack_evidence_json: process.env.ALERT_ACK_EVIDENCE_JSON || null,
+      ack_evidence_json: ackEvidencePath || null,
+      ack_evidence_contract: ackEvidenceContract,
+      ack_sla_reminder_contract: ackSlaReminderContract,
       ack_policy_applied: ackPolicy.ack_policy_applied,
       ack_policy_parse_error: ackPolicyConfig.parse_error,
       incident_age_minutes: incidentAgeProfile.age_minutes,
@@ -1049,7 +1121,9 @@ async function main() {
     ack_evidence_active_key_count: Number(ackEvidenceSummary?.active_key_count || 0),
     ack_evidence_stale_entry_count: Number(ackEvidenceSummary?.stale_entry_count || 0),
     ack_evidence_parse_error_count: Number(ackEvidenceSummary?.parse_error_count || 0),
-    ack_evidence_json: process.env.ALERT_ACK_EVIDENCE_JSON || null,
+    ack_evidence_json: ackEvidencePath || null,
+    ack_evidence_contract: ackEvidenceContract,
+    ack_sla_reminder_contract: ackSlaReminderContract,
     escalation_summary: escalationSummary,
     dry_run: dryRun,
   };
@@ -1093,7 +1167,11 @@ async function main() {
       active_key_count: Number(ackEvidenceSummary?.active_key_count || 0),
       stale_entry_count: Number(ackEvidenceSummary?.stale_entry_count || 0),
       parse_error_count: Number(ackEvidenceSummary?.parse_error_count || 0),
-      evidence_json: process.env.ALERT_ACK_EVIDENCE_JSON || null,
+      evidence_json: ackEvidencePath || null,
+    },
+    contracts: {
+      ack_sla_reminder: ackSlaReminderContract,
+      ack_evidence: ackEvidenceContract,
     },
     escalation: escalationSummary,
     routes: {
@@ -1126,6 +1204,10 @@ async function main() {
     ack_reminder_escalations_due_count: String(
       reminderSummary.filter((item) => item.reminder_escalation_due).length
     ),
+    ack_contract_schema_version: String(ackSlaReminderContract.schema_version),
+    ack_evidence_contract_schema_version: String(ackEvidenceContract.schema_version),
+    ack_reminder_interval_minutes: String(ackSlaReminderContract.reminder_interval_minutes),
+    ack_escalate_after_reminders: String(ackSlaReminderContract.escalate_after_reminders),
   });
   console.log(JSON.stringify(summary, null, 2));
 
