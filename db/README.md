@@ -152,6 +152,8 @@ Output behavior:
   - stakeholder proof-request pack (`attendee`, `request`, `rationale`, `dueWindow`, `priority`, `dependsOn`) for explicit post-meeting proof capture
   - counterfactual decision-drill prompts (`scenario`, `prompt`, `decisionFallback`, `ownerHint`, `priority`, `dependsOn`) for deterministic what-if decision resilience
   - stakeholder objection-response handoff map (`attendee`, `objectionTheme`, `responseOwner`, `responseScript`, `proofRequest`, `priority`, `dependsOn`) for explicit objection ownership and closeout response routing
+  - risk-weighted close-plan sequencing (`summary`, `steps`) for deterministic high-risk close ordering before post-meeting execution handoff
+  - cross-owner dependency signoff pack (`dependency`, `primaryOwner`, `backupOwner`, `signoffQuestion`, `dueWindow`, `priority`, `dependsOn`) for explicit multi-owner dependency confirmation
   - meeting-prep quality scoring (`score`, `level`, `gapCount`, `summary`, `coverageChecks`) for deterministic output-completeness assessment
   - attendee confidence calibration telemetry (`currentConfidenceScore`, trailing confidence/risk baselines, deltas) derived from prior 30-day snapshot history
   - meeting-level confidence calibration trend summary (`currentAverageConfidence`, `trailingAverageConfidence`, `averageDelta`, signal flags)
