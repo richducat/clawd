@@ -187,3 +187,14 @@ Include:
   - `pipeline-summary-YYYY-MM-DD.json`
 - Default scheduled/manual behavior uses repository fixtures for deterministic canary runs.
 - For live-source execution, run manually on an environment with live source prerequisites and set `use_fixtures=false`.
+
+## 16) Hybrid retrieval query (entities + chunks)
+- Run ranked retrieval:
+  ```bash
+  npm run db:hybrid:query -- --query "appointment scheduling"
+  ```
+- Optional controls:
+  - `--limit <n>` to cap result count
+  - `--domain <crm|kb|ops|mixed>` (repeatable) to scope domains
+  - `--type <entity_type>` (repeatable) to scope entity kinds
+  - `--json` for machine-readable result output
