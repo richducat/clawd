@@ -154,6 +154,8 @@ Output behavior:
   - stakeholder objection-response handoff map (`attendee`, `objectionTheme`, `responseOwner`, `responseScript`, `proofRequest`, `priority`, `dependsOn`) for explicit objection ownership and closeout response routing
   - risk-weighted close-plan sequencing (`summary`, `steps`) for deterministic high-risk close ordering before post-meeting execution handoff
   - cross-owner dependency signoff pack (`dependency`, `primaryOwner`, `backupOwner`, `signoffQuestion`, `dueWindow`, `priority`, `dependsOn`) for explicit multi-owner dependency confirmation
+  - close-readiness gate matrix (`summary`, `gates`) with deterministic pass/warn/fail close gates and owner/action guidance
+  - stakeholder signoff escalation ladder (`trigger`, `escalationPrompt`, `primaryOwner`, `escalationOwner`, `slaWindow`, `priority`, `dependsOn`) for deterministic escalation routing when close gates are blocked
   - meeting-prep quality scoring (`score`, `level`, `gapCount`, `summary`, `coverageChecks`) for deterministic output-completeness assessment
   - attendee confidence calibration telemetry (`currentConfidenceScore`, trailing confidence/risk baselines, deltas) derived from prior 30-day snapshot history
   - meeting-level confidence calibration trend summary (`currentAverageConfidence`, `trailingAverageConfidence`, `averageDelta`, signal flags)
