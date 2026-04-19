@@ -455,12 +455,14 @@ Include:
     - `--max-quality-drift-signals <n>`
     - `--max-quality-severity-score <n>`
     - `--max-quality-readiness-drop <n>`
+    - `--max-quality-confidence-calibration-drop <n>`
     - `--min-quality-narrative-coverage-pct <n>`
     - `--min-quality-dependency-coverage-pct <n>`
     - `--min-quality-decision-sequencing-coverage-pct <n>`
     - `--min-quality-close-scripts-coverage-pct <n>`
     - `--min-quality-failure-mode-rehearsal-coverage-pct <n>`
     - `--min-quality-stakeholder-proof-request-coverage-pct <n>`
+    - `--min-quality-owner-assignment-coverage-pct <n>`
 - Report fields include:
   - source cursor lag/drift for `gmail`, `google_calendar`, and `kb_ingest`
   - entity/chunk coverage totals and grouped `domain/type` counts
@@ -494,7 +496,7 @@ Include:
   - meeting-prep quality trendline drift analysis:
     - scans `meeting-prep-quality-*.json` + `meeting-prep-phase*.json`
     - emits deterministic drift signals and severity-based escalation lanes
-    - includes readiness/coverage metrics (`readiness_score`, `narrative_coverage_pct`, `dependency_coverage_pct`, `decision_sequencing_coverage_pct`, `close_scripts_coverage_pct`, `failure_mode_rehearsal_coverage_pct`, `stakeholder_proof_request_coverage_pct`)
+    - includes readiness/coverage metrics (`readiness_score`, `narrative_coverage_pct`, `dependency_coverage_pct`, `decision_sequencing_coverage_pct`, `close_scripts_coverage_pct`, `failure_mode_rehearsal_coverage_pct`, `stakeholder_proof_request_coverage_pct`, `confidence_calibration_coverage_pct`, `confidence_calibration_avg_delta`, `owner_assignment_coverage_pct`)
   - trend artifact export metadata (`trend_artifacts`) with written/pruned files when export is enabled
   - weekly SLO digest artifact export metadata (`slo_digest_artifacts`) with written/pruned files when export is enabled
 
@@ -525,12 +527,14 @@ npm run db:hybrid:health -- \
   --max-quality-drift-signals 999 \
   --max-quality-severity-score 999 \
   --max-quality-readiness-drop 999 \
+  --max-quality-confidence-calibration-drop 999 \
   --min-quality-narrative-coverage-pct 0 \
   --min-quality-dependency-coverage-pct 0 \
   --min-quality-decision-sequencing-coverage-pct 0 \
   --min-quality-close-scripts-coverage-pct 0 \
   --min-quality-failure-mode-rehearsal-coverage-pct 0 \
-  --min-quality-stakeholder-proof-request-coverage-pct 0
+  --min-quality-stakeholder-proof-request-coverage-pct 0 \
+  --min-quality-owner-assignment-coverage-pct 0
 ```
 
 Exit behavior:
