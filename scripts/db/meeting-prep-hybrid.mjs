@@ -157,6 +157,12 @@ async function main() {
           snapshot: relationshipSnapshot,
           meetingStartIso: start.toISOString(),
         });
+        const roleProfile = inferAttendeeRole({
+          attendee,
+          snapshot: relationshipSnapshot,
+          relationshipRisk,
+          attendeeConfidence,
+        });
 
         return {
           email: attendee.email,
@@ -167,16 +173,29 @@ async function main() {
           relationshipRisk,
           relationshipRiskDelta,
           attendeeConfidence,
+          roleProfile,
           recommendedNextActions,
         };
       });
 
       const relationshipRiskSignals = buildMeetingRiskSignals(attendeeBriefs);
       const meetingRiskDelta = buildMeetingRiskDeltaSummary(attendeeBriefs);
+      const roleAwarePrepBrief = buildRoleAwarePrepBrief({
+        title: event.title || '',
+        attendees: attendeeBriefs,
+        relationshipRiskSignals,
+      });
+      const agendaGapSignals = buildAgendaGapSignals({
+        title: event.title || '',
+        attendees: attendeeBriefs,
+        relationshipRiskSignals,
+      });
       const meetingRecommendations = buildMeetingRecommendations({
+        title: event.title || '',
         attendees: attendeeBriefs,
         relationshipRiskSignals,
         meetingRiskDelta,
+        agendaGapSignals,
       });
 
       if (insertSnapshotStmt) {
@@ -215,6 +234,8 @@ async function main() {
         attendees: attendeeBriefs,
         relationshipRiskSignals,
         meetingRiskDelta,
+        roleAwarePrepBrief,
+        agendaGapSignals,
         meetingRecommendations,
       });
     }
@@ -270,6 +291,18 @@ function printMarkdownBrief({ account, date, timezone, internalDomains, meetings
         console.log(`  - [${signal.severity}] ${signal.message}`);
       }
     }
+    if (Array.isArray(meeting.roleAwarePrepBrief) && meeting.roleAwarePrepBrief.length) {
+      console.log('- Role-aware prep brief:');
+      for (const item of meeting.roleAwarePrepBrief) {
+        console.log(`  - [${item.priority}] ${item.message}`);
+      }
+    }
+    if (Array.isArray(meeting.agendaGapSignals) && meeting.agendaGapSignals.length) {
+      console.log('- Agenda gaps:');
+      for (const gap of meeting.agendaGapSignals) {
+        console.log(`  - [${gap.severity}] ${gap.message} -> ${gap.recommendation}`);
+      }
+    }
     if (meeting.meetingRiskDelta) {
       const delta = meeting.meetingRiskDelta;
       console.log(
@@ -297,6 +330,10 @@ function printMarkdownBrief({ account, date, timezone, internalDomains, meetings
       const confidence = attendee.attendeeConfidence || null;
       if (confidence) {
         console.log(`  - Confidence: ${confidence.score} (${confidence.level})`);
+      }
+      const role = attendee.roleProfile || null;
+      if (role) {
+        console.log(`  - Role profile: ${role.role} (${(role.signals || []).join('; ')})`);
       }
       const delta = attendee.relationshipRiskDelta || null;
       if (delta && delta.hasPreviousSnapshot) {
@@ -443,7 +480,7 @@ function buildMeetingRiskSignals(attendees) {
   return out;
 }
 
-function buildMeetingRecommendations({ attendees, relationshipRiskSignals }) {
+function buildMeetingRecommendations({ title, attendees, relationshipRiskSignals, agendaGapSignals }) {
   const actions = [];
   const total = attendees.length || 1;
 
@@ -472,6 +509,13 @@ function buildMeetingRecommendations({ attendees, relationshipRiskSignals }) {
   const high = signalByCode.get('high_individual_risk');
   if (high) {
     actions.push('Allocate extra time for relationship repair: lead with objective clarity and one explicit commitment per high-risk attendee.');
+  }
+  const agendaGaps = Array.isArray(agendaGapSignals) ? agendaGapSignals : [];
+  for (const gap of agendaGaps) {
+    actions.push(`Agenda gap fix: ${gap.recommendation}`);
+  }
+  if (hasKeyword(title, ['kickoff', 'onboarding']) && !hasKeyword(title, ['timeline', 'plan', 'next step'])) {
+    actions.push('Add a next-step timeline block so kickoff outcomes are concrete.');
   }
 
   if (!actions.length) {
@@ -678,6 +722,166 @@ function buildRecommendedNextActions({ attendee, snapshot, meetingStartIso }) {
   return dedupeArray(actions).slice(0, 4);
 }
 
+function inferAttendeeRole({ attendee, snapshot, relationshipRisk, attendeeConfidence }) {
+  const response = String(attendee?.responseStatus || '').toLowerCase();
+  const touch30 = Number(snapshot?.touchpoints30d || 0);
+  const touch90 = Number(snapshot?.touchpoints90d || 0);
+  const confidenceScore = Number(attendeeConfidence?.score || 0);
+  const riskLevel = String(relationshipRisk?.level || 'low');
+  const signals = [];
+  let role = 'observer';
+
+  if (response === 'declined') {
+    role = 'blocked stakeholder';
+    signals.push('Declined RSVP indicates participation risk.');
+  } else if (response === 'accepted' && confidenceScore >= 70 && touch90 >= 4 && riskLevel === 'low') {
+    role = 'decision partner';
+    signals.push('Accepted + high confidence + strong history indicates likely decision influence.');
+  } else if (response === 'accepted' && touch30 >= 2) {
+    role = 'active collaborator';
+    signals.push('Accepted + recent touchpoints indicates active working relationship.');
+  } else if ((response === 'tentative' || response === 'needsaction') && touch90 >= 2) {
+    role = 'at-risk stakeholder';
+    signals.push('Unconfirmed RSVP with prior history indicates alignment risk.');
+  } else if (touch90 === 0) {
+    role = 'new stakeholder';
+    signals.push('No 90-day touchpoint history indicates new relationship context.');
+  } else {
+    signals.push('Limited deterministic signals; treat as observer until clarified.');
+  }
+
+  if (riskLevel === 'high') {
+    signals.push('High relationship-risk level requires explicit alignment checks.');
+  }
+
+  return {
+    role,
+    signals: dedupeArray(signals).slice(0, 3),
+  };
+}
+
+function buildRoleAwarePrepBrief({ title, attendees, relationshipRiskSignals }) {
+  const roleCounts = new Map();
+  for (const attendee of attendees || []) {
+    const role = attendee?.roleProfile?.role || 'observer';
+    roleCounts.set(role, (roleCounts.get(role) || 0) + 1);
+  }
+
+  const highSignalCount = (relationshipRiskSignals || [])
+    .filter((s) => s.severity === 'high')
+    .reduce((sum, s) => sum + Number(s.count || 0), 0);
+
+  const items = [];
+  const decisionPartners = Number(roleCounts.get('decision partner') || 0);
+  if (decisionPartners > 0) {
+    items.push({
+      code: 'role_decision_partner',
+      priority: 'high',
+      message: `Lead with a concrete decision ask and options table for ${decisionPartners} decision partner attendee${decisionPartners === 1 ? '' : 's'}.`,
+    });
+  }
+
+  const newStakeholders = Number(roleCounts.get('new stakeholder') || 0);
+  if (newStakeholders > 0) {
+    items.push({
+      code: 'role_new_stakeholder',
+      priority: 'medium',
+      message: `Include a 60-second context reset for ${newStakeholders} new stakeholder attendee${newStakeholders === 1 ? '' : 's'}.`,
+    });
+  }
+
+  const atRiskStakeholders = Number(roleCounts.get('at-risk stakeholder') || 0) + Number(roleCounts.get('blocked stakeholder') || 0);
+  if (atRiskStakeholders > 0 || highSignalCount > 0) {
+    items.push({
+      code: 'role_alignment_risk',
+      priority: 'high',
+      message: 'Reserve explicit alignment time early in the agenda for RSVP or relationship-risk concerns.',
+    });
+  }
+
+  const activeCollaborators = Number(roleCounts.get('active collaborator') || 0);
+  if (activeCollaborators > 0 && hasKeyword(title, ['review', 'sync', 'kickoff'])) {
+    items.push({
+      code: 'role_execution_owner',
+      priority: 'medium',
+      message: `Pre-assign owner handoffs for ${activeCollaborators} active collaborator attendee${activeCollaborators === 1 ? '' : 's'}.`,
+    });
+  }
+
+  if (!items.length) {
+    items.push({
+      code: 'role_default',
+      priority: 'low',
+      message: 'Run a standard brief: objective, context reset, decisions, and explicit next owners.',
+    });
+  }
+
+  return items;
+}
+
+function buildAgendaGapSignals({ title, attendees, relationshipRiskSignals }) {
+  const gaps = [];
+  const safeTitle = String(title || '');
+  const roleCounts = new Map();
+  for (const attendee of attendees || []) {
+    const role = attendee?.roleProfile?.role || 'observer';
+    roleCounts.set(role, (roleCounts.get(role) || 0) + 1);
+  }
+  const signalByCode = new Map((relationshipRiskSignals || []).map((s) => [s.code, s]));
+
+  const hasDecisionCue = hasKeyword(safeTitle, ['decision', 'approve', 'approval', 'go/no-go', 'review']);
+  const hasContextCue = hasKeyword(safeTitle, ['kickoff', 'intro', 'onboard', 'status', 'sync', 'update']);
+  const hasRiskCue = hasKeyword(safeTitle, ['risk', 'blocker', 'issue', 'concern', 'escalation']);
+  const hasActionCue = hasKeyword(safeTitle, ['plan', 'next', 'timeline', 'action', 'owner']);
+
+  if (Number(roleCounts.get('decision partner') || 0) > 0 && !hasDecisionCue) {
+    gaps.push({
+      code: 'missing_decision_block',
+      severity: 'high',
+      message: 'Decision-partner attendees are present but the meeting title does not indicate a decision block.',
+      recommendation: 'Add an explicit decision segment with choices and owner/date for final call.',
+    });
+  }
+
+  if (Number(roleCounts.get('new stakeholder') || 0) > 0 && !hasContextCue) {
+    gaps.push({
+      code: 'missing_context_reset',
+      severity: 'medium',
+      message: 'New stakeholders are present but no clear context-reset cue was detected.',
+      recommendation: 'Add a short context reset section before detailed discussion.',
+    });
+  }
+
+  if ((signalByCode.has('rsvp_unconfirmed') || signalByCode.has('rsvp_declined')) && !hasActionCue) {
+    gaps.push({
+      code: 'missing_rsvp_alignment',
+      severity: 'medium',
+      message: 'RSVP instability is present but no explicit alignment/action cue was detected.',
+      recommendation: 'Add an attendance/alignment checkpoint with contingency owner.',
+    });
+  }
+
+  if (signalByCode.has('high_individual_risk') && !hasRiskCue) {
+    gaps.push({
+      code: 'missing_risk_mitigation',
+      severity: 'high',
+      message: 'High relationship-risk signals exist without an obvious risk-mitigation agenda cue.',
+      recommendation: 'Add a dedicated risk/objection segment with mitigation commitments.',
+    });
+  }
+
+  if ((attendees || []).length >= 2 && !hasActionCue) {
+    gaps.push({
+      code: 'missing_owner_next_step',
+      severity: 'medium',
+      message: 'Multi-attendee meeting lacks a clear next-step/owner cue in the agenda context.',
+      recommendation: 'Close with owner-assigned next steps and due dates.',
+    });
+  }
+
+  return dedupeByCode(gaps).slice(0, 5);
+}
+
 function normalizeAttendee(row) {
   const metadata = safeJson(row.metadata_json);
   return {
@@ -835,6 +1039,15 @@ function dedupeArray(values) {
   return [...new Set(values)];
 }
 
+function dedupeByCode(items) {
+  const byCode = new Map();
+  for (const item of items || []) {
+    if (!item?.code) continue;
+    if (!byCode.has(item.code)) byCode.set(item.code, item);
+  }
+  return [...byCode.values()];
+}
+
 function raiseRisk(current, next) {
   const rank = { low: 0, medium: 1, high: 2 };
   return rank[next] > rank[current] ? next : current;
@@ -855,4 +1068,12 @@ function confidenceLevelFor(score) {
   if (score >= 75) return 'high';
   if (score >= 45) return 'medium';
   return 'low';
+}
+
+function hasKeyword(value, needles) {
+  const text = String(value || '').toLowerCase();
+  for (const needle of needles || []) {
+    if (text.includes(String(needle).toLowerCase())) return true;
+  }
+  return false;
 }
