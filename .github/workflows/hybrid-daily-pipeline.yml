@@ -217,6 +217,10 @@ jobs:
               quality_stakeholder_proof_request_breach_count: "0",
               quality_confidence_calibration_breach_count: "0",
               quality_owner_assignment_breach_count: "0",
+              quality_counterfactual_decision_drill_breach_count: "0",
+              quality_stakeholder_objection_handoff_breach_count: "0",
+              quality_phase14_top_breach_kind: "",
+              quality_phase14_gate_breached: "false",
               quality_phase12_top_breach_kind: "",
               quality_phase12_gate_breached: "false",
               quality_phase13_top_breach_kind: "",
@@ -255,9 +259,13 @@ jobs:
             const stakeholderProofRequestBreachCount = breaches.filter((b) => b?.kind === "quality_stakeholder_proof_request_coverage_pct").length;
             const confidenceCalibrationBreachCount = breaches.filter((b) => b?.kind === "quality_confidence_calibration_drop").length;
             const ownerAssignmentBreachCount = breaches.filter((b) => b?.kind === "quality_owner_assignment_coverage_pct").length;
+            const counterfactualDecisionDrillBreachCount = breaches.filter((b) => b?.kind === "quality_counterfactual_decision_drill_coverage_pct").length;
+            const stakeholderObjectionHandoffBreachCount = breaches.filter((b) => b?.kind === "quality_stakeholder_objection_handoff_coverage_pct").length;
+            const qualityPhase14GateBreached = counterfactualDecisionDrillBreachCount > 0 || stakeholderObjectionHandoffBreachCount > 0;
             const qualityPhase12GateBreached = failureModeRehearsalBreachCount > 0 || stakeholderProofRequestBreachCount > 0;
             const qualityPhase13GateBreached = confidenceCalibrationBreachCount > 0 || ownerAssignmentBreachCount > 0;
-            const qualityGateBreached = qualityPhase12GateBreached
+            const qualityGateBreached = qualityPhase14GateBreached
+              || qualityPhase12GateBreached
               || qualityPhase13GateBreached
               || breaches.some((b) => b?.kind === "quality_drift_signals_count" || b?.kind === "quality_severity_score");
             const qualityPhase12TopBreachKind =
@@ -268,6 +276,10 @@ jobs:
               confidenceCalibrationBreachCount >= ownerAssignmentBreachCount
                 ? (confidenceCalibrationBreachCount > 0 ? "quality_confidence_calibration_drop" : "")
                 : "quality_owner_assignment_coverage_pct";
+            const qualityPhase14TopBreachKind =
+              counterfactualDecisionDrillBreachCount >= stakeholderObjectionHandoffBreachCount
+                ? (counterfactualDecisionDrillBreachCount > 0 ? "quality_counterfactual_decision_drill_coverage_pct" : "")
+                : "quality_stakeholder_objection_handoff_coverage_pct";
 
             append({
               quality_signal_count: Number.isFinite(driftSignals) ? String(driftSignals) : "0",
@@ -276,6 +288,10 @@ jobs:
               quality_stakeholder_proof_request_breach_count: String(stakeholderProofRequestBreachCount),
               quality_confidence_calibration_breach_count: String(confidenceCalibrationBreachCount),
               quality_owner_assignment_breach_count: String(ownerAssignmentBreachCount),
+              quality_counterfactual_decision_drill_breach_count: String(counterfactualDecisionDrillBreachCount),
+              quality_stakeholder_objection_handoff_breach_count: String(stakeholderObjectionHandoffBreachCount),
+              quality_phase14_top_breach_kind: qualityPhase14TopBreachKind,
+              quality_phase14_gate_breached: qualityPhase14GateBreached ? "true" : "false",
               quality_phase12_top_breach_kind: qualityPhase12TopBreachKind,
               quality_phase12_gate_breached: qualityPhase12GateBreached ? "true" : "false",
               quality_phase13_top_breach_kind: qualityPhase13TopBreachKind,
@@ -360,6 +376,10 @@ jobs:
           ALERT_QUALITY_STAKEHOLDER_PROOF_REQUEST_BREACH_COUNT: ${{ steps.quality.outputs.quality_stakeholder_proof_request_breach_count }}
           ALERT_QUALITY_CONFIDENCE_CALIBRATION_BREACH_COUNT: ${{ steps.quality.outputs.quality_confidence_calibration_breach_count }}
           ALERT_QUALITY_OWNER_ASSIGNMENT_BREACH_COUNT: ${{ steps.quality.outputs.quality_owner_assignment_breach_count }}
+          ALERT_QUALITY_COUNTERFACTUAL_DECISION_DRILL_BREACH_COUNT: ${{ steps.quality.outputs.quality_counterfactual_decision_drill_breach_count }}
+          ALERT_QUALITY_STAKEHOLDER_OBJECTION_HANDOFF_BREACH_COUNT: ${{ steps.quality.outputs.quality_stakeholder_objection_handoff_breach_count }}
+          ALERT_QUALITY_PHASE14_TOP_BREACH_KIND: ${{ steps.quality.outputs.quality_phase14_top_breach_kind }}
+          ALERT_QUALITY_PHASE14_GATE_BREACHED: ${{ steps.quality.outputs.quality_phase14_gate_breached }}
           ALERT_QUALITY_PHASE12_TOP_BREACH_KIND: ${{ steps.quality.outputs.quality_phase12_top_breach_kind }}
           ALERT_QUALITY_PHASE12_GATE_BREACHED: ${{ steps.quality.outputs.quality_phase12_gate_breached }}
           ALERT_QUALITY_PHASE13_TOP_BREACH_KIND: ${{ steps.quality.outputs.quality_phase13_top_breach_kind }}
@@ -608,6 +628,10 @@ jobs:
               quality_stakeholder_proof_request_breach_count: "0",
               quality_confidence_calibration_breach_count: "0",
               quality_owner_assignment_breach_count: "0",
+              quality_counterfactual_decision_drill_breach_count: "0",
+              quality_stakeholder_objection_handoff_breach_count: "0",
+              quality_phase14_top_breach_kind: "",
+              quality_phase14_gate_breached: "false",
               quality_phase12_top_breach_kind: "",
               quality_phase12_gate_breached: "false",
               quality_phase13_top_breach_kind: "",
@@ -646,9 +670,13 @@ jobs:
             const stakeholderProofRequestBreachCount = breaches.filter((b) => b?.kind === "quality_stakeholder_proof_request_coverage_pct").length;
             const confidenceCalibrationBreachCount = breaches.filter((b) => b?.kind === "quality_confidence_calibration_drop").length;
             const ownerAssignmentBreachCount = breaches.filter((b) => b?.kind === "quality_owner_assignment_coverage_pct").length;
+            const counterfactualDecisionDrillBreachCount = breaches.filter((b) => b?.kind === "quality_counterfactual_decision_drill_coverage_pct").length;
+            const stakeholderObjectionHandoffBreachCount = breaches.filter((b) => b?.kind === "quality_stakeholder_objection_handoff_coverage_pct").length;
+            const qualityPhase14GateBreached = counterfactualDecisionDrillBreachCount > 0 || stakeholderObjectionHandoffBreachCount > 0;
             const qualityPhase12GateBreached = failureModeRehearsalBreachCount > 0 || stakeholderProofRequestBreachCount > 0;
             const qualityPhase13GateBreached = confidenceCalibrationBreachCount > 0 || ownerAssignmentBreachCount > 0;
-            const qualityGateBreached = qualityPhase12GateBreached
+            const qualityGateBreached = qualityPhase14GateBreached
+              || qualityPhase12GateBreached
               || qualityPhase13GateBreached
               || breaches.some((b) => b?.kind === "quality_drift_signals_count" || b?.kind === "quality_severity_score");
             const qualityPhase12TopBreachKind =
@@ -659,6 +687,10 @@ jobs:
               confidenceCalibrationBreachCount >= ownerAssignmentBreachCount
                 ? (confidenceCalibrationBreachCount > 0 ? "quality_confidence_calibration_drop" : "")
                 : "quality_owner_assignment_coverage_pct";
+            const qualityPhase14TopBreachKind =
+              counterfactualDecisionDrillBreachCount >= stakeholderObjectionHandoffBreachCount
+                ? (counterfactualDecisionDrillBreachCount > 0 ? "quality_counterfactual_decision_drill_coverage_pct" : "")
+                : "quality_stakeholder_objection_handoff_coverage_pct";
 
             append({
               quality_signal_count: Number.isFinite(driftSignals) ? String(driftSignals) : "0",
@@ -667,6 +699,10 @@ jobs:
               quality_stakeholder_proof_request_breach_count: String(stakeholderProofRequestBreachCount),
               quality_confidence_calibration_breach_count: String(confidenceCalibrationBreachCount),
               quality_owner_assignment_breach_count: String(ownerAssignmentBreachCount),
+              quality_counterfactual_decision_drill_breach_count: String(counterfactualDecisionDrillBreachCount),
+              quality_stakeholder_objection_handoff_breach_count: String(stakeholderObjectionHandoffBreachCount),
+              quality_phase14_top_breach_kind: qualityPhase14TopBreachKind,
+              quality_phase14_gate_breached: qualityPhase14GateBreached ? "true" : "false",
               quality_phase12_top_breach_kind: qualityPhase12TopBreachKind,
               quality_phase12_gate_breached: qualityPhase12GateBreached ? "true" : "false",
               quality_phase13_top_breach_kind: qualityPhase13TopBreachKind,
@@ -847,6 +883,10 @@ jobs:
           ALERT_QUALITY_STAKEHOLDER_PROOF_REQUEST_BREACH_COUNT: ${{ steps.quality.outputs.quality_stakeholder_proof_request_breach_count }}
           ALERT_QUALITY_CONFIDENCE_CALIBRATION_BREACH_COUNT: ${{ steps.quality.outputs.quality_confidence_calibration_breach_count }}
           ALERT_QUALITY_OWNER_ASSIGNMENT_BREACH_COUNT: ${{ steps.quality.outputs.quality_owner_assignment_breach_count }}
+          ALERT_QUALITY_COUNTERFACTUAL_DECISION_DRILL_BREACH_COUNT: ${{ steps.quality.outputs.quality_counterfactual_decision_drill_breach_count }}
+          ALERT_QUALITY_STAKEHOLDER_OBJECTION_HANDOFF_BREACH_COUNT: ${{ steps.quality.outputs.quality_stakeholder_objection_handoff_breach_count }}
+          ALERT_QUALITY_PHASE14_TOP_BREACH_KIND: ${{ steps.quality.outputs.quality_phase14_top_breach_kind }}
+          ALERT_QUALITY_PHASE14_GATE_BREACHED: ${{ steps.quality.outputs.quality_phase14_gate_breached }}
           ALERT_QUALITY_PHASE12_TOP_BREACH_KIND: ${{ steps.quality.outputs.quality_phase12_top_breach_kind }}
           ALERT_QUALITY_PHASE12_GATE_BREACHED: ${{ steps.quality.outputs.quality_phase12_gate_breached }}
           ALERT_QUALITY_PHASE13_TOP_BREACH_KIND: ${{ steps.quality.outputs.quality_phase13_top_breach_kind }}
