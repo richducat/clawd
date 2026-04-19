@@ -307,6 +307,13 @@ Runtime notes:
   - ACK evidence ingestion emits deterministic artifacts:
     - `ack-evidence-YYYY-MM-DD.json`
     - `ack-evidence-YYYY-MM-DD.md`
+  - ACK reminder digest + dispatch summary artifacts emitted on failure:
+    - `ack-reminder-digest-YYYY-MM-DD-<mode>.json`
+    - `ack-reminder-digest-YYYY-MM-DD-<mode>.md`
+    - `dispatch-alert-summary-YYYY-MM-DD-<mode>.json`
+    - failure-path upload artifact bundles:
+      - `hybrid-daily-canary-ack-YYYY-MM-DD`
+      - `hybrid-daily-live-ack-YYYY-MM-DD`
     - summary includes active markers/keys, stale evidence count, and parse-error count
   - window format (`ET`):
     - `always`
@@ -332,6 +339,11 @@ Runtime notes:
   - unresolved ACK incidents that breach SLA emit reminder metadata (`ack_reminders_due_count`) and can fan out to reminder/escalation routes
   - stale ACK state is surfaced in metadata (`ack_stale_after_minutes`, `ack_stale_pending_count`, `ack_newly_stale_count`) and excluded from reminder routing
   - ACK evidence ingestion summary is surfaced in metadata (`ack_evidence_active_marker_count`, `ack_evidence_active_key_count`, `ack_evidence_stale_entry_count`, `ack_evidence_parse_error_count`, `ack_evidence_json`)
+  - escalation summary contract is emitted in alert metadata under `escalation_summary` with deterministic policy + route fields:
+    - `policy.windows_et`, `policy.et_now`, `policy.incident_type`, `policy.incident_drift_related`
+    - `routes.base_configured_count`, `routes.escalation_configured_count`, `routes.drift_configured_count`, `routes.drift_escalation_configured_count`
+    - `routes.ack_reminder_configured_count`, `routes.ack_reminder_escalation_configured_count`
+    - `routes.escalation_enabled`, `routes.drift_escalation_enabled`, `routes.reminder_escalation_due_count`
 
 ## Retrieval/query layer (roadmap tranche option #2)
 
