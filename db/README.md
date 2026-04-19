@@ -275,6 +275,8 @@ Runtime notes:
   - `--max-quality-readiness-drop <n>`
   - `--min-quality-narrative-coverage-pct <n>`
   - `--min-quality-dependency-coverage-pct <n>`
+  - `--min-quality-decision-sequencing-coverage-pct <n>`
+  - `--min-quality-close-scripts-coverage-pct <n>`
 - Threshold breaches return exit code `2`, causing the workflow job to fail while still uploading artifacts via `if: always()`.
 - Live lane also runs canary-vs-live drift comparison after health report generation:
   - resolves latest same-date canary artifact (`hybrid-daily-canary-YYYY-MM-DD`) via GitHub Actions artifact API
@@ -509,7 +511,9 @@ npm run db:hybrid:health -- \
   --max-quality-severity-score 999 \
   --max-quality-readiness-drop 999 \
   --min-quality-narrative-coverage-pct 0 \
-  --min-quality-dependency-coverage-pct 0
+  --min-quality-dependency-coverage-pct 0 \
+  --min-quality-decision-sequencing-coverage-pct 0 \
+  --min-quality-close-scripts-coverage-pct 0
 ```
 
 Exit behavior:
@@ -550,8 +554,8 @@ Output includes:
   - aggregates breach events by severity and source/top breach kinds
 - threshold metadata (`thresholds`) and explicit breach records (`breaches`)
 - meeting-prep quality trendline drift analysis from `artifacts/meeting-prep-quality-*.json` and `artifacts/meeting-prep-phase*.json`:
-  - trendline snapshots (`avg_score`, `avg_gap_count`, failing-check severity score)
-  - deterministic drift signals (`quality_score_drop`, `quality_gap_growth`, `gap_severity_growth`, `high_severity_gap_growth`)
+  - trendline snapshots (`avg_score`, `avg_gap_count`, failing-check severity score, `readiness_score`, `narrative_coverage_pct`, `dependency_coverage_pct`, `decision_sequencing_coverage_pct`, `close_scripts_coverage_pct`)
+  - deterministic drift signals (`quality_score_drop`, `quality_gap_growth`, `gap_severity_growth`, `high_severity_gap_growth`, `quality_readiness_drop`, `narrative_coverage_drop`, `dependency_coverage_drop`, `decision_sequencing_coverage_drop`, `close_scripts_coverage_drop`)
   - deterministic escalation lanes by latest gap severity (`immediate_owner_escalation`, `same_day_quality_remediation`, `next_cycle_hardening`, `monitor_only`)
 - trend artifact export metadata (`trend_artifacts`) with written/pruned file paths when enabled
 - weekly SLO digest artifact export metadata (`slo_digest_artifacts`) with written/pruned file paths when enabled

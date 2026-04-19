@@ -56,6 +56,8 @@ const thresholds = {
   max_quality_readiness_drop: readOptionalNumberArg(args, '--max-quality-readiness-drop'),
   min_quality_narrative_coverage_pct: readOptionalNumberArg(args, '--min-quality-narrative-coverage-pct'),
   min_quality_dependency_coverage_pct: readOptionalNumberArg(args, '--min-quality-dependency-coverage-pct'),
+  min_quality_decision_sequencing_coverage_pct: readOptionalNumberArg(args, '--min-quality-decision-sequencing-coverage-pct'),
+  min_quality_close_scripts_coverage_pct: readOptionalNumberArg(args, '--min-quality-close-scripts-coverage-pct'),
 };
 const hasThresholds = Object.values(thresholds).some((value) => value !== null);
 
@@ -467,9 +469,9 @@ function printMarkdown(result, artifactDirInput) {
   } else {
     console.log(`- scanned_artifacts=${result.meeting_prep_quality.scanned_artifacts}, snapshots=${result.meeting_prep_quality.snapshots}, meetings_scored=${result.meeting_prep_quality.meetings_scored}`);
     console.log(`- latest_avg_score=${formatNumber(result.meeting_prep_quality.latest?.avg_score)}, latest_avg_gap_count=${formatNumber(result.meeting_prep_quality.latest?.avg_gap_count)}, latest_severity_score=${formatNumber(result.meeting_prep_quality.latest?.severity_score)}`);
-    console.log(`- latest_readiness_score=${formatNumber(result.meeting_prep_quality.latest?.readiness_score)}, latest_narrative_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.narrative_coverage_pct)}, latest_dependency_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.dependency_coverage_pct)}`);
+    console.log(`- latest_readiness_score=${formatNumber(result.meeting_prep_quality.latest?.readiness_score)}, latest_narrative_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.narrative_coverage_pct)}, latest_dependency_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.dependency_coverage_pct)}, latest_decision_sequencing_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.decision_sequencing_coverage_pct)}, latest_close_scripts_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.close_scripts_coverage_pct)}`);
     console.log(`- oldest_avg_score=${formatNumber(result.meeting_prep_quality.oldest?.avg_score)}, oldest_avg_gap_count=${formatNumber(result.meeting_prep_quality.oldest?.avg_gap_count)}, oldest_severity_score=${formatNumber(result.meeting_prep_quality.oldest?.severity_score)}`);
-    console.log(`- oldest_readiness_score=${formatNumber(result.meeting_prep_quality.oldest?.readiness_score)}, oldest_narrative_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.narrative_coverage_pct)}, oldest_dependency_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.dependency_coverage_pct)}`);
+    console.log(`- oldest_readiness_score=${formatNumber(result.meeting_prep_quality.oldest?.readiness_score)}, oldest_narrative_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.narrative_coverage_pct)}, oldest_dependency_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.dependency_coverage_pct)}, oldest_decision_sequencing_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.decision_sequencing_coverage_pct)}, oldest_close_scripts_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.close_scripts_coverage_pct)}`);
 
     const driftSignals = Array.isArray(result.meeting_prep_quality.drift_signals) ? result.meeting_prep_quality.drift_signals : [];
     if (!driftSignals.length) {
@@ -587,6 +589,8 @@ function printMarkdown(result, artifactDirInput) {
   console.log(`- max_quality_readiness_drop=${formatNumber(result.thresholds.max_quality_readiness_drop)}`);
   console.log(`- min_quality_narrative_coverage_pct=${formatNumber(result.thresholds.min_quality_narrative_coverage_pct)}`);
   console.log(`- min_quality_dependency_coverage_pct=${formatNumber(result.thresholds.min_quality_dependency_coverage_pct)}`);
+  console.log(`- min_quality_decision_sequencing_coverage_pct=${formatNumber(result.thresholds.min_quality_decision_sequencing_coverage_pct)}`);
+  console.log(`- min_quality_close_scripts_coverage_pct=${formatNumber(result.thresholds.min_quality_close_scripts_coverage_pct)}`);
   console.log(`- breaches=${result.breaches.length}`);
 
   if (!result.breaches.length) {
@@ -637,6 +641,14 @@ function printMarkdown(result, artifactDirInput) {
     }
     if (breach.kind === 'quality_dependency_coverage_pct') {
       console.log(`- [breach] quality dependency coverage: actual=${breach.actual} < minimum=${breach.limit}`);
+      continue;
+    }
+    if (breach.kind === 'quality_decision_sequencing_coverage_pct') {
+      console.log(`- [breach] quality decision-sequencing coverage: actual=${breach.actual} < minimum=${breach.limit}`);
+      continue;
+    }
+    if (breach.kind === 'quality_close_scripts_coverage_pct') {
+      console.log(`- [breach] quality close-scripts coverage: actual=${breach.actual} < minimum=${breach.limit}`);
       continue;
     }
     console.log(`- [breach] ${breach.source} ${breach.kind}: actual=${breach.actual} > limit=${breach.limit}`);
@@ -1359,6 +1371,8 @@ function readMeetingPrepQualityTrends({ artifactDirInput }) {
     meetingsScored += scored.length;
     let narrativeCovered = 0;
     let dependencyCovered = 0;
+    let sequencingCovered = 0;
+    let closeScriptsCovered = 0;
     const readinessScores = [];
 
     for (const meeting of meetings) {
@@ -1367,8 +1381,12 @@ function readMeetingPrepQualityTrends({ artifactDirInput }) {
 
       const narrativeComplete = isNarrativePackComplete(meeting?.stakeholderNarrativePack);
       const dependencyComplete = hasDependencyFollowThroughPrompts(meeting?.dependencyFollowThroughPrompts);
+      const sequencingComplete = hasDecisionCommitmentSequencing(meeting?.decisionCommitmentSequencing);
+      const closeScriptsComplete = hasStakeholderCloseScripts(meeting?.stakeholderCloseScripts);
       if (narrativeComplete) narrativeCovered += 1;
       if (dependencyComplete) dependencyCovered += 1;
+      if (sequencingComplete) sequencingCovered += 1;
+      if (closeScriptsComplete) closeScriptsCovered += 1;
 
       const readinessScore = computeMeetingReadinessScore({
         qualityScore: Number(quality.score || 0),
@@ -1383,6 +1401,8 @@ function readMeetingPrepQualityTrends({ artifactDirInput }) {
     const avgGapCount = Number((scored.reduce((sum, row) => sum + Number(row.gapCount || 0), 0) / scored.length).toFixed(3));
     const narrativeCoveragePct = Number(((narrativeCovered / scored.length) * 100).toFixed(3));
     const dependencyCoveragePct = Number(((dependencyCovered / scored.length) * 100).toFixed(3));
+    const decisionSequencingCoveragePct = Number(((sequencingCovered / scored.length) * 100).toFixed(3));
+    const closeScriptsCoveragePct = Number(((closeScriptsCovered / scored.length) * 100).toFixed(3));
     const readinessScore = readinessScores.length
       ? Number((readinessScores.reduce((sum, value) => sum + value, 0) / readinessScores.length).toFixed(3))
       : null;
@@ -1404,8 +1424,12 @@ function readMeetingPrepQualityTrends({ artifactDirInput }) {
       readiness_score: readinessScore,
       narrative_coverage_pct: narrativeCoveragePct,
       dependency_coverage_pct: dependencyCoveragePct,
+      decision_sequencing_coverage_pct: decisionSequencingCoveragePct,
+      close_scripts_coverage_pct: closeScriptsCoveragePct,
       narrative_covered_count: narrativeCovered,
       dependency_covered_count: dependencyCovered,
+      sequencing_covered_count: sequencingCovered,
+      close_scripts_covered_count: closeScriptsCovered,
       severity_score: severityScore,
       levels: levelCounts,
       failing_check_severity: severityCounts,
@@ -1453,6 +1477,8 @@ function buildMeetingPrepQualityDriftSignals({ oldest, latest }) {
   const readinessDelta = Number((Number(latest.readiness_score || 0) - Number(oldest.readiness_score || 0)).toFixed(3));
   const narrativeCoverageDelta = Number((Number(latest.narrative_coverage_pct || 0) - Number(oldest.narrative_coverage_pct || 0)).toFixed(3));
   const dependencyCoverageDelta = Number((Number(latest.dependency_coverage_pct || 0) - Number(oldest.dependency_coverage_pct || 0)).toFixed(3));
+  const decisionSequencingCoverageDelta = Number((Number(latest.decision_sequencing_coverage_pct || 0) - Number(oldest.decision_sequencing_coverage_pct || 0)).toFixed(3));
+  const closeScriptsCoverageDelta = Number((Number(latest.close_scripts_coverage_pct || 0) - Number(oldest.close_scripts_coverage_pct || 0)).toFixed(3));
   const severityDelta = Number((Number(latest.severity_score || 0) - Number(oldest.severity_score || 0)).toFixed(3));
   const highDelta = Number((Number(latest.failing_check_severity?.high || 0) - Number(oldest.failing_check_severity?.high || 0)).toFixed(3));
 
@@ -1520,6 +1546,24 @@ function buildMeetingPrepQualityDriftSignals({ oldest, latest }) {
     });
   }
 
+  if (decisionSequencingCoverageDelta <= -5) {
+    signals.push({
+      code: 'decision_sequencing_coverage_drop',
+      severity: decisionSequencingCoverageDelta <= -30 ? 'high' : decisionSequencingCoverageDelta <= -15 ? 'medium' : 'low',
+      delta: decisionSequencingCoverageDelta,
+      message: `Decision-sequencing coverage dropped by ${Math.abs(decisionSequencingCoverageDelta)} pct vs oldest snapshot.`,
+    });
+  }
+
+  if (closeScriptsCoverageDelta <= -5) {
+    signals.push({
+      code: 'close_scripts_coverage_drop',
+      severity: closeScriptsCoverageDelta <= -30 ? 'high' : closeScriptsCoverageDelta <= -15 ? 'medium' : 'low',
+      delta: closeScriptsCoverageDelta,
+      message: `Stakeholder close-script coverage dropped by ${Math.abs(closeScriptsCoverageDelta)} pct vs oldest snapshot.`,
+    });
+  }
+
   return signals;
 }
 
@@ -1558,6 +1602,8 @@ function buildMeetingPrepQualityEscalationLanes(latestSnapshot) {
 
   const narrativeCoverage = Number(latestSnapshot.narrative_coverage_pct || 0);
   const dependencyCoverage = Number(latestSnapshot.dependency_coverage_pct || 0);
+  const sequencingCoverage = Number(latestSnapshot.decision_sequencing_coverage_pct || 0);
+  const closeScriptsCoverage = Number(latestSnapshot.close_scripts_coverage_pct || 0);
   if (narrativeCoverage < 80) {
     lanes.push({
       lane: 'stakeholder_narrative_pack_remediation',
@@ -1572,6 +1618,22 @@ function buildMeetingPrepQualityEscalationLanes(latestSnapshot) {
       severity: dependencyCoverage < 60 ? 'high' : 'medium',
       trigger_count: Number(latestSnapshot.scored_meetings || 0) - Number(latestSnapshot.dependency_covered_count || 0),
       message: 'Dependency follow-through coverage is below target; require dependency handoff prompts before closeout.',
+    });
+  }
+  if (sequencingCoverage < 80) {
+    lanes.push({
+      lane: 'decision_sequencing_remediation',
+      severity: sequencingCoverage < 60 ? 'high' : 'medium',
+      trigger_count: Number(latestSnapshot.scored_meetings || 0) - Number(latestSnapshot.sequencing_covered_count || 0),
+      message: 'Decision-sequencing coverage is below target; require explicit decision-order and owner/date lock sequencing.',
+    });
+  }
+  if (closeScriptsCoverage < 80) {
+    lanes.push({
+      lane: 'stakeholder_close_script_remediation',
+      severity: closeScriptsCoverage < 60 ? 'high' : 'medium',
+      trigger_count: Number(latestSnapshot.scored_meetings || 0) - Number(latestSnapshot.close_scripts_covered_count || 0),
+      message: 'Stakeholder close-script coverage is below target; require closeout script generation before owner handoff.',
     });
   }
 
@@ -1603,6 +1665,26 @@ function hasDependencyFollowThroughPrompts(prompts) {
     const hasOutcome = String(prompt?.desiredOutcome || '').trim().length > 0;
     const hasTrigger = String(prompt?.trigger || '').trim().length > 0;
     return hasPrompt && hasOutcome && hasTrigger;
+  });
+}
+
+function hasDecisionCommitmentSequencing(sequencing) {
+  if (!sequencing || typeof sequencing !== 'object') return false;
+  const summary = String(sequencing.summary || '').trim();
+  const steps = Array.isArray(sequencing.steps)
+    ? sequencing.steps.filter((step) => String(step?.step || '').trim().length > 0)
+    : [];
+  return summary.length > 0 && steps.length > 0;
+}
+
+function hasStakeholderCloseScripts(scripts) {
+  if (!Array.isArray(scripts) || !scripts.length) return false;
+  return scripts.some((script) => {
+    const attendee = String(script?.attendee || '').trim();
+    const trigger = String(script?.trigger || '').trim();
+    const body = String(script?.script || '').trim();
+    const outcome = String(script?.desiredOutcome || '').trim();
+    return attendee.length > 0 && trigger.length > 0 && body.length > 0 && outcome.length > 0;
   });
 }
 
@@ -1910,6 +1992,8 @@ function evaluateThresholdBreaches({ sources, failures, reconciliation, baseline
     || thresholds.max_quality_readiness_drop !== null
     || thresholds.min_quality_narrative_coverage_pct !== null
     || thresholds.min_quality_dependency_coverage_pct !== null
+    || thresholds.min_quality_decision_sequencing_coverage_pct !== null
+    || thresholds.min_quality_close_scripts_coverage_pct !== null
   ) {
     if (!meetingPrepQuality?.available) {
       breaches.push({
@@ -1971,6 +2055,28 @@ function evaluateThresholdBreaches({ sources, failures, reconciliation, baseline
             kind: 'quality_dependency_coverage_pct',
             actual: latestDependencyCoverage,
             limit: thresholds.min_quality_dependency_coverage_pct,
+          });
+        }
+      }
+
+      if (thresholds.min_quality_decision_sequencing_coverage_pct !== null) {
+        const latestDecisionSequencingCoverage = Number(meetingPrepQuality?.latest?.decision_sequencing_coverage_pct || 0);
+        if (latestDecisionSequencingCoverage < thresholds.min_quality_decision_sequencing_coverage_pct) {
+          breaches.push({
+            kind: 'quality_decision_sequencing_coverage_pct',
+            actual: latestDecisionSequencingCoverage,
+            limit: thresholds.min_quality_decision_sequencing_coverage_pct,
+          });
+        }
+      }
+
+      if (thresholds.min_quality_close_scripts_coverage_pct !== null) {
+        const latestCloseScriptsCoverage = Number(meetingPrepQuality?.latest?.close_scripts_coverage_pct || 0);
+        if (latestCloseScriptsCoverage < thresholds.min_quality_close_scripts_coverage_pct) {
+          breaches.push({
+            kind: 'quality_close_scripts_coverage_pct',
+            actual: latestCloseScriptsCoverage,
+            limit: thresholds.min_quality_close_scripts_coverage_pct,
           });
         }
       }
@@ -2258,7 +2364,7 @@ function severityForBreachKind(kind) {
   if (['lag_hours', 'seen_drift_hours', 'baseline_anomalies_count', 'reconciliation_unavailable', 'slo_budget_unavailable', 'slo_budget_burn_pct', 'meeting_prep_quality_unavailable', 'quality_severity_score', 'quality_readiness_drop'].includes(k)) {
     return 'high';
   }
-  if (['entity_delta_pct', 'chunk_ratio_delta', 'link_delta_pct', 'artifact_issues_count', 'quality_drift_signals_count', 'quality_narrative_coverage_pct', 'quality_dependency_coverage_pct'].includes(k)) {
+  if (['entity_delta_pct', 'chunk_ratio_delta', 'link_delta_pct', 'artifact_issues_count', 'quality_drift_signals_count', 'quality_narrative_coverage_pct', 'quality_dependency_coverage_pct', 'quality_decision_sequencing_coverage_pct', 'quality_close_scripts_coverage_pct'].includes(k)) {
     return 'medium';
   }
   return 'low';
@@ -2435,7 +2541,7 @@ function buildTrendArtifactMarkdown(payload) {
   } else {
     lines.push(`- scanned_artifacts=${prep.scanned_artifacts ?? 0}, snapshots=${prep.snapshots ?? 0}, meetings_scored=${prep.meetings_scored ?? 0}`);
     lines.push(`- latest_avg_score=${formatNumber(prep.latest?.avg_score)}, latest_avg_gap_count=${formatNumber(prep.latest?.avg_gap_count)}, latest_severity_score=${formatNumber(prep.latest?.severity_score)}`);
-    lines.push(`- latest_readiness_score=${formatNumber(prep.latest?.readiness_score)}, latest_narrative_coverage_pct=${formatNumber(prep.latest?.narrative_coverage_pct)}, latest_dependency_coverage_pct=${formatNumber(prep.latest?.dependency_coverage_pct)}`);
+    lines.push(`- latest_readiness_score=${formatNumber(prep.latest?.readiness_score)}, latest_narrative_coverage_pct=${formatNumber(prep.latest?.narrative_coverage_pct)}, latest_dependency_coverage_pct=${formatNumber(prep.latest?.dependency_coverage_pct)}, latest_decision_sequencing_coverage_pct=${formatNumber(prep.latest?.decision_sequencing_coverage_pct)}, latest_close_scripts_coverage_pct=${formatNumber(prep.latest?.close_scripts_coverage_pct)}`);
     const driftSignals = Array.isArray(prep.drift_signals) ? prep.drift_signals : [];
     if (!driftSignals.length) {
       lines.push('- drift_signals=none');
