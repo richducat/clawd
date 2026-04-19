@@ -268,6 +268,9 @@ Runtime notes:
     - optional quality-drift guards:
       - `--max-quality-drift-signals <n>`
       - `--max-quality-severity-score <n>`
+  - `--max-quality-readiness-drop <n>`
+  - `--min-quality-narrative-coverage-pct <n>`
+  - `--min-quality-dependency-coverage-pct <n>`
 - Threshold breaches return exit code `2`, causing the workflow job to fail while still uploading artifacts via `if: always()`.
 - Live lane also runs canary-vs-live drift comparison after health report generation:
   - resolves latest same-date canary artifact (`hybrid-daily-canary-YYYY-MM-DD`) via GitHub Actions artifact API
@@ -458,6 +461,9 @@ Optional flags:
   - `--max-slo-budget-burn-pct <n>`
   - `--max-quality-drift-signals <n>`
   - `--max-quality-severity-score <n>`
+  - `--max-quality-readiness-drop <n>`
+  - `--min-quality-narrative-coverage-pct <n>`
+  - `--min-quality-dependency-coverage-pct <n>`
 
 Threshold-gated example (CI/alerts):
 ```bash
@@ -484,7 +490,10 @@ npm run db:hybrid:health -- \
   --max-artifact-issues 0 \
   --max-slo-budget-burn-pct 100 \
   --max-quality-drift-signals 999 \
-  --max-quality-severity-score 999
+  --max-quality-severity-score 999 \
+  --max-quality-readiness-drop 999 \
+  --min-quality-narrative-coverage-pct 0 \
+  --min-quality-dependency-coverage-pct 0
 ```
 
 Exit behavior:
