@@ -174,6 +174,11 @@ function buildAlertText({ escalationEnabled }) {
   const emergencyStop = String(process.env.ALERT_EMERGENCY_STOP || "").trim().toLowerCase();
   const ledgerJson = process.env.ALERT_INCIDENT_LEDGER_JSON || "";
   const ledgerMd = process.env.ALERT_INCIDENT_LEDGER_MD || "";
+  const driftStatus = process.env.ALERT_DRIFT_STATUS || "";
+  const driftSignals = process.env.ALERT_DRIFT_SIGNAL_COUNT || "";
+  const driftGateBreached = process.env.ALERT_DRIFT_GATE_BREACHED || "";
+  const driftJson = process.env.ALERT_DRIFT_JSON || "";
+  const driftMd = process.env.ALERT_DRIFT_MD || "";
 
   const lines = [
     ":rotating_light: Hybrid daily pipeline health gate breached",
@@ -205,6 +210,12 @@ function buildAlertText({ escalationEnabled }) {
   lines.push(`Artifacts: ${artifactLabel} (see run page)`);
   if (ledgerJson || ledgerMd) {
     lines.push(`Incident ledger: json=${ledgerJson || "n/a"}, md=${ledgerMd || "n/a"}`);
+  }
+  if (driftStatus || driftSignals || driftGateBreached || driftJson || driftMd) {
+    lines.push(
+      `Canary-vs-live drift: status=${driftStatus || "n/a"}, signals=${driftSignals || "n/a"}, gateBreached=${driftGateBreached || "n/a"}`
+    );
+    lines.push(`Drift evidence: json=${driftJson || "n/a"}, md=${driftMd || "n/a"}`);
   }
   return lines.join("\n");
 }

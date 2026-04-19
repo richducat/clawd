@@ -200,6 +200,7 @@ Triggers:
   - `max_lag_hours`
   - `max_seen_drift_hours`
   - `max_artifact_issues`
+  - `max_drift_signals` (optional live drift gate; blank = report-only)
 
 Artifacts:
 - `meeting-prep-YYYY-MM-DD.md`
@@ -211,6 +212,8 @@ Artifacts:
 - live lane only:
   - `live-incident-ledger-YYYY-MM-DD-run-<run_id>-attempt-<run_attempt>.json`
   - `live-incident-ledger-YYYY-MM-DD-run-<run_id>-attempt-<run_attempt>.md`
+  - `canary-live-drift-YYYY-MM-DD.json`
+  - `canary-live-drift-YYYY-MM-DD.md`
 - uploaded as workflow artifact with lane-specific name:
   - `hybrid-daily-canary-YYYY-MM-DD`
   - `hybrid-daily-live-YYYY-MM-DD`
@@ -246,6 +249,12 @@ Runtime notes:
     - `--max-seen-drift-hours 48`
     - `--max-artifact-issues 0`
 - Threshold breaches return exit code `2`, causing the workflow job to fail while still uploading artifacts via `if: always()`.
+- Live lane also runs canary-vs-live drift comparison after health report generation:
+  - resolves latest same-date canary artifact (`hybrid-daily-canary-YYYY-MM-DD`) via GitHub Actions artifact API
+  - runs `npm run db:hybrid:drift -- --live-json ... [--canary-json ...]`
+  - emits deterministic drift evidence artifacts (`canary-live-drift-YYYY-MM-DD.{json,md}`)
+  - if canary baseline is unavailable, drift report is emitted as `status=baseline_unavailable` (non-failing report path)
+  - if `max_drift_signals` workflow input is set, drift step exits `2` when signal count exceeds that threshold
 - Optional breach alerting:
   - base route config:
     - `HYBRID_ALERT_WEBHOOK_URL` (single route)
@@ -264,6 +273,8 @@ Runtime notes:
     - triggering actor + dispatch actor
     - emergency stop + break-glass flag/reason
     - incident-ledger artifact paths (json + markdown)
+    - canary-vs-live drift summary (`status`, `signal_count`, `gate_breached`)
+    - canary-vs-live drift artifact paths (json + markdown)
 
 ## Retrieval/query layer (roadmap tranche option #2)
 

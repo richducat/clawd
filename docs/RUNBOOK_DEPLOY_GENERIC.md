@@ -192,7 +192,7 @@ Include:
 - Workflow: `.github/workflows/hybrid-daily-pipeline.yml`
 - Runs:
   - daily at `13:20 UTC`
-  - manual dispatch with inputs (`account`, `date`, `use_fixtures`, `live_mode`, `break_glass`, `break_glass_reason`, `skip_kb`, `max_lag_hours`, `max_seen_drift_hours`, `max_artifact_issues`)
+  - manual dispatch with inputs (`account`, `date`, `use_fixtures`, `live_mode`, `break_glass`, `break_glass_reason`, `skip_kb`, `max_lag_hours`, `max_seen_drift_hours`, `max_artifact_issues`, `max_drift_signals`)
 - Artifacts kept for 14 days:
   - `meeting-prep-YYYY-MM-DD.md`
   - `pipeline-summary-YYYY-MM-DD.json`
@@ -203,6 +203,8 @@ Include:
   - live lane only:
     - `live-incident-ledger-YYYY-MM-DD-run-<run_id>-attempt-<run_attempt>.json`
     - `live-incident-ledger-YYYY-MM-DD-run-<run_id>-attempt-<run_attempt>.md`
+    - `canary-live-drift-YYYY-MM-DD.json`
+    - `canary-live-drift-YYYY-MM-DD.md`
 - Artifact names now include execution lane:
   - `hybrid-daily-canary-YYYY-MM-DD`
   - `hybrid-daily-live-YYYY-MM-DD`
@@ -237,6 +239,12 @@ Include:
     - `max_seen_drift_hours=48`
     - `max_artifact_issues=0`
   - threshold breach exits `2` and fails the run (artifacts still upload because upload step uses `if: always()`)
+- Live drift detector (live lane):
+  - resolves latest same-date canary artifact (`hybrid-daily-canary-YYYY-MM-DD`) from GitHub Actions artifacts
+  - compares canary vs live health JSON with `npm run db:hybrid:drift`
+  - always emits evidence artifacts (`canary-live-drift-YYYY-MM-DD.{json,md}`)
+  - if `max_drift_signals` input is blank, drift check is report-only
+  - if `max_drift_signals` is set, drift check exits `2` when signal count exceeds threshold
 - Optional breach alert hook:
   - base route config:
     - `HYBRID_ALERT_WEBHOOK_URL` (single route)
@@ -259,6 +267,8 @@ Include:
       - triggering actor + dispatch actor
       - emergency stop + break-glass flag/reason
       - incident-ledger artifact paths (json + markdown)
+      - canary-vs-live drift summary (`status`, `signal_count`, `gate_breached`)
+      - canary-vs-live drift artifact paths (json + markdown)
   - if no webhook routes are configured, workflow logs and skips outbound notification
 
 ## 16) Hybrid retrieval query (entities + chunks)

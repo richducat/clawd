@@ -7,6 +7,7 @@
     "db:hybrid:daily": "node scripts/db/daily-hybrid-pipeline.mjs",
     "db:hybrid:query": "node scripts/db/query-hybrid.mjs",
     "db:hybrid:health": "node scripts/db/hybrid-ingestion-health.mjs",
+    "db:hybrid:drift": "node scripts/ci/compare-canary-live-health.mjs",
     "md:audit": "node scripts/maintenance/markdown-audit.mjs",
     "md:audit:strict": "node scripts/maintenance/markdown-audit.mjs --strict"
   },
