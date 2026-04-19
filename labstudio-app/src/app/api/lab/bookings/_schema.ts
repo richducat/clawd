@@ -34,9 +34,17 @@ export async function ensureBookingSchema() {
       time_label text not null, -- HH:MM (local ET)
       duration_min integer not null default 60,
       status text not null default 'requested',
-      note text,
-      unique(day, time_label)
+      note text
     );
+  `;
+
+  // Older deployments used a table-level unique(day, time_label) constraint.
+  // Replace it with a partial unique index so cancelled slots can be rebooked.
+  await q`alter table lab_bookings drop constraint if exists lab_bookings_day_time_label_key;`;
+  await q`
+    create unique index if not exists lab_bookings_active_slot_uniq
+      on lab_bookings(day, time_label)
+      where status <> 'cancelled';
   `;
 
   await q`create index if not exists lab_bookings_user_day_idx on lab_bookings(user_id, day desc, time_label);`;
