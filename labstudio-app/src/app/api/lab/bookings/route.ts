@@ -21,6 +21,17 @@ function fmtDay(d: Date): string {
   }).format(d);
 }
 
+function dayOfWeekFromIsoDate(day: string): number | null {
+  const m = day.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return null;
+  return dt.getUTCDay();
+}
+
 export async function GET() {
   if (!dbConfigured()) {
     return NextResponse.json({ ok: false, error: 'DATABASE_URL not configured' }, { status: 400 });
@@ -75,11 +86,33 @@ export async function POST(req: Request) {
   if (!day.match(/^\d{4}-\d{2}-\d{2}$/)) {
     return NextResponse.json({ ok: false, error: 'Invalid day' }, { status: 400 });
   }
-  if (parseTimeLabelToMinutes(time_label) == null) {
+  const slotStartMin = parseTimeLabelToMinutes(time_label);
+  if (slotStartMin == null) {
     return NextResponse.json({ ok: false, error: 'Invalid time' }, { status: 400 });
+  }
+  const dayOfWeek = dayOfWeekFromIsoDate(day);
+  if (dayOfWeek == null) {
+    return NextResponse.json({ ok: false, error: 'Invalid day' }, { status: 400 });
   }
 
   const q = sql();
+  const activeWindows = (await q`
+    select start_time, end_time, slot_minutes
+    from lab_booking_windows
+    where active = true
+      and day_of_week = ${dayOfWeek};
+  `) as Array<{ start_time: string; end_time: string; slot_minutes: number }>;
+
+  const slotAllowed = activeWindows.some((w) => {
+    const start = parseTimeLabelToMinutes(String(w.start_time));
+    const end = parseTimeLabelToMinutes(String(w.end_time));
+    const step = Math.max(15, Math.min(180, Number(w.slot_minutes || 60)));
+    if (start == null || end == null || end <= start) return false;
+    return slotStartMin >= start && slotStartMin + 60 <= end && (slotStartMin - start) % step === 0;
+  });
+  if (!slotAllowed) {
+    return NextResponse.json({ ok: false, error: 'That slot is not available for booking.' }, { status: 400 });
+  }
 
   try {
     const rows = (await q`

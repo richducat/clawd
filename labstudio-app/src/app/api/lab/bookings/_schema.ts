@@ -23,6 +23,7 @@ export async function ensureBookingSchema() {
   `;
 
   await q`create index if not exists lab_booking_windows_active_idx on lab_booking_windows(active, day_of_week);`;
+  await q`create unique index if not exists lab_booking_windows_unique_slot_idx on lab_booking_windows(day_of_week, start_time, end_time);`;
 
   await q`
     create table if not exists lab_bookings (
@@ -40,26 +41,22 @@ export async function ensureBookingSchema() {
 
   await q`create index if not exists lab_bookings_user_day_idx on lab_bookings(user_id, day desc, time_label);`;
 
-  // Seed a simple default schedule if empty.
-  const existing = (await q`select count(*)::int as c from lab_booking_windows;`) as any[];
-  const c = Number(existing?.[0]?.c ?? 0);
-  if (c === 0) {
-    // Weekdays: 7am-7pm hourly; Sat: 9am-1pm; Sun off.
-    const seed: Array<{ dow: number; start: string; end: string; mins: number }> = [
-      { dow: 1, start: '07:00', end: '19:00', mins: 60 },
-      { dow: 2, start: '07:00', end: '19:00', mins: 60 },
-      { dow: 3, start: '07:00', end: '19:00', mins: 60 },
-      { dow: 4, start: '07:00', end: '19:00', mins: 60 },
-      { dow: 5, start: '07:00', end: '19:00', mins: 60 },
-      { dow: 6, start: '09:00', end: '13:00', mins: 60 },
-    ];
+  // Seed defaults idempotently so concurrent first-run requests do not duplicate windows.
+  const seed: Array<{ dow: number; start: string; end: string; mins: number }> = [
+    { dow: 1, start: '07:00', end: '19:00', mins: 60 },
+    { dow: 2, start: '07:00', end: '19:00', mins: 60 },
+    { dow: 3, start: '07:00', end: '19:00', mins: 60 },
+    { dow: 4, start: '07:00', end: '19:00', mins: 60 },
+    { dow: 5, start: '07:00', end: '19:00', mins: 60 },
+    { dow: 6, start: '09:00', end: '13:00', mins: 60 },
+  ];
 
-    for (const s of seed) {
-      await q`
-        insert into lab_booking_windows (day_of_week, start_time, end_time, slot_minutes, active)
-        values (${s.dow}, ${s.start}, ${s.end}, ${s.mins}, true);
-      `;
-    }
+  for (const s of seed) {
+    await q`
+      insert into lab_booking_windows (day_of_week, start_time, end_time, slot_minutes, active)
+      values (${s.dow}, ${s.start}, ${s.end}, ${s.mins}, true)
+      on conflict (day_of_week, start_time, end_time) do nothing;
+    `;
   }
 }
 

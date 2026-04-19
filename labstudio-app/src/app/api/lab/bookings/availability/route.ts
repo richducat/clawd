@@ -39,7 +39,8 @@ export async function GET(req: Request) {
   }
 
   const url = new URL(req.url);
-  const days = Math.max(1, Math.min(14, Number(url.searchParams.get('days') || 7)));
+  const rawDays = Number(url.searchParams.get('days'));
+  const days = Number.isFinite(rawDays) ? Math.max(1, Math.min(14, Math.trunc(rawDays))) : 7;
 
   const jar = await cookies();
   const uid = jar.get('labstudio_uid')?.value;
