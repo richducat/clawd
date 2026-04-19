@@ -16,6 +16,11 @@ on:
         required: true
         type: boolean
         default: true
+      live_mode:
+        description: "Run live-source mode on self-hosted runner (forces fixtures OFF + connector preflight)"
+        required: true
+        type: boolean
+        default: false
       skip_kb:
         description: "Skip KB ingestion step"
         required: true
@@ -39,8 +44,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: hybrid-daily-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  run-daily:
+  run-daily-canary:
+    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && !inputs.live_mode) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -133,7 +143,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: hybrid-daily-${{ steps.args.outputs.run_date }}
+          name: hybrid-daily-canary-${{ steps.args.outputs.run_date }}
           path: artifacts/
           if-no-files-found: error
           retention-days: 14
@@ -146,6 +156,7 @@ jobs:
           REPO: ${{ github.repository }}
           BRANCH_REF: ${{ github.ref_name }}
           RUN_DATE: ${{ steps.args.outputs.run_date }}
+          RUN_MODE: canary
           MAX_LAG_HOURS: ${{ env.MAX_LAG_HOURS_INPUT }}
           MAX_SEEN_DRIFT_HOURS: ${{ env.MAX_SEEN_DRIFT_HOURS_INPUT }}
           MAX_ARTIFACT_ISSUES: ${{ env.MAX_ARTIFACT_ISSUES_INPUT }}
@@ -155,12 +166,161 @@ jobs:
           payload="$(node -e '
             const body = [
               `:rotating_light: Hybrid daily pipeline health gate breached`,
+              `Mode: ${process.env.RUN_MODE}`,
               `Repo: ${process.env.REPO}`,
               `Branch: ${process.env.BRANCH_REF}`,
               `Run date: ${process.env.RUN_DATE}`,
               `Thresholds: lag<=${process.env.MAX_LAG_HOURS}h, drift<=${process.env.MAX_SEEN_DRIFT_HOURS}h, artifactIssues<=${process.env.MAX_ARTIFACT_ISSUES}`,
               `Run: ${process.env.RUN_URL}`,
-              `Artifacts: hybrid-daily-${process.env.RUN_DATE} (see run page)`
+              `Artifacts: hybrid-daily-${process.env.RUN_MODE}-${process.env.RUN_DATE} (see run page)`
+            ].join(`\n`);
+            process.stdout.write(JSON.stringify({ text: body }));
+          ')"
+          curl --fail --show-error --silent \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -d "$payload" \
+            "$ALERT_WEBHOOK_URL"
+
+      - name: Alert webhook not configured
+        if: ${{ failure() && secrets.HYBRID_ALERT_WEBHOOK_URL == '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Health gate breached but HYBRID_ALERT_WEBHOOK_URL is not configured. Add this repo secret to enable notifications."
+
+  run-daily-live:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.live_mode }}
+    runs-on:
+      - self-hosted
+    timeout-minutes: 30
+    env:
+      TZ: America/New_York
+      OPENCLAW_DB_ROOT: ${{ github.workspace }}/.tmp/openclaw-db
+      ACCOUNT_INPUT: ${{ inputs.account || 'richducat@gmail.com' }}
+      DATE_INPUT: ${{ inputs.date || '' }}
+      SKIP_KB_INPUT: ${{ inputs.skip_kb }}
+      MAX_LAG_HOURS_INPUT: ${{ inputs.max_lag_hours || '24' }}
+      MAX_SEEN_DRIFT_HOURS_INPUT: ${{ inputs.max_seen_drift_hours || '48' }}
+      MAX_ARTIFACT_ISSUES_INPUT: ${{ inputs.max_artifact_issues || '0' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Preflight live connector checks
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! command -v gog >/dev/null 2>&1; then
+            echo "Missing required connector CLI: gog"
+            exit 1
+          fi
+
+          read -r from_iso to_iso < <(node -e '
+            const now = new Date();
+            const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            process.stdout.write(`${from.toISOString()} ${now.toISOString()}`);
+          ')
+
+          gog gmail messages search "newer_than:7d" --max 1 --account "${ACCOUNT_INPUT}" --json > /dev/null
+          gog calendar events primary --from "${from_iso}" --to "${to_iso}" --account "${ACCOUNT_INPUT}" --json > /dev/null
+
+      - name: Build run args
+        id: args
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+
+          run_date="${DATE_INPUT}"
+          if [[ -z "$run_date" ]]; then
+            run_date="$(date +%F)"
+          fi
+
+          account="${ACCOUNT_INPUT}"
+          args=(--account "$account" --date "$run_date" --brief-out "artifacts/meeting-prep-${run_date}.md")
+
+          if [[ "${SKIP_KB_INPUT:-false}" == "true" ]]; then
+            args+=(--skip-kb)
+          fi
+
+          {
+            echo "run_date=$run_date"
+            echo "account=$account"
+            printf 'args<<EOF\n'
+            printf '%q ' "${args[@]}"
+            printf '\nEOF\n'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run daily hybrid pipeline
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "set -- ${{ steps.args.outputs.args }}"
+          npm run db:hybrid:daily -- "$@" | tee "artifacts/pipeline-summary-${{ steps.args.outputs.run_date }}.json"
+
+      - name: Run ingestion health threshold gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_date="${{ steps.args.outputs.run_date }}"
+
+          npm run db:hybrid:health -- \
+            --artifact-dir artifacts \
+            > "artifacts/ingestion-health-${run_date}.md"
+
+          npm run db:hybrid:health -- \
+            --json \
+            --artifact-dir artifacts \
+            --max-lag-hours "${MAX_LAG_HOURS_INPUT}" \
+            --max-seen-drift-hours "${MAX_SEEN_DRIFT_HOURS_INPUT}" \
+            --max-artifact-issues "${MAX_ARTIFACT_ISSUES_INPUT}" \
+            | tee "artifacts/ingestion-health-${run_date}.json"
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hybrid-daily-live-${{ steps.args.outputs.run_date }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Alert on health-gate breach
+        if: ${{ failure() && secrets.HYBRID_ALERT_WEBHOOK_URL != '' }}
+        env:
+          ALERT_WEBHOOK_URL: ${{ secrets.HYBRID_ALERT_WEBHOOK_URL }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPO: ${{ github.repository }}
+          BRANCH_REF: ${{ github.ref_name }}
+          RUN_DATE: ${{ steps.args.outputs.run_date }}
+          RUN_MODE: live
+          MAX_LAG_HOURS: ${{ env.MAX_LAG_HOURS_INPUT }}
+          MAX_SEEN_DRIFT_HOURS: ${{ env.MAX_SEEN_DRIFT_HOURS_INPUT }}
+          MAX_ARTIFACT_ISSUES: ${{ env.MAX_ARTIFACT_ISSUES_INPUT }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          payload="$(node -e '
+            const body = [
+              `:rotating_light: Hybrid daily pipeline health gate breached`,
+              `Mode: ${process.env.RUN_MODE}`,
+              `Repo: ${process.env.REPO}`,
+              `Branch: ${process.env.BRANCH_REF}`,
+              `Run date: ${process.env.RUN_DATE}`,
+              `Thresholds: lag<=${process.env.MAX_LAG_HOURS}h, drift<=${process.env.MAX_SEEN_DRIFT_HOURS}h, artifactIssues<=${process.env.MAX_ARTIFACT_ISSUES}`,
+              `Run: ${process.env.RUN_URL}`,
+              `Artifacts: hybrid-daily-${process.env.RUN_MODE}-${process.env.RUN_DATE} (see run page)`
             ].join(`\n`);
             process.stdout.write(JSON.stringify({ text: body }));
           ')"
