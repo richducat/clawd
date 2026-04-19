@@ -23,6 +23,20 @@ function unique(items) {
   return [...new Set(items)];
 }
 
+function toBoolean(value) {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes";
+}
+
+function toPositiveIntegerOrNull(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  if (parsed <= 0) return null;
+  return Math.floor(parsed);
+}
+
 function parseRoutes(singleVar, listVar) {
   const single = process.env[singleVar] ? [String(process.env[singleVar]).trim()] : [];
   const list = parseList(process.env[listVar]);
@@ -140,6 +154,19 @@ function getNowEt() {
   };
 }
 
+function formatEtDateTime(date) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: ET_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
 function isWindowMatch(window, nowEt) {
   const { days, startMins, endMins } = window;
   if (startMins === endMins) return days.includes(nowEt.day);
@@ -155,7 +182,43 @@ function isWindowMatch(window, nowEt) {
   return currentDayInWindow || carryOverInWindow;
 }
 
-function buildAlertText({ escalationEnabled }) {
+function classifyIncident() {
+  const driftGateBreached = toBoolean(process.env.ALERT_DRIFT_GATE_BREACHED);
+  const driftSignalCount = Number(process.env.ALERT_DRIFT_SIGNAL_COUNT || "0");
+  if (driftGateBreached) {
+    return { type: "drift_gate_breach", drift_related: true, severity: "high" };
+  }
+  if (Number.isFinite(driftSignalCount) && driftSignalCount > 0) {
+    return { type: "drift_signal_detected", drift_related: true, severity: "medium" };
+  }
+  return { type: "health_gate_breach", drift_related: false, severity: "high" };
+}
+
+function resolveAckSlaMinutes({ incident, runMode }) {
+  const explicit = toPositiveIntegerOrNull(process.env.ALERT_ACK_SLA_MINUTES);
+  if (explicit != null) return explicit;
+  if (incident.type === "drift_gate_breach") return 15;
+  if (runMode === "live") return 20;
+  if (incident.type === "drift_signal_detected") return 30;
+  return 45;
+}
+
+function buildAckMarker({ incident, runMode, runDate }) {
+  const now = new Date();
+  const ackSlaMinutes = resolveAckSlaMinutes({ incident, runMode });
+  const dueAt = new Date(now.getTime() + ackSlaMinutes * 60 * 1000);
+  const marker = `ack-${runMode}-${incident.type}-${runDate || "unknown"}-${now.getTime()}`;
+  return {
+    ack_required: true,
+    ack_policy: "deterministic_v1",
+    ack_marker: marker,
+    ack_sla_minutes: ackSlaMinutes,
+    ack_due_at_utc: dueAt.toISOString(),
+    ack_due_at_et: formatEtDateTime(dueAt),
+  };
+}
+
+function buildAlertText({ escalationEnabled, driftEscalationEnabled, incident, ackMarker }) {
   const mode = process.env.RUN_MODE || "unknown";
   const repo = process.env.REPO || "unknown";
   const branch = process.env.BRANCH_REF || "unknown";
@@ -185,14 +248,19 @@ function buildAlertText({ escalationEnabled }) {
 
   const lines = [
     ":rotating_light: Hybrid daily pipeline health gate breached",
+    `Incident type: ${incident.type}`,
     `Mode: ${mode}`,
     `Repo: ${repo}`,
     `Branch: ${branch}`,
     `Run date: ${runDate}`,
     `Thresholds: lag<=${lag}h, drift<=${drift}h, artifactIssues<=${artifactIssues}`,
+    `ACK: marker=${ackMarker.ack_marker}, required=true, sla=${ackMarker.ack_sla_minutes}m, due_utc=${ackMarker.ack_due_at_utc}, due_et=${ackMarker.ack_due_at_et}`,
   ];
   if (escalationEnabled) {
     lines.push("Escalation: ACTIVE (inside configured ET window)");
+  }
+  if (driftEscalationEnabled) {
+    lines.push("Drift escalation: ACTIVE (inside configured ET window)");
   }
   if (
     approvalRequired === "true" ||
@@ -247,27 +315,60 @@ async function postToRoute(url, payload) {
 async function main() {
   const baseRoutes = parseRoutes("ALERT_WEBHOOK_URL", "ALERT_WEBHOOK_URLS");
   const escalationRoutes = parseRoutes("ALERT_ESCALATION_WEBHOOK_URL", "ALERT_ESCALATION_WEBHOOK_URLS");
+  const driftRoutes = parseRoutes("ALERT_DRIFT_WEBHOOK_URL", "ALERT_DRIFT_WEBHOOK_URLS");
+  const driftEscalationRoutes = parseRoutes("ALERT_DRIFT_ESCALATION_WEBHOOK_URL", "ALERT_DRIFT_ESCALATION_WEBHOOK_URLS");
   const nowEt = getNowEt();
+  const incident = classifyIncident();
+  const runMode = String(process.env.RUN_MODE || "unknown");
+  const runDate = String(process.env.RUN_DATE || "");
+  const ackMarker = buildAckMarker({ incident, runMode, runDate });
 
   const escalationWindows = parseEscalationWindows(process.env.ALERT_ESCALATION_WINDOWS_ET);
   const escalationEnabled = escalationRoutes.length > 0 && escalationWindows.some((window) => isWindowMatch(window, nowEt));
-  const destinationRoutes = unique([...baseRoutes, ...(escalationEnabled ? escalationRoutes : [])]);
+  const driftEscalationEnabled =
+    incident.drift_related &&
+    driftEscalationRoutes.length > 0 &&
+    escalationWindows.some((window) => isWindowMatch(window, nowEt));
+
+  const destinationRoutes = unique([
+    ...baseRoutes,
+    ...(escalationEnabled ? escalationRoutes : []),
+    ...(incident.drift_related ? driftRoutes : []),
+    ...(driftEscalationEnabled ? driftEscalationRoutes : []),
+  ]);
 
   if (destinationRoutes.length === 0) {
     console.log("No alert webhooks configured. Skipping outbound alert dispatch.");
     return;
   }
 
-  const payload = { text: buildAlertText({ escalationEnabled }) };
-  const dryRun = String(process.env.ALERT_DRY_RUN || "").toLowerCase() === "1" || String(process.env.ALERT_DRY_RUN || "").toLowerCase() === "true";
+  const payload = {
+    text: buildAlertText({ escalationEnabled, driftEscalationEnabled, incident, ackMarker }),
+    metadata: {
+      incident_type: incident.type,
+      incident_severity: incident.severity,
+      run_mode: runMode,
+      run_date: runDate || "unknown",
+      ...ackMarker,
+    },
+  };
+  const dryRun = toBoolean(process.env.ALERT_DRY_RUN);
 
   const summary = {
     routes_total: destinationRoutes.length,
+    incident_type: incident.type,
+    incident_drift_related: incident.drift_related,
     base_routes: baseRoutes.length,
     escalation_routes: escalationRoutes.length,
+    drift_routes: driftRoutes.length,
+    drift_escalation_routes: driftEscalationRoutes.length,
     escalation_enabled: escalationEnabled,
+    drift_escalation_enabled: driftEscalationEnabled,
     escalation_windows: escalationWindows.map((window) => window.source),
     et_now: `${nowEt.weekday}@${nowEt.hhmm}`,
+    ack_sla_minutes: ackMarker.ack_sla_minutes,
+    ack_due_at_utc: ackMarker.ack_due_at_utc,
+    ack_marker: ackMarker.ack_marker,
     dry_run: dryRun,
   };
   console.log(JSON.stringify(summary, null, 2));
