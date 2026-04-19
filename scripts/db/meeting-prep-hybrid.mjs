@@ -225,6 +225,22 @@ async function main() {
         meetingRiskDelta,
         agendaGapSignals,
       });
+      const commitmentCloseChecklist = buildCommitmentCloseChecklist({
+        title: event.title || '',
+        attendees: attendeeBriefs,
+        relationshipRiskSignals,
+        agendaGapSignals,
+        talkingPointSequence,
+        stakeholderIntentSummaries,
+      });
+      const followUpDraftPack = buildFollowUpDraftPack({
+        title: event.title || '',
+        startIso: start.toISOString(),
+        attendees: attendeeBriefs,
+        relationshipRiskSignals,
+        meetingRecommendations,
+        commitmentCloseChecklist,
+      });
 
       if (insertSnapshotStmt) {
         const tx = db.transaction((rows) => {
@@ -269,6 +285,8 @@ async function main() {
         stakeholderIntentSummaries,
         negotiationFallbackPrompts,
         meetingRecommendations,
+        commitmentCloseChecklist,
+        followUpDraftPack,
       });
     }
 
@@ -369,6 +387,39 @@ function printMarkdownBrief({ account, date, timezone, internalDomains, meetings
           ? ` [drivers=${prompt.drivers.join(', ')}]`
           : '';
         console.log(`  - [${prompt.priority}] ${prompt.trigger} -> ${prompt.prompt}${drivers}`);
+      }
+    }
+    if (Array.isArray(meeting.commitmentCloseChecklist) && meeting.commitmentCloseChecklist.length) {
+      console.log('- Commitment closeout checklist:');
+      for (const item of meeting.commitmentCloseChecklist) {
+        console.log(`  - [${item.priority}] ${item.check}`);
+        if (item.ownerHint) {
+          console.log(`    - Owner hint: ${item.ownerHint}`);
+        }
+        if (item.why) {
+          console.log(`    - Why: ${item.why}`);
+        }
+      }
+    }
+    if (meeting.followUpDraftPack) {
+      console.log('- Follow-up draft pack:');
+      console.log(`  - Subject: ${meeting.followUpDraftPack.subject}`);
+      console.log(`  - Send by: ${meeting.followUpDraftPack.sendBy}`);
+      if (meeting.followUpDraftPack.recipientsHint) {
+        console.log(`  - Recipients: ${meeting.followUpDraftPack.recipientsHint}`);
+      }
+      if (meeting.followUpDraftPack.summary) {
+        console.log(`  - Summary: ${meeting.followUpDraftPack.summary}`);
+      }
+      if (Array.isArray(meeting.followUpDraftPack.asks) && meeting.followUpDraftPack.asks.length) {
+        for (const ask of meeting.followUpDraftPack.asks) {
+          console.log(`  - Ask: ${ask}`);
+        }
+      }
+      if (Array.isArray(meeting.followUpDraftPack.messageLines) && meeting.followUpDraftPack.messageLines.length) {
+        for (const line of meeting.followUpDraftPack.messageLines) {
+          console.log(`  - Draft line: ${line}`);
+        }
       }
     }
     if (meeting.meetingRiskDelta) {
@@ -1282,6 +1333,162 @@ function buildNegotiationFallbackPrompts({
   }
 
   return prompts.slice(0, 6);
+}
+
+function buildCommitmentCloseChecklist({
+  title,
+  attendees,
+  relationshipRiskSignals,
+  agendaGapSignals,
+  talkingPointSequence,
+  stakeholderIntentSummaries,
+}) {
+  const items = [];
+  const signalByCode = new Map((relationshipRiskSignals || []).map((s) => [s.code, s]));
+  const gapByCode = new Map((agendaGapSignals || []).map((g) => [g.code, g]));
+  const sequenceByCode = new Map((talkingPointSequence || []).map((s) => [s.code, s]));
+  const intentCounts = new Map();
+  for (const summary of stakeholderIntentSummaries || []) {
+    const key = summary?.intent || 'context validation';
+    intentCounts.set(key, (intentCounts.get(key) || 0) + 1);
+  }
+
+  const push = (code, priority, check, why, ownerHint) => {
+    if (items.some((item) => item.code === code)) return;
+    items.push({ code, priority, check, why, ownerHint });
+  };
+
+  push(
+    'closeout_owner_date',
+    'high',
+    'Confirm one owner + due date per open item before meeting close.',
+    'Prevents unresolved execution drift after the call.',
+    'Meeting owner'
+  );
+
+  if (sequenceByCode.has('decision_block') || gapByCode.has('missing_decision_block')) {
+    push(
+      'decision_lock',
+      'high',
+      'Capture explicit decision outcome (approved / deferred / blocked) with named decision owner.',
+      'Decision-partner context requires clear closure state.',
+      'Primary decision partner'
+    );
+  }
+
+  if (signalByCode.has('high_individual_risk') || gapByCode.has('missing_risk_mitigation') || intentCounts.get('constraint mitigation')) {
+    push(
+      'risk_mitigation_commitment',
+      'high',
+      'Assign one mitigation owner/date for each high-risk objection surfaced.',
+      'High relationship-risk signals need concrete mitigation accountability.',
+      'Risk/objection owner'
+    );
+  }
+
+  if (signalByCode.has('rsvp_unconfirmed') || signalByCode.has('rsvp_declined')) {
+    push(
+      'attendance_fallback',
+      'medium',
+      'Lock delegate or async response deadline for unstable RSVPs.',
+      'Protects decision velocity when live attendance is uncertain.',
+      'Attendee manager'
+    );
+  }
+
+  if (gapByCode.has('missing_context_reset') || hasKeyword(title, ['kickoff', 'onboard', 'intro'])) {
+    push(
+      'context_confirmation',
+      'medium',
+      'Confirm scope boundaries and success criteria in one closing sentence.',
+      'Avoids context mismatch for new/low-context stakeholders.',
+      'Facilitator'
+    );
+  }
+
+  if ((attendees || []).length >= 2) {
+    push(
+      'followup_channel',
+      'medium',
+      'Confirm follow-up channel/thread and next checkpoint time.',
+      'Ensures every stakeholder sees the same post-meeting plan.',
+      'Meeting owner'
+    );
+  }
+
+  if (!items.length) {
+    push(
+      'default_close',
+      'low',
+      'Close with objective recap, owner assignment, and follow-up timestamp.',
+      'Default deterministic closeout path.',
+      'Meeting owner'
+    );
+  }
+
+  return items.slice(0, 6);
+}
+
+function buildFollowUpDraftPack({
+  title,
+  startIso,
+  attendees,
+  relationshipRiskSignals,
+  meetingRecommendations,
+  commitmentCloseChecklist,
+}) {
+  const startDate = toIsoOrNull(startIso);
+  const subjectDate = startDate ? startDate.slice(0, 10) : 'today';
+  const externalCount = Number(attendees?.length || 0);
+  const topNames = (attendees || [])
+    .map((a) => a?.name || a?.email)
+    .filter(Boolean)
+    .slice(0, 3);
+  const highRiskCount = (relationshipRiskSignals || [])
+    .filter((s) => s.severity === 'high')
+    .reduce((sum, s) => sum + Number(s.count || 0), 0);
+  const unconfirmedCount = (relationshipRiskSignals || [])
+    .filter((s) => s.code === 'rsvp_unconfirmed' || s.code === 'rsvp_declined')
+    .reduce((sum, s) => sum + Number(s.count || 0), 0);
+
+  const summary = dedupeArray((meetingRecommendations || [])
+    .map((rec) => cleanLine(rec?.text || '', 180))
+    .filter(Boolean))
+    .slice(0, 2)
+    .join(' ');
+
+  const asks = dedupeArray((commitmentCloseChecklist || [])
+    .filter((item) => item.priority === 'high' || item.priority === 'medium')
+    .map((item) => cleanLine(item.check || '', 140)))
+    .slice(0, 4);
+
+  const sendBy = highRiskCount > 0 || unconfirmedCount > 0
+    ? 'within 2 hours after meeting'
+    : 'by end of day';
+
+  const messageLines = [];
+  messageLines.push(`Thanks everyone for today${title ? ` (${cleanLine(title, 100)})` : ''}.`);
+  if (summary) {
+    messageLines.push(`Summary: ${summary}`);
+  }
+  if (asks.length) {
+    messageLines.push(`Commitment checklist: ${asks.join(' | ')}`);
+  }
+  if (unconfirmedCount > 0) {
+    messageLines.push(`Attendance follow-up: ${unconfirmedCount} attendee slot(s) still need delegate/async confirmation.`);
+  }
+  messageLines.push('Please reply with owner + due date updates in this thread.');
+
+  return {
+    subject: cleanLine(`Follow-up (${subjectDate}): ${title || 'Meeting'} - owners and next steps`, 180),
+    sendBy,
+    summary: summary || 'No elevated recommendations; proceed with standard owner/date closeout.',
+    asks,
+    recipientsHint: topNames.length
+      ? `Primary external attendees: ${topNames.join(', ')}${externalCount > topNames.length ? ` (+${externalCount - topNames.length} more)` : ''}`
+      : 'No named external attendees resolved.',
+    messageLines: messageLines.slice(0, 6),
+  };
 }
 
 function buildAttendeeObjections(attendee) {
