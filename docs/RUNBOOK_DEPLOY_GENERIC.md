@@ -206,7 +206,7 @@ Include:
 - Workflow: `.github/workflows/hybrid-daily-pipeline.yml`
 - Runs:
   - daily at `13:20 UTC`
-  - manual dispatch with inputs (`account`, `date`, `use_fixtures`, `live_mode`, `break_glass`, `break_glass_reason`, `skip_kb`, `max_lag_hours`, `max_seen_drift_hours`, `max_artifact_issues`, `max_drift_signals`, `max_drift_severity_score`, `max_quality_drift_signals`, `max_quality_severity_score`)
+- manual dispatch with inputs (`account`, `date`, `use_fixtures`, `live_mode`, `break_glass`, `break_glass_reason`, `skip_kb`, `max_lag_hours`, `max_seen_drift_hours`, `max_artifact_issues`, `max_drift_signals`, `max_drift_severity_score`, `max_quality_drift_signals`, `max_quality_severity_score`, `incident_age_warning_minutes`, `incident_age_critical_minutes`)
 - Artifacts kept for 14 days:
   - `meeting-prep-YYYY-MM-DD.md`
   - `pipeline-summary-YYYY-MM-DD.json`
@@ -296,11 +296,15 @@ Include:
       - `run_mode.<canary|live>`
       - `incident_severity.<medium|high>`
       - `incident_type.<health_gate_breach|drift_signal_detected|drift_gate_breach|quality_drift_signal_detected|quality_drift_gate_breach>`
+      - `incident_age_band.<new|fresh|aging|critical>`
     - each node supports:
       - `ack_sla_minutes`
       - `ack_reminder_interval_minutes`
       - `ack_escalate_after_reminders`
       - `ack_stale_after_minutes`
+  - optional incident-age thresholds (repo vars; workflow dispatch inputs can override per run):
+    - `HYBRID_ALERT_INCIDENT_AGE_WARNING_MINUTES` (default `180`)
+    - `HYBRID_ALERT_INCIDENT_AGE_CRITICAL_MINUTES` (default `720`)
   - optional ACK reminder route config:
     - `HYBRID_ALERT_ACK_REMINDER_WEBHOOK_URL`
     - `HYBRID_ALERT_ACK_REMINDER_WEBHOOK_URLS`
@@ -347,12 +351,14 @@ Include:
       - canary-vs-live drift summary (`status`, `signal_count`, `total_severity_score`, `gate_breached`, `gate_breached_by_signal_count`, `gate_breached_by_severity_score`)
       - canary-vs-live drift artifact paths (json + markdown)
       - deterministic ACK metadata (`ack_key`, `ack_marker`, `ack_sla_minutes`, `ack_due_at_utc`, `ack_due_at_et`, `ack_policy`, `ack_policy_applied`, `ack_policy_parse_error`)
+      - deterministic incident-age metadata (`incident_age_minutes`, `incident_age_band`, `incident_age_warning_minutes`, `incident_age_critical_minutes`, `incident_age_escalation_due`, `incident_first_seen_at_utc`)
       - quality drift metadata (`quality_drift_signal_count`, `quality_severity_score`, `quality_gate_breached`, `quality_top_lane`, `quality_top_lane_severity`)
       - ACK reconciliation/reminder metadata (`ack_reconciled`, `ack_reconciliation_source`, `ack_reminders_due_count`, `ack_reminder_escalations_due_count`)
       - ACK stale-expiry metadata (`ack_stale_after_minutes`, `ack_stale_pending_count`, `ack_newly_stale_count`)
       - ACK evidence-ingestion metadata (`ack_evidence_active_marker_count`, `ack_evidence_active_key_count`, `ack_evidence_stale_entry_count`, `ack_evidence_parse_error_count`, `ack_evidence_json`)
       - escalation summary contract (`escalation_summary`) with deterministic policy + route fields:
         - `policy.windows_et`, `policy.et_now`, `policy.incident_type`, `policy.incident_drift_related`, `policy.incident_quality_related`
+        - `policy.incident_age_band`, `policy.incident_age_minutes`, `policy.incident_age_warning_minutes`, `policy.incident_age_critical_minutes`, `policy.incident_age_escalation_due`
         - `routes.base_configured_count`, `routes.escalation_configured_count`, `routes.drift_configured_count`, `routes.drift_escalation_configured_count`, `routes.quality_configured_count`, `routes.quality_escalation_configured_count`
         - `routes.ack_reminder_configured_count`, `routes.ack_reminder_escalation_configured_count`
         - `routes.escalation_enabled`, `routes.drift_escalation_enabled`, `routes.quality_escalation_enabled`, `routes.reminder_escalation_due_count`

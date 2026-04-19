@@ -41,6 +41,13 @@ function toPositiveIntegerOrNull(value) {
   return Math.floor(parsed);
 }
 
+function toNonNegativeIntegerOrNull(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  if (parsed < 0) return null;
+  return Math.floor(parsed);
+}
+
 function parseRoutes(singleVar, listVar) {
   const single = process.env[singleVar] ? [String(process.env[singleVar]).trim()] : [];
   const list = parseList(process.env[listVar]);
@@ -306,6 +313,71 @@ function resolveAckPolicy({ incident, runMode, policyConfig }) {
   };
 }
 
+function resolveIncidentAgeProfile(existingIncident) {
+  const warningMinutes = toPositiveIntegerOrNull(process.env.ALERT_INCIDENT_AGE_WARNING_MINUTES) ?? 180;
+  const criticalMinutes = toPositiveIntegerOrNull(process.env.ALERT_INCIDENT_AGE_CRITICAL_MINUTES) ?? 720;
+  const effectiveCriticalMinutes = criticalMinutes > warningMinutes ? criticalMinutes : warningMinutes + 1;
+
+  const firstSeenAtUtc = toIsoOrNull(existingIncident?.first_seen_at_utc);
+  const ageMinutesRaw = toNonNegativeIntegerOrNull(minutesSince(firstSeenAtUtc));
+  const ageMinutes = ageMinutesRaw ?? 0;
+
+  let band = "new";
+  if (firstSeenAtUtc != null) {
+    if (ageMinutes >= effectiveCriticalMinutes) {
+      band = "critical";
+    } else if (ageMinutes >= warningMinutes) {
+      band = "aging";
+    } else {
+      band = "fresh";
+    }
+  }
+
+  return {
+    first_seen_at_utc: firstSeenAtUtc,
+    age_minutes: ageMinutes,
+    band,
+    warning_minutes: warningMinutes,
+    critical_minutes: effectiveCriticalMinutes,
+    escalation_due: firstSeenAtUtc != null && ageMinutes >= warningMinutes,
+  };
+}
+
+function applyIncidentAgePolicy({ policy, applied, ageProfile, incident, policyConfig }) {
+  let nextPolicy = { ...policy };
+  const nextApplied = [...applied];
+
+  const applyPatch = (label, candidate) => {
+    const patch = normalizeAckPolicyPatch(candidate);
+    if (!Object.keys(patch).length) return;
+    nextPolicy = { ...nextPolicy, ...patch };
+    nextApplied.push(label);
+  };
+
+  if (incident.quality_related) {
+    if (ageProfile.band === "aging") {
+      nextPolicy.ack_sla_minutes = Math.min(nextPolicy.ack_sla_minutes, 20);
+      nextPolicy.ack_reminder_interval_minutes = Math.min(nextPolicy.ack_reminder_interval_minutes, 15);
+      nextPolicy.ack_escalate_after_reminders = Math.min(nextPolicy.ack_escalate_after_reminders, 2);
+      nextApplied.push("deterministic_v2_quality_age.aging");
+    } else if (ageProfile.band === "critical") {
+      nextPolicy.ack_sla_minutes = Math.min(nextPolicy.ack_sla_minutes, 10);
+      nextPolicy.ack_reminder_interval_minutes = Math.min(nextPolicy.ack_reminder_interval_minutes, 10);
+      nextPolicy.ack_escalate_after_reminders = Math.min(nextPolicy.ack_escalate_after_reminders, 1);
+      nextApplied.push("deterministic_v2_quality_age.critical");
+    }
+  }
+
+  if (policyConfig) {
+    applyPatch(`policy.incident_age_band.${ageProfile.band}`, policyConfig.incident_age_band?.[ageProfile.band]);
+  }
+
+  return {
+    policy: nextPolicy,
+    applied: unique(nextApplied),
+  };
+}
+
 function sha1(value) {
   return crypto.createHash("sha1").update(value).digest("hex");
 }
@@ -448,6 +520,7 @@ function buildEscalationSummary({
   ackReminderRoutes,
   ackReminderEscalationRoutes,
   reminderSummary,
+  incidentAgeProfile,
 }) {
   const reminderEscalationDueCount = reminderSummary.filter((item) => item.reminder_escalation_due).length;
   return {
@@ -458,6 +531,11 @@ function buildEscalationSummary({
       incident_type: incident.type,
       incident_drift_related: incident.drift_related,
       incident_quality_related: incident.quality_related,
+      incident_age_band: incidentAgeProfile.band,
+      incident_age_minutes: incidentAgeProfile.age_minutes,
+      incident_age_warning_minutes: incidentAgeProfile.warning_minutes,
+      incident_age_critical_minutes: incidentAgeProfile.critical_minutes,
+      incident_age_escalation_due: incidentAgeProfile.escalation_due,
     },
     routes: {
       base_configured_count: baseRoutes.length,
@@ -486,6 +564,7 @@ function toDigestMarkdown(digest) {
     `- Incident type: \`${digest.incident_type}\``,
     `- ACK key: \`${digest.ack.ack_key}\``,
     `- ACK marker: \`${digest.ack.ack_marker}\``,
+    `- Incident age: \`${digest.ack.incident_age_minutes}m (${digest.ack.incident_age_band})\``,
     `- ACK required: \`${digest.ack.ack_required}\``,
     `- ACK reconciled: \`${digest.ack.reconciled}\``,
     `- ACK due (UTC): \`${digest.ack.ack_due_at_utc}\``,
@@ -502,6 +581,7 @@ function toDigestMarkdown(digest) {
     "## Escalation Summary Contract",
     `- ET window now: \`${digest.escalation.policy.et_now}\``,
     `- Escalation windows: \`${digest.escalation.policy.windows_et.join(";") || "n/a"}\``,
+    `- Incident age escalation due: \`${digest.escalation.policy.incident_age_escalation_due}\``,
     `- Escalation enabled: \`${digest.escalation.routes.escalation_enabled}\``,
     `- Drift escalation enabled: \`${digest.escalation.routes.drift_escalation_enabled}\``,
     `- Quality escalation enabled: \`${digest.escalation.routes.quality_escalation_enabled}\``,
@@ -539,6 +619,7 @@ function buildAlertText({
   staleSummary,
   ackEvidenceSummary,
   escalationSummary,
+  incidentAgeProfile,
 }) {
   const mode = process.env.RUN_MODE || "unknown";
   const repo = process.env.REPO || "unknown";
@@ -580,6 +661,7 @@ function buildAlertText({
     `Branch: ${branch}`,
     `Run date: ${runDate}`,
     `Thresholds: lag<=${lag}h, drift<=${drift}h, artifactIssues<=${artifactIssues}`,
+    `Incident age: band=${incidentAgeProfile.band}, age=${incidentAgeProfile.age_minutes}m, warning>=${incidentAgeProfile.warning_minutes}m, critical>=${incidentAgeProfile.critical_minutes}m, escalationDue=${incidentAgeProfile.escalation_due}`,
     `ACK: key=${ackMarker.ack_key}, marker=${ackMarker.ack_marker}, required=true, policy=${ackMarker.ack_policy}, sla=${ackMarker.ack_sla_minutes}m, due_utc=${ackMarker.ack_due_at_utc}, due_et=${ackMarker.ack_due_at_et}`,
   ];
   if (escalationEnabled) {
@@ -703,16 +785,30 @@ async function main() {
   const runDate = String(process.env.RUN_DATE || "");
   const repo = String(process.env.REPO || "unknown");
   const branch = String(process.env.BRANCH_REF || "unknown");
+  const ackStatePath = String(process.env.ALERT_ACK_STATE_PATH || "").trim();
+  const ackState = readAckState(ackStatePath);
   const ackPolicyConfig = readAckEscalationPolicy();
   const ackKey = buildAckKey({ incident, runMode, runDate, repo, branch });
+  const existing = ackState.incidents[ackKey];
+  const incidentAgeProfile = resolveIncidentAgeProfile(existing);
   const ackPolicy = resolveAckPolicy({
     incident,
     runMode,
     policyConfig: ackPolicyConfig.config,
   });
+  const agePolicyOverlay = applyIncidentAgePolicy({
+    policy: ackPolicy,
+    applied: ackPolicy.ack_policy_applied,
+    ageProfile: incidentAgeProfile,
+    incident,
+    policyConfig: ackPolicyConfig.config,
+  });
+  ackPolicy.ack_sla_minutes = agePolicyOverlay.policy.ack_sla_minutes;
+  ackPolicy.ack_reminder_interval_minutes = agePolicyOverlay.policy.ack_reminder_interval_minutes;
+  ackPolicy.ack_escalate_after_reminders = agePolicyOverlay.policy.ack_escalate_after_reminders;
+  ackPolicy.ack_stale_after_minutes = agePolicyOverlay.policy.ack_stale_after_minutes;
+  ackPolicy.ack_policy_applied = agePolicyOverlay.applied;
   const ackMarker = buildAckMarker({ ackKey, ackPolicy });
-  const ackStatePath = String(process.env.ALERT_ACK_STATE_PATH || "").trim();
-  const ackState = readAckState(ackStatePath);
   const ackReminderIntervalMinutes = ackPolicy.ack_reminder_interval_minutes;
   const ackEscalateAfterReminders = ackPolicy.ack_escalate_after_reminders;
   const ackStaleAfterMinutes = ackPolicy.ack_stale_after_minutes;
@@ -725,7 +821,6 @@ async function main() {
     console.warn(ackPolicyConfig.parse_error);
   }
 
-  const existing = ackState.incidents[ackKey];
   const nextIncident = {
     ack_key: ackKey,
     ack_marker: ackMarker.ack_marker,
@@ -744,6 +839,8 @@ async function main() {
     reminder_count: Number(existing?.reminder_count || 0),
     last_reminder_at_utc: toIsoOrNull(existing?.last_reminder_at_utc) || null,
     next_reminder_at_utc: toIsoOrNull(existing?.next_reminder_at_utc) || null,
+    incident_age_minutes: incidentAgeProfile.age_minutes,
+    incident_age_band: incidentAgeProfile.band,
   };
 
   if (ackEvidenceMarkers.has(nextIncident.ack_marker) || ackEvidenceKeys.has(nextIncident.ack_key)) {
@@ -836,6 +933,7 @@ async function main() {
     ackReminderRoutes,
     ackReminderEscalationRoutes,
     reminderSummary,
+    incidentAgeProfile,
   });
 
   const destinationRoutes = unique([
@@ -862,12 +960,13 @@ async function main() {
       qualityEscalationEnabled,
       incident,
       ackMarker,
-      reminderSummary,
-      ackStatePath,
-      staleSummary,
-      ackEvidenceSummary,
-      escalationSummary,
-    }),
+    reminderSummary,
+    ackStatePath,
+    staleSummary,
+    ackEvidenceSummary,
+    escalationSummary,
+    incidentAgeProfile,
+  }),
     metadata: {
       incident_type: incident.type,
       incident_severity: incident.severity,
@@ -891,6 +990,12 @@ async function main() {
       ack_evidence_json: process.env.ALERT_ACK_EVIDENCE_JSON || null,
       ack_policy_applied: ackPolicy.ack_policy_applied,
       ack_policy_parse_error: ackPolicyConfig.parse_error,
+      incident_age_minutes: incidentAgeProfile.age_minutes,
+      incident_age_band: incidentAgeProfile.band,
+      incident_age_warning_minutes: incidentAgeProfile.warning_minutes,
+      incident_age_critical_minutes: incidentAgeProfile.critical_minutes,
+      incident_age_escalation_due: incidentAgeProfile.escalation_due,
+      incident_first_seen_at_utc: incidentAgeProfile.first_seen_at_utc,
       quality_drift_signal_count: Number(process.env.ALERT_QUALITY_DRIFT_SIGNAL_COUNT || 0),
       quality_severity_score: Number(process.env.ALERT_QUALITY_SEVERITY_SCORE || 0),
       quality_gate_breached: toBoolean(process.env.ALERT_QUALITY_GATE_BREACHED),
@@ -934,6 +1039,12 @@ async function main() {
     ack_policy: ackMarker.ack_policy,
     ack_policy_applied: ackPolicy.ack_policy_applied,
     ack_policy_parse_error: ackPolicyConfig.parse_error,
+    incident_age_minutes: incidentAgeProfile.age_minutes,
+    incident_age_band: incidentAgeProfile.band,
+    incident_age_warning_minutes: incidentAgeProfile.warning_minutes,
+    incident_age_critical_minutes: incidentAgeProfile.critical_minutes,
+    incident_age_escalation_due: incidentAgeProfile.escalation_due,
+    incident_first_seen_at_utc: incidentAgeProfile.first_seen_at_utc,
     ack_evidence_active_marker_count: Number(ackEvidenceSummary?.active_marker_count || 0),
     ack_evidence_active_key_count: Number(ackEvidenceSummary?.active_key_count || 0),
     ack_evidence_stale_entry_count: Number(ackEvidenceSummary?.stale_entry_count || 0),
@@ -957,6 +1068,12 @@ async function main() {
       ack_policy: ackMarker.ack_policy,
       ack_policy_applied: ackPolicy.ack_policy_applied,
       ack_policy_parse_error: ackPolicyConfig.parse_error,
+      incident_age_minutes: incidentAgeProfile.age_minutes,
+      incident_age_band: incidentAgeProfile.band,
+      incident_age_warning_minutes: incidentAgeProfile.warning_minutes,
+      incident_age_critical_minutes: incidentAgeProfile.critical_minutes,
+      incident_age_escalation_due: incidentAgeProfile.escalation_due,
+      incident_first_seen_at_utc: incidentAgeProfile.first_seen_at_utc,
       ack_sla_minutes: ackMarker.ack_sla_minutes,
       ack_due_at_utc: ackMarker.ack_due_at_utc,
       ack_due_at_et: ackMarker.ack_due_at_et,
@@ -1000,6 +1117,9 @@ async function main() {
     ack_digest_json_path: path.relative(process.cwd(), digestJsonPath),
     ack_digest_md_path: path.relative(process.cwd(), digestMdPath),
     dispatch_alert_summary_json_path: path.relative(process.cwd(), summaryJsonPath),
+    incident_age_minutes: String(incidentAgeProfile.age_minutes),
+    incident_age_band: incidentAgeProfile.band,
+    incident_age_escalation_due: String(incidentAgeProfile.escalation_due),
     escalation_enabled: String(escalationEnabled),
     drift_escalation_enabled: String(driftEscalationEnabled),
     ack_reminders_due_count: String(reminderSummary.length),

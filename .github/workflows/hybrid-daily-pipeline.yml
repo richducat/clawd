@@ -63,6 +63,14 @@ on:
         description: "Optional quality-drift gate: fail when meeting-prep quality severity score exceeds this threshold"
         required: false
         default: ""
+      incident_age_warning_minutes:
+        description: "Optional alert control: aging threshold in minutes for incident-age policy overlays"
+        required: false
+        default: ""
+      incident_age_critical_minutes:
+        description: "Optional alert control: critical threshold in minutes for incident-age policy overlays"
+        required: false
+        default: ""
   schedule:
     - cron: "20 13 * * *"
 
@@ -93,6 +101,8 @@ jobs:
       MAX_DRIFT_SEVERITY_SCORE_INPUT: ${{ inputs.max_drift_severity_score || '' }}
       MAX_QUALITY_DRIFT_SIGNALS_INPUT: ${{ inputs.max_quality_drift_signals || '' }}
       MAX_QUALITY_SEVERITY_SCORE_INPUT: ${{ inputs.max_quality_severity_score || '' }}
+      INCIDENT_AGE_WARNING_MINUTES_INPUT: ${{ inputs.incident_age_warning_minutes || '' }}
+      INCIDENT_AGE_CRITICAL_MINUTES_INPUT: ${{ inputs.incident_age_critical_minutes || '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -296,6 +306,8 @@ jobs:
           ALERT_ACK_REMINDER_INTERVAL_MINUTES: ${{ vars.HYBRID_ALERT_ACK_REMINDER_INTERVAL_MINUTES || '30' }}
           ALERT_ACK_ESCALATE_AFTER_REMINDERS: ${{ vars.HYBRID_ALERT_ACK_ESCALATE_AFTER_REMINDERS || '2' }}
           ALERT_ACK_ESCALATION_POLICY_JSON: ${{ vars.HYBRID_ALERT_ACK_ESCALATION_POLICY_JSON || '' }}
+          ALERT_INCIDENT_AGE_WARNING_MINUTES: ${{ env.INCIDENT_AGE_WARNING_MINUTES_INPUT || vars.HYBRID_ALERT_INCIDENT_AGE_WARNING_MINUTES || '180' }}
+          ALERT_INCIDENT_AGE_CRITICAL_MINUTES: ${{ env.INCIDENT_AGE_CRITICAL_MINUTES_INPUT || vars.HYBRID_ALERT_INCIDENT_AGE_CRITICAL_MINUTES || '720' }}
           ALERT_ACK_EVIDENCE_MARKERS: ${{ steps.ack_evidence.outputs.ack_evidence_markers }}
           ALERT_ACK_EVIDENCE_KEYS: ${{ steps.ack_evidence.outputs.ack_evidence_keys }}
           ALERT_ACK_EVIDENCE_JSON: ${{ steps.ack_evidence.outputs.ack_evidence_json_path }}
@@ -359,6 +371,8 @@ jobs:
       MAX_DRIFT_SEVERITY_SCORE_INPUT: ${{ inputs.max_drift_severity_score || '' }}
       MAX_QUALITY_DRIFT_SIGNALS_INPUT: ${{ inputs.max_quality_drift_signals || '' }}
       MAX_QUALITY_SEVERITY_SCORE_INPUT: ${{ inputs.max_quality_severity_score || '' }}
+      INCIDENT_AGE_WARNING_MINUTES_INPUT: ${{ inputs.incident_age_warning_minutes || '' }}
+      INCIDENT_AGE_CRITICAL_MINUTES_INPUT: ${{ inputs.incident_age_critical_minutes || '' }}
       LIVE_ALLOWED_ACTORS_INPUT: ${{ vars.HYBRID_LIVE_ALLOWED_ACTORS || 'richducat' }}
       LIVE_EMERGENCY_STOP_INPUT: ${{ vars.HYBRID_LIVE_EMERGENCY_STOP || 'false' }}
       LIVE_APPROVAL_ENVIRONMENT: hybrid-live
@@ -722,6 +736,8 @@ jobs:
           ALERT_ACK_REMINDER_INTERVAL_MINUTES: ${{ vars.HYBRID_ALERT_ACK_REMINDER_INTERVAL_MINUTES || '30' }}
           ALERT_ACK_ESCALATE_AFTER_REMINDERS: ${{ vars.HYBRID_ALERT_ACK_ESCALATE_AFTER_REMINDERS || '2' }}
           ALERT_ACK_ESCALATION_POLICY_JSON: ${{ vars.HYBRID_ALERT_ACK_ESCALATION_POLICY_JSON || '' }}
+          ALERT_INCIDENT_AGE_WARNING_MINUTES: ${{ env.INCIDENT_AGE_WARNING_MINUTES_INPUT || vars.HYBRID_ALERT_INCIDENT_AGE_WARNING_MINUTES || '180' }}
+          ALERT_INCIDENT_AGE_CRITICAL_MINUTES: ${{ env.INCIDENT_AGE_CRITICAL_MINUTES_INPUT || vars.HYBRID_ALERT_INCIDENT_AGE_CRITICAL_MINUTES || '720' }}
           ALERT_ACK_EVIDENCE_MARKERS: ${{ steps.ack_evidence.outputs.ack_evidence_markers }}
           ALERT_ACK_EVIDENCE_KEYS: ${{ steps.ack_evidence.outputs.ack_evidence_keys }}
           ALERT_ACK_EVIDENCE_JSON: ${{ steps.ack_evidence.outputs.ack_evidence_json_path }}

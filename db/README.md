@@ -217,6 +217,8 @@ Triggers:
   - `max_artifact_issues`
   - `max_drift_signals` (optional live drift gate; blank = report-only)
   - `max_drift_severity_score` (optional weighted live drift gate; blank = report-only)
+  - `incident_age_warning_minutes` (optional alert override; blank = repo variable/default)
+  - `incident_age_critical_minutes` (optional alert override; blank = repo variable/default)
 
 Artifacts:
 - `meeting-prep-YYYY-MM-DD.md`
@@ -309,11 +311,15 @@ Runtime notes:
       - `run_mode.<canary|live>`
       - `incident_severity.<medium|high>`
       - `incident_type.<health_gate_breach|drift_signal_detected|drift_gate_breach|quality_drift_signal_detected|quality_drift_gate_breach>`
+      - `incident_age_band.<new|fresh|aging|critical>`
     - each node supports:
       - `ack_sla_minutes`
       - `ack_reminder_interval_minutes`
       - `ack_escalate_after_reminders`
       - `ack_stale_after_minutes`
+  - optional incident-age thresholds (repo variables or workflow dispatch input overrides):
+    - `HYBRID_ALERT_INCIDENT_AGE_WARNING_MINUTES` (default `180`)
+    - `HYBRID_ALERT_INCIDENT_AGE_CRITICAL_MINUTES` (default `720`)
   - optional ACK reminder route config:
     - `HYBRID_ALERT_ACK_REMINDER_WEBHOOK_URL`
     - `HYBRID_ALERT_ACK_REMINDER_WEBHOOK_URLS`
@@ -366,6 +372,13 @@ Runtime notes:
     - `ack_policy` (`deterministic_v2`)
     - `ack_policy_applied` (ordered policy source list)
     - `ack_policy_parse_error` (non-empty only when `HYBRID_ALERT_ACK_ESCALATION_POLICY_JSON` is invalid)
+    - incident-age controls:
+      - `incident_age_minutes`
+      - `incident_age_band` (`new|fresh|aging|critical`)
+      - `incident_age_warning_minutes`
+      - `incident_age_critical_minutes`
+      - `incident_age_escalation_due`
+      - `incident_first_seen_at_utc`
     - quality drift context:
       - `quality_drift_signal_count`
       - `quality_severity_score`
@@ -378,6 +391,7 @@ Runtime notes:
   - ACK evidence ingestion summary is surfaced in metadata (`ack_evidence_active_marker_count`, `ack_evidence_active_key_count`, `ack_evidence_stale_entry_count`, `ack_evidence_parse_error_count`, `ack_evidence_json`)
   - escalation summary contract is emitted in alert metadata under `escalation_summary` with deterministic policy + route fields:
     - `policy.windows_et`, `policy.et_now`, `policy.incident_type`, `policy.incident_drift_related`, `policy.incident_quality_related`
+    - `policy.incident_age_band`, `policy.incident_age_minutes`, `policy.incident_age_warning_minutes`, `policy.incident_age_critical_minutes`, `policy.incident_age_escalation_due`
     - `routes.base_configured_count`, `routes.escalation_configured_count`, `routes.drift_configured_count`, `routes.drift_escalation_configured_count`, `routes.quality_configured_count`, `routes.quality_escalation_configured_count`
     - `routes.ack_reminder_configured_count`, `routes.ack_reminder_escalation_configured_count`
     - `routes.escalation_enabled`, `routes.drift_escalation_enabled`, `routes.quality_escalation_enabled`, `routes.reminder_escalation_due_count`
