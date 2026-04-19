@@ -156,3 +156,23 @@ Include:
 - Optional controls:
   - `--limit <n>` to cap number of meetings in the brief
   - `--internal-domain <domain>` (repeatable) to expand internal-only filters
+
+## 14) One-command daily hybrid pipeline
+- Run schema init + CRM ingest + optional KB ingest + meeting prep in one command:
+  ```bash
+  npm run db:hybrid:daily -- \
+    --account richducat@gmail.com \
+    --date 2026-04-18 \
+    --gmail-json scripts/db/fixtures/gmail-sample.json \
+    --calendar-json scripts/db/fixtures/calendar-sample.json \
+    --kb-from-file scripts/db/fixtures/kb-sources-sample.json \
+    --brief-out memory/meeting-prep-2026-04-18.md
+  ```
+- Behavior:
+  - Fails fast and exits non-zero if any step fails.
+  - Prints a JSON summary of executed steps and output previews.
+  - Writes the meeting prep output to a file when `--brief-out` is provided.
+- Optional controls:
+  - `--skip-kb` to disable KB ingest for a run
+  - `--brief-json` to write JSON brief output instead of markdown
+  - `--internal-domain <domain>` (repeatable) forwarded to meeting prep filtering

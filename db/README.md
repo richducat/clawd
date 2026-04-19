@@ -117,3 +117,43 @@ Output behavior:
 - Includes only meetings on the target date with at least one external attendee.
 - Excludes internal-only attendees using account email + internal domain filters.
 - For each external attendee, includes latest ingested Gmail touchpoint when available.
+
+## Follow-up: one-command daily hybrid pipeline
+
+Orchestrator command:
+```bash
+npm run db:hybrid:daily -- \
+  --account richducat@gmail.com \
+  --date 2026-04-19 \
+  --gmail-json scripts/db/fixtures/gmail-sample.json \
+  --calendar-json scripts/db/fixtures/calendar-sample.json \
+  --kb-from-file scripts/db/fixtures/kb-sources-sample.json \
+  --brief-out memory/meeting-prep-2026-04-19.md
+```
+
+What it runs (in order):
+- `db:hybrid:init`
+- `db:hybrid:ingest`
+- optional `db:hybrid:ingest:kb` (when KB sources are provided and `--skip-kb` is not set)
+- `db:hybrid:meeting-prep`
+
+Optional flags:
+- CRM ingest passthrough:
+  - `--account`, `--days`, `--max`, `--calendarId`
+  - `--gmail-json`, `--calendar-json`
+- KB ingest passthrough:
+  - `--kb-from-file`
+  - `--kb-file` (repeatable)
+  - `--kb-url` (repeatable)
+  - `--kb-max-chars`, `--kb-overlap-chars`
+  - `--kb-embed`, `--kb-embedding-model`
+  - `--skip-kb` to skip KB step explicitly
+- Brief output passthrough:
+  - `--date`
+  - `--internal-domain` (repeatable)
+  - `--brief-json`
+  - `--brief-out <path>` to write meeting prep output to file
+
+Output behavior:
+- The orchestrator exits non-zero if any step fails.
+- It emits a JSON summary including each step name/args and a short output preview.
