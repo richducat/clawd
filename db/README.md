@@ -157,3 +157,26 @@ Optional flags:
 Output behavior:
 - The orchestrator exits non-zero if any step fails.
 - It emits a JSON summary including each step name/args and a short output preview.
+
+## Scheduled daily run + artifacts (GitHub Actions)
+
+Workflow:
+- `.github/workflows/hybrid-daily-pipeline.yml`
+
+Triggers:
+- daily schedule (`13:20 UTC`)
+- manual run (`workflow_dispatch`) with inputs:
+  - `account`
+  - `date`
+  - `use_fixtures`
+  - `skip_kb`
+
+Artifacts:
+- `meeting-prep-YYYY-MM-DD.md`
+- `pipeline-summary-YYYY-MM-DD.json`
+- uploaded as workflow artifact `hybrid-daily-YYYY-MM-DD` with `retention-days: 14`
+
+Runtime notes:
+- CI sets `OPENCLAW_DB_ROOT` to a workspace-local temp directory so no DB files are committed.
+- Default mode uses repository fixtures for deterministic scheduled checks.
+- To run against live connector data, use a self-hosted runner environment where the live source prerequisites are available and set `use_fixtures=false` on manual dispatch.

@@ -1,0 +1,105 @@
+name: Hybrid Daily Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      account:
+        description: "Account email used for self-filtering in ingest/meeting prep"
+        required: false
+        default: "richducat@gmail.com"
+      date:
+        description: "Target date for meeting prep (YYYY-MM-DD). Leave blank for today's date in ET."
+        required: false
+        default: ""
+      use_fixtures:
+        description: "Use repo fixture data for Gmail/Calendar/KB steps"
+        required: true
+        type: boolean
+        default: true
+      skip_kb:
+        description: "Skip KB ingestion step"
+        required: true
+        type: boolean
+        default: false
+  schedule:
+    - cron: "20 13 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  run-daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TZ: America/New_York
+      OPENCLAW_DB_ROOT: ${{ github.workspace }}/.tmp/openclaw-db
+      ACCOUNT_INPUT: ${{ inputs.account || 'richducat@gmail.com' }}
+      DATE_INPUT: ${{ inputs.date || '' }}
+      USE_FIXTURES_INPUT: ${{ inputs.use_fixtures }}
+      SKIP_KB_INPUT: ${{ inputs.skip_kb }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Build run args
+        id: args
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+
+          run_date="${DATE_INPUT}"
+          if [[ -z "$run_date" ]]; then
+            run_date="$(date +%F)"
+          fi
+
+          account="${ACCOUNT_INPUT}"
+          args=(--account "$account" --date "$run_date" --brief-out "artifacts/meeting-prep-${run_date}.md")
+
+          use_fixtures="${USE_FIXTURES_INPUT:-true}"
+          if [[ "$use_fixtures" == "true" ]]; then
+            args+=(
+              --gmail-json scripts/db/fixtures/gmail-sample.json
+              --calendar-json scripts/db/fixtures/calendar-sample.json
+            )
+            if [[ "${SKIP_KB_INPUT:-false}" != "true" ]]; then
+              args+=(--kb-from-file scripts/db/fixtures/kb-sources-sample.json)
+            fi
+          fi
+
+          if [[ "${SKIP_KB_INPUT:-false}" == "true" ]]; then
+            args+=(--skip-kb)
+          fi
+
+          {
+            echo "run_date=$run_date"
+            echo "account=$account"
+            printf 'args<<EOF\n'
+            printf '%q ' "${args[@]}"
+            printf '\nEOF\n'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run daily hybrid pipeline
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "set -- ${{ steps.args.outputs.args }}"
+          npm run db:hybrid:daily -- "$@" | tee "artifacts/pipeline-summary-${{ steps.args.outputs.run_date }}.json"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hybrid-daily-${{ steps.args.outputs.run_date }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
