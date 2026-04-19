@@ -269,6 +269,8 @@ Include:
     - `--baseline-window-runs <n>` prior runs per source for baseline bands (default `14`)
     - `--baseline-min-samples <n>` minimum prior runs before anomaly checks activate (default `5`)
     - `--baseline-sigma-multiplier <n>` MAD-based floor/ceiling band width multiplier (default `3`)
+  - trend output controls:
+    - `--trend-window-snapshots <n>` persisted baseline snapshots per source used for trend summaries (default `14`)
   - threshold guards (non-zero exit on breach):
     - `--max-lag-hours <n>`
     - `--max-seen-drift-hours <n>`
@@ -290,6 +292,11 @@ Include:
     - `records_scanned`
     - `entities_upserted`
     - `links_upserted`
+  - persisted baseline snapshots written per health run in `ingestion_baseline_snapshots`:
+    - source, health run time, current metric values, floor/ceiling bands, anomaly count/details
+  - source trend summaries from persisted baseline snapshots:
+    - anomaly direction and deltas versus oldest snapshot in configured window
+    - directional metric deltas for records/entities/links
   - threshold metadata + explicit breach records in JSON mode
 
 CI/alerting example:

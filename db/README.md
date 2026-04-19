@@ -34,6 +34,7 @@ Current baseline schema includes:
 - `entity_links` for typed relations between entities
 - `ingestion_cursors` for incremental source checkpointing
 - `ingestion_run_metrics` for per-source run counters and reconciliation checks
+- `ingestion_baseline_snapshots` for persisted baseline bands/anomaly snapshots used by long-range trend reporting
 
 ## Roadmap item #3: Gmail + Calendar daily ingestion
 
@@ -286,6 +287,8 @@ Optional flags:
   - `--baseline-window-runs <n>`: number of prior runs per source for baseline bands (default `14`)
   - `--baseline-min-samples <n>`: minimum prior runs required before anomaly checks are active (default `5`)
   - `--baseline-sigma-multiplier <n>`: MAD-based band width multiplier for floor/ceiling detection (default `3`)
+- trend output controls:
+  - `--trend-window-snapshots <n>`: number of persisted baseline snapshots to include per source in trend summaries (default `14`)
 - threshold guards (optional, non-zero exit when breached):
   - `--max-lag-hours <n>`
   - `--max-seen-drift-hours <n>`
@@ -324,4 +327,8 @@ Output includes:
 - source-specific rolling baseline model from `ingestion_run_metrics`:
   - per-source floor/ceiling bands for `records_scanned`, `entities_upserted`, `links_upserted`
   - anomaly flags when current run is below floor or above ceiling
+- baseline snapshot persistence in `ingestion_baseline_snapshots` for each health run (`source`, health run time, current metric values, floor/ceiling bands, anomaly count/details)
+- source-level trend summaries from persisted baseline snapshots:
+  - anomaly count direction (`up`/`down`/`flat`) versus oldest snapshot in window
+  - directional deltas for `records_scanned`, `entities_upserted`, `links_upserted`
 - threshold metadata (`thresholds`) and explicit breach records (`breaches`)

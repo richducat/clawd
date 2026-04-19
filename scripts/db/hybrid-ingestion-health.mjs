@@ -11,6 +11,7 @@ const asOfArg = getArg(args, '--as-of');
 const artifactDirArg = getArg(args, '--artifact-dir') || 'artifacts';
 const artifactsMax = toSafeInt(getArg(args, '--artifacts-max'), 8, 1, 100);
 const jsonMode = hasFlag(args, '--json');
+const trendWindowSnapshots = toSafeInt(getArg(args, '--trend-window-snapshots'), 14, 2, 365);
 const baselineConfig = {
   window_runs: toSafeInt(getArg(args, '--baseline-window-runs'), 14, 3, 180),
   min_samples: toSafeInt(getArg(args, '--baseline-min-samples'), 5, 2, 50),
@@ -42,7 +43,7 @@ async function main() {
     throw new Error(`Invalid --as-of value: ${asOfArg}`);
   }
 
-  const db = openSqlite(dbPath('hybrid-core.sqlite'), { readonly: true });
+  const db = openSqlite(dbPath('hybrid-core.sqlite'));
   try {
     assertSchemaReady(db);
 
@@ -53,6 +54,13 @@ async function main() {
     const failureSummary = readFailureSummary(artifactDirArg, artifactsMax);
     const reconciliation = readSourceReconciliation(db);
     const baselines = readSourceBaselines(db, baselineConfig);
+    const baselineSnapshots = persistBaselineSnapshots(db, {
+      asOfIso: asOf.toISOString(),
+      baselines,
+    });
+    const trends = readBaselineTrends(db, {
+      window_snapshots: trendWindowSnapshots,
+    });
     const breaches = evaluateThresholdBreaches({
       sources: sourceHealth,
       failures: failureSummary,
@@ -72,6 +80,11 @@ async function main() {
       failures: failureSummary,
       reconciliation,
       baselines,
+      baseline_snapshots: baselineSnapshots,
+      trends,
+      trend_config: {
+        window_snapshots: trendWindowSnapshots,
+      },
       baseline_config: baselineConfig,
       thresholds: {
         configured: hasThresholds,
@@ -308,14 +321,14 @@ function printMarkdown(result, artifactDirInput) {
   console.log(`- scanned artifact files: ${result.failures.scanned_files}`);
   if (!result.failures.issues.length) {
     console.log(`- ${result.failures.note || 'no issues detected'}`);
-    return;
+    console.log('');
+  } else {
+    for (const issue of result.failures.issues) {
+      const stepText = issue.step ? ` step=${issue.step}` : '';
+      console.log(`- [${issue.level}] ${issue.file}${stepText}: ${issue.message}`);
+    }
+    console.log('');
   }
-
-  for (const issue of result.failures.issues) {
-    const stepText = issue.step ? ` step=${issue.step}` : '';
-    console.log(`- [${issue.level}] ${issue.file}${stepText}: ${issue.message}`);
-  }
-  console.log('');
 
   console.log('## Reconciliation');
   if (!result.reconciliation?.available) {
@@ -339,6 +352,30 @@ function printMarkdown(result, artifactDirInput) {
       for (const anomaly of source.anomalies) {
         console.log(`  - [anomaly] ${anomaly.metric}: actual=${formatNumber(anomaly.actual)}, floor=${formatNumber(anomaly.floor)}, ceiling=${formatNumber(anomaly.ceiling)}, direction=${anomaly.direction}`);
       }
+    }
+  }
+  console.log('');
+
+  console.log('## Baseline Snapshot Persistence');
+  if (!result.baseline_snapshots?.available) {
+    console.log(`- ${result.baseline_snapshots?.note || 'baseline snapshot persistence unavailable'}`);
+  } else {
+    console.log(`- health_run_at=${result.baseline_snapshots.health_run_at}, written_rows=${result.baseline_snapshots.written_rows}`);
+  }
+  console.log('');
+
+  console.log('## Baseline Trends');
+  if (!result.trends?.available) {
+    console.log(`- ${result.trends?.note || 'baseline trends unavailable'}`);
+  } else {
+    console.log(`- trend window snapshots=${result.trend_config?.window_snapshots}`);
+    for (const source of result.trends.sources || []) {
+      console.log(`- ${source.source}: status=${source.status}, snapshots=${source.snapshot_count}, latest_health_run_at=${source.latest_health_run_at || 'n/a'}, oldest_health_run_at=${source.oldest_health_run_at || 'n/a'}`);
+      if (source.status !== 'ok') continue;
+      console.log(`  - anomalies: latest=${formatNumber(source.anomaly_count.latest)}, avg=${formatNumber(source.anomaly_count.avg)}, direction=${source.anomaly_count.direction}, delta_vs_oldest=${formatNumber(source.anomaly_count.delta_vs_oldest)}, delta_vs_oldest_pct=${formatNumber(source.anomaly_count.delta_vs_oldest_pct)}`);
+      console.log(`  - records_scanned: latest=${formatNumber(source.metrics.records_scanned.latest)}, avg=${formatNumber(source.metrics.records_scanned.avg)}, direction=${source.metrics.records_scanned.direction}, delta_vs_oldest=${formatNumber(source.metrics.records_scanned.delta_vs_oldest)}, delta_vs_oldest_pct=${formatNumber(source.metrics.records_scanned.delta_vs_oldest_pct)}`);
+      console.log(`  - entities_upserted: latest=${formatNumber(source.metrics.entities_upserted.latest)}, avg=${formatNumber(source.metrics.entities_upserted.avg)}, direction=${source.metrics.entities_upserted.direction}, delta_vs_oldest=${formatNumber(source.metrics.entities_upserted.delta_vs_oldest)}, delta_vs_oldest_pct=${formatNumber(source.metrics.entities_upserted.delta_vs_oldest_pct)}`);
+      console.log(`  - links_upserted: latest=${formatNumber(source.metrics.links_upserted.latest)}, avg=${formatNumber(source.metrics.links_upserted.avg)}, direction=${source.metrics.links_upserted.direction}, delta_vs_oldest=${formatNumber(source.metrics.links_upserted.delta_vs_oldest)}, delta_vs_oldest_pct=${formatNumber(source.metrics.links_upserted.delta_vs_oldest_pct)}`);
     }
   }
   console.log('');
@@ -576,6 +613,232 @@ function readSourceBaselines(db, config) {
       anomalies: sources.reduce((sum, source) => sum + source.anomalies.length, 0),
     },
     sources,
+  };
+}
+
+function persistBaselineSnapshots(db, { asOfIso, baselines }) {
+  if (!tableExists(db, 'ingestion_baseline_snapshots')) {
+    return {
+      available: false,
+      note: 'ingestion_baseline_snapshots table missing (run npm run db:hybrid:init)',
+      written_rows: 0,
+      health_run_at: asOfIso,
+    };
+  }
+
+  if (!baselines?.available) {
+    return {
+      available: true,
+      note: baselines?.note || 'baseline model unavailable; snapshot write skipped',
+      written_rows: 0,
+      health_run_at: asOfIso,
+    };
+  }
+
+  const insert = db.prepare(`
+    INSERT INTO ingestion_baseline_snapshots (
+      source,
+      health_run_at,
+      current_run_id,
+      current_run_completed_at,
+      sample_runs,
+      records_actual,
+      records_floor,
+      records_ceiling,
+      entities_actual,
+      entities_floor,
+      entities_ceiling,
+      links_actual,
+      links_floor,
+      links_ceiling,
+      anomaly_count,
+      anomalies_json
+    )
+    VALUES (
+      @source,
+      @health_run_at,
+      @current_run_id,
+      @current_run_completed_at,
+      @sample_runs,
+      @records_actual,
+      @records_floor,
+      @records_ceiling,
+      @entities_actual,
+      @entities_floor,
+      @entities_ceiling,
+      @links_actual,
+      @links_floor,
+      @links_ceiling,
+      @anomaly_count,
+      @anomalies_json
+    )
+    ON CONFLICT (source, health_run_at) DO UPDATE SET
+      current_run_id = excluded.current_run_id,
+      current_run_completed_at = excluded.current_run_completed_at,
+      sample_runs = excluded.sample_runs,
+      records_actual = excluded.records_actual,
+      records_floor = excluded.records_floor,
+      records_ceiling = excluded.records_ceiling,
+      entities_actual = excluded.entities_actual,
+      entities_floor = excluded.entities_floor,
+      entities_ceiling = excluded.entities_ceiling,
+      links_actual = excluded.links_actual,
+      links_floor = excluded.links_floor,
+      links_ceiling = excluded.links_ceiling,
+      anomaly_count = excluded.anomaly_count,
+      anomalies_json = excluded.anomalies_json
+  `);
+
+  const tx = db.transaction(() => {
+    for (const source of baselines.sources || []) {
+      const payload = {
+        source: source.source,
+        health_run_at: asOfIso,
+        current_run_id: source.current?.run_id || null,
+        current_run_completed_at: source.current?.run_completed_at || null,
+        sample_runs: Number(source.sample_runs || 0),
+        records_actual: source.current ? Number(source.current.records_scanned || 0) : null,
+        records_floor: source.baselines?.records_scanned?.floor ?? null,
+        records_ceiling: source.baselines?.records_scanned?.ceiling ?? null,
+        entities_actual: source.current ? Number(source.current.entities_upserted || 0) : null,
+        entities_floor: source.baselines?.entities_upserted?.floor ?? null,
+        entities_ceiling: source.baselines?.entities_upserted?.ceiling ?? null,
+        links_actual: source.current ? Number(source.current.links_upserted || 0) : null,
+        links_floor: source.baselines?.links_upserted?.floor ?? null,
+        links_ceiling: source.baselines?.links_upserted?.ceiling ?? null,
+        anomaly_count: Number(source.anomalies?.length || 0),
+        anomalies_json: JSON.stringify(source.anomalies || []),
+      };
+      insert.run(payload);
+    }
+  });
+  tx();
+
+  return {
+    available: true,
+    note: null,
+    written_rows: Array.isArray(baselines.sources) ? baselines.sources.length : 0,
+    health_run_at: asOfIso,
+  };
+}
+
+function readBaselineTrends(db, config) {
+  if (!tableExists(db, 'ingestion_baseline_snapshots')) {
+    return {
+      available: false,
+      note: 'ingestion_baseline_snapshots table missing (run npm run db:hybrid:init)',
+      sources: [],
+    };
+  }
+
+  const rows = db.prepare(`
+    SELECT
+      source,
+      health_run_at,
+      anomaly_count,
+      records_actual,
+      entities_actual,
+      links_actual
+    FROM ingestion_baseline_snapshots
+    WHERE source IN (${DEFAULT_SOURCES.map(() => '?').join(',')})
+    ORDER BY source ASC, health_run_at DESC
+  `).all(...DEFAULT_SOURCES);
+
+  if (!rows.length) {
+    return {
+      available: true,
+      note: 'no baseline snapshots recorded yet',
+      sources: DEFAULT_SOURCES.map((source) => ({
+        source,
+        status: 'insufficient_history',
+        snapshot_count: 0,
+        latest_health_run_at: null,
+        oldest_health_run_at: null,
+        anomaly_count: null,
+        metrics: null,
+      })),
+    };
+  }
+
+  const grouped = new Map();
+  for (const row of rows) {
+    const source = String(row.source);
+    if (!grouped.has(source)) grouped.set(source, []);
+    const list = grouped.get(source);
+    if (list.length >= config.window_snapshots) continue;
+    list.push({
+      health_run_at: toIsoOrNull(row.health_run_at),
+      anomaly_count: Number(row.anomaly_count || 0),
+      records_actual: toNumberOrNull(row.records_actual),
+      entities_actual: toNumberOrNull(row.entities_actual),
+      links_actual: toNumberOrNull(row.links_actual),
+    });
+  }
+
+  const sources = DEFAULT_SOURCES.map((source) => {
+    const history = grouped.get(source) || [];
+    if (history.length < 2) {
+      return {
+        source,
+        status: 'insufficient_history',
+        snapshot_count: history.length,
+        latest_health_run_at: history[0]?.health_run_at || null,
+        oldest_health_run_at: history[history.length - 1]?.health_run_at || null,
+        anomaly_count: null,
+        metrics: null,
+      };
+    }
+
+    return {
+      source,
+      status: 'ok',
+      snapshot_count: history.length,
+      latest_health_run_at: history[0]?.health_run_at || null,
+      oldest_health_run_at: history[history.length - 1]?.health_run_at || null,
+      anomaly_count: summarizeTrend(history, 'anomaly_count'),
+      metrics: {
+        records_scanned: summarizeTrend(history, 'records_actual'),
+        entities_upserted: summarizeTrend(history, 'entities_actual'),
+        links_upserted: summarizeTrend(history, 'links_actual'),
+      },
+    };
+  });
+
+  return {
+    available: true,
+    note: null,
+    sources,
+  };
+}
+
+function summarizeTrend(history, key) {
+  const values = history
+    .map((row) => row[key])
+    .filter((value) => value !== null && value !== undefined && Number.isFinite(value));
+
+  if (!values.length) {
+    return {
+      latest: null,
+      avg: null,
+      oldest: null,
+      delta_vs_oldest: null,
+      delta_vs_oldest_pct: null,
+      direction: 'flat',
+    };
+  }
+
+  const latest = values[0];
+  const oldest = values[values.length - 1];
+  const avg = Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(3));
+  const deltaVsOldest = Number((latest - oldest).toFixed(3));
+
+  return {
+    latest,
+    avg,
+    oldest,
+    delta_vs_oldest: deltaVsOldest,
+    delta_vs_oldest_pct: signedPercentDelta(latest, oldest),
+    direction: deltaVsOldest > 0 ? 'up' : deltaVsOldest < 0 ? 'down' : 'flat',
   };
 }
 
@@ -881,4 +1144,16 @@ function percentDelta(current, previous) {
 function absoluteDelta(current, previous) {
   if (current === null || previous === null || current === undefined || previous === undefined) return null;
   return Number(Math.abs(current - previous).toFixed(6));
+}
+
+function signedPercentDelta(current, previous) {
+  if (previous === null || previous === undefined) return null;
+  if (previous === 0) return current === 0 ? 0 : 100;
+  return Number((((current - previous) / previous) * 100).toFixed(3));
+}
+
+function toNumberOrNull(value) {
+  if (value === null || value === undefined) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
