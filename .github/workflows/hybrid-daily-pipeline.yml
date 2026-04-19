@@ -196,6 +196,7 @@ jobs:
 
       - name: Dispatch health-gate alerts
         if: ${{ failure() }}
+        id: dispatch_alert
         env:
           ALERT_WEBHOOK_URL: ${{ secrets.HYBRID_ALERT_WEBHOOK_URL }}
           ALERT_WEBHOOK_URLS: ${{ secrets.HYBRID_ALERT_WEBHOOK_URLS }}
@@ -227,10 +228,28 @@ jobs:
           MAX_LAG_HOURS: ${{ env.MAX_LAG_HOURS_INPUT }}
           MAX_SEEN_DRIFT_HOURS: ${{ env.MAX_SEEN_DRIFT_HOURS_INPUT }}
           MAX_ARTIFACT_ISSUES: ${{ env.MAX_ARTIFACT_ISSUES_INPUT }}
+          ALERT_DIGEST_OUT_DIR: artifacts
+          ALERT_DIGEST_PREFIX: ack-reminder-digest
+          ALERT_SUMMARY_PREFIX: dispatch-alert-summary
         shell: bash
         run: |
           set -euo pipefail
           node scripts/ci/dispatch-hybrid-alert.mjs
+
+      - name: Upload failure ACK artifacts (canary)
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: hybrid-daily-canary-ack-${{ steps.args.outputs.run_date }}
+          path: |
+            artifacts/ack-evidence-*.json
+            artifacts/ack-evidence-*.md
+            artifacts/ack-reminder-digest-*.json
+            artifacts/ack-reminder-digest-*.md
+            artifacts/dispatch-alert-summary-*.json
+            artifacts/ack-state-canary.json
+          if-no-files-found: warn
+          retention-days: 14
 
   run-daily-live:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.live_mode }}
@@ -524,6 +543,7 @@ jobs:
 
       - name: Dispatch health-gate alerts
         if: ${{ failure() }}
+        id: dispatch_alert
         env:
           ALERT_WEBHOOK_URL: ${{ secrets.HYBRID_ALERT_WEBHOOK_URL }}
           ALERT_WEBHOOK_URLS: ${{ secrets.HYBRID_ALERT_WEBHOOK_URLS }}
@@ -572,7 +592,24 @@ jobs:
           ALERT_DRIFT_GATE_BREACHED_BY_SEVERITY_SCORE: ${{ steps.drift.outputs.drift_gate_breached_by_severity_score }}
           ALERT_DRIFT_JSON: ${{ steps.drift.outputs.drift_json_path }}
           ALERT_DRIFT_MD: ${{ steps.drift.outputs.drift_md_path }}
+          ALERT_DIGEST_OUT_DIR: artifacts
+          ALERT_DIGEST_PREFIX: ack-reminder-digest
+          ALERT_SUMMARY_PREFIX: dispatch-alert-summary
         shell: bash
         run: |
           set -euo pipefail
           node scripts/ci/dispatch-hybrid-alert.mjs
+
+      - name: Upload failure ACK artifacts (live)
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: hybrid-daily-live-ack-${{ steps.args.outputs.run_date }}
+          path: |
+            artifacts/ack-evidence-*.json
+            artifacts/ack-evidence-*.md
+            artifacts/ack-reminder-digest-*.json
+            artifacts/ack-reminder-digest-*.md
+            artifacts/dispatch-alert-summary-*.json
+          if-no-files-found: warn
+          retention-days: 14

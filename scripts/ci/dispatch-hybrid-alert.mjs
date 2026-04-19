@@ -250,6 +250,23 @@ function parseAckEvidenceSummary(pathLike) {
   }
 }
 
+function appendGitHubOutput(kvPairs) {
+  const outputFile = process.env.GITHUB_OUTPUT;
+  if (!outputFile) return;
+  const lines = [];
+  for (const [key, value] of Object.entries(kvPairs)) {
+    const normalized = String(value ?? "");
+    if (normalized.includes("\n")) {
+      lines.push(`${key}<<EOF`);
+      lines.push(normalized);
+      lines.push("EOF");
+    } else {
+      lines.push(`${key}=${normalized}`);
+    }
+  }
+  fs.appendFileSync(outputFile, `${lines.join("\n")}\n`, "utf8");
+}
+
 function readAckState(filePath) {
   if (!filePath) return { schema_version: 1, incidents: {} };
   if (!fs.existsSync(filePath)) {
@@ -316,6 +333,92 @@ function buildAckMarker({ ackKey, incident, runMode, runDate }) {
   };
 }
 
+function buildEscalationSummary({
+  incident,
+  nowEt,
+  escalationEnabled,
+  driftEscalationEnabled,
+  escalationWindows,
+  baseRoutes,
+  escalationRoutes,
+  driftRoutes,
+  driftEscalationRoutes,
+  ackReminderRoutes,
+  ackReminderEscalationRoutes,
+  reminderSummary,
+}) {
+  const reminderEscalationDueCount = reminderSummary.filter((item) => item.reminder_escalation_due).length;
+  return {
+    schema_version: 1,
+    policy: {
+      windows_et: escalationWindows.map((window) => window.source),
+      et_now: `${nowEt.weekday}@${nowEt.hhmm}`,
+      incident_type: incident.type,
+      incident_drift_related: incident.drift_related,
+    },
+    routes: {
+      base_configured_count: baseRoutes.length,
+      escalation_configured_count: escalationRoutes.length,
+      drift_configured_count: driftRoutes.length,
+      drift_escalation_configured_count: driftEscalationRoutes.length,
+      ack_reminder_configured_count: ackReminderRoutes.length,
+      ack_reminder_escalation_configured_count: ackReminderEscalationRoutes.length,
+      escalation_enabled: escalationEnabled,
+      drift_escalation_enabled: driftEscalationEnabled,
+      reminder_escalation_due_count: reminderEscalationDueCount,
+    },
+  };
+}
+
+function toDigestMarkdown(digest) {
+  const lines = [
+    "# ACK Reminder Digest",
+    "",
+    `- Generated (UTC): \`${digest.generated_at_utc}\``,
+    `- Run mode: \`${digest.run_mode}\``,
+    `- Run date: \`${digest.run_date}\``,
+    `- Incident type: \`${digest.incident_type}\``,
+    `- ACK key: \`${digest.ack.ack_key}\``,
+    `- ACK marker: \`${digest.ack.ack_marker}\``,
+    `- ACK required: \`${digest.ack.ack_required}\``,
+    `- ACK reconciled: \`${digest.ack.reconciled}\``,
+    `- ACK due (UTC): \`${digest.ack.ack_due_at_utc}\``,
+    `- ACK due (ET): \`${digest.ack.ack_due_at_et}\``,
+    `- Reminders due now: \`${digest.reminders.due_count}\``,
+    `- Reminder escalations due now: \`${digest.reminders.escalations_due_count}\``,
+    `- Stale ACK pending: \`${digest.stale.stale_pending_count}\``,
+    `- Newly stale this run: \`${digest.stale.newly_stale_count}\``,
+    `- Evidence active markers: \`${digest.evidence.active_marker_count}\``,
+    `- Evidence active keys: \`${digest.evidence.active_key_count}\``,
+    `- Evidence stale entries: \`${digest.evidence.stale_entry_count}\``,
+    `- Evidence parse errors: \`${digest.evidence.parse_error_count}\``,
+    "",
+    "## Escalation Summary Contract",
+    `- ET window now: \`${digest.escalation.policy.et_now}\``,
+    `- Escalation windows: \`${digest.escalation.policy.windows_et.join(";") || "n/a"}\``,
+    `- Escalation enabled: \`${digest.escalation.routes.escalation_enabled}\``,
+    `- Drift escalation enabled: \`${digest.escalation.routes.drift_escalation_enabled}\``,
+    `- Base routes configured: \`${digest.escalation.routes.base_configured_count}\``,
+    `- Escalation routes configured: \`${digest.escalation.routes.escalation_configured_count}\``,
+    `- Drift routes configured: \`${digest.escalation.routes.drift_configured_count}\``,
+    `- Drift escalation routes configured: \`${digest.escalation.routes.drift_escalation_configured_count}\``,
+    `- ACK reminder routes configured: \`${digest.escalation.routes.ack_reminder_configured_count}\``,
+    `- ACK reminder escalation routes configured: \`${digest.escalation.routes.ack_reminder_escalation_configured_count}\``,
+    `- Reminder escalations due count: \`${digest.escalation.routes.reminder_escalation_due_count}\``,
+  ];
+
+  if (digest.reminders.samples.length > 0) {
+    lines.push("", "## Reminder Samples");
+    for (const reminder of digest.reminders.samples) {
+      lines.push(
+        `- key=\`${reminder.ack_key}\` marker=\`${reminder.ack_marker}\` overdue=\`${reminder.overdue_minutes}m\` reminders=\`${reminder.reminder_count}\` escalation_due=\`${reminder.reminder_escalation_due}\``
+      );
+    }
+  }
+
+  return `${lines.join("\n")}\n`;
+}
+
 function buildAlertText({
   escalationEnabled,
   driftEscalationEnabled,
@@ -325,6 +428,7 @@ function buildAlertText({
   ackStatePath,
   staleSummary,
   ackEvidenceSummary,
+  escalationSummary,
 }) {
   const mode = process.env.RUN_MODE || "unknown";
   const repo = process.env.REPO || "unknown";
@@ -420,6 +524,11 @@ function buildAlertText({
   if (ackEvidenceSummary) {
     lines.push(
       `ACK evidence ingest: activeMarkers=${ackEvidenceSummary.active_marker_count || 0}, activeKeys=${ackEvidenceSummary.active_key_count || 0}, staleEntries=${ackEvidenceSummary.stale_entry_count || 0}, parseErrors=${ackEvidenceSummary.parse_error_count || 0}`
+    );
+  }
+  if (escalationSummary) {
+    lines.push(
+      `Escalation summary: baseRoutes=${escalationSummary.routes.base_configured_count}, escalationRoutes=${escalationSummary.routes.escalation_configured_count}, driftRoutes=${escalationSummary.routes.drift_configured_count}, driftEscalationRoutes=${escalationSummary.routes.drift_escalation_configured_count}, reminderEscalationDue=${escalationSummary.routes.reminder_escalation_due_count}`
     );
   }
   if (ackStatePath) {
@@ -562,6 +671,20 @@ async function main() {
     incident.drift_related &&
     driftEscalationRoutes.length > 0 &&
     escalationWindows.some((window) => isWindowMatch(window, nowEt));
+  const escalationSummary = buildEscalationSummary({
+    incident,
+    nowEt,
+    escalationEnabled,
+    driftEscalationEnabled,
+    escalationWindows,
+    baseRoutes,
+    escalationRoutes,
+    driftRoutes,
+    driftEscalationRoutes,
+    ackReminderRoutes,
+    ackReminderEscalationRoutes,
+    reminderSummary,
+  });
 
   const destinationRoutes = unique([
     ...baseRoutes,
@@ -576,10 +699,7 @@ async function main() {
       : []),
   ]);
 
-  if (destinationRoutes.length === 0) {
-    console.log("No alert webhooks configured. Skipping outbound alert dispatch.");
-    return;
-  }
+  const noRoutesConfigured = destinationRoutes.length === 0;
 
   const payload = {
     text: buildAlertText({
@@ -591,6 +711,7 @@ async function main() {
       ackStatePath,
       staleSummary,
       ackEvidenceSummary,
+      escalationSummary,
     }),
     metadata: {
       incident_type: incident.type,
@@ -598,6 +719,7 @@ async function main() {
       run_mode: runMode,
       run_date: runDate || "unknown",
       ...ackMarker,
+      escalation_summary: escalationSummary,
       ack_state_path: ackStatePath || null,
       ack_reconciled: nextIncident.status === "acknowledged",
       ack_reconciled_at_utc: nextIncident.acknowledged_at_utc || null,
@@ -648,9 +770,77 @@ async function main() {
     ack_evidence_stale_entry_count: Number(ackEvidenceSummary?.stale_entry_count || 0),
     ack_evidence_parse_error_count: Number(ackEvidenceSummary?.parse_error_count || 0),
     ack_evidence_json: process.env.ALERT_ACK_EVIDENCE_JSON || null,
+    escalation_summary: escalationSummary,
     dry_run: dryRun,
   };
+
+  const digest = {
+    schema_version: 1,
+    generated_at_utc: new Date().toISOString(),
+    run_mode: runMode,
+    run_date: runDate || "unknown",
+    incident_type: incident.type,
+    incident_severity: incident.severity,
+    ack: {
+      ack_required: true,
+      ack_key: ackMarker.ack_key,
+      ack_marker: ackMarker.ack_marker,
+      ack_sla_minutes: ackMarker.ack_sla_minutes,
+      ack_due_at_utc: ackMarker.ack_due_at_utc,
+      ack_due_at_et: ackMarker.ack_due_at_et,
+      reconciled: nextIncident.status === "acknowledged",
+      reconciled_at_utc: nextIncident.acknowledged_at_utc || null,
+      reconciliation_source: nextIncident.acknowledgment_source || null,
+      state_path: ackStatePath || null,
+    },
+    reminders: {
+      due_count: reminderSummary.length,
+      escalations_due_count: reminderSummary.filter((item) => item.reminder_escalation_due).length,
+      samples: reminderSummary.slice(0, 10),
+    },
+    stale: staleSummary,
+    evidence: {
+      active_marker_count: Number(ackEvidenceSummary?.active_marker_count || 0),
+      active_key_count: Number(ackEvidenceSummary?.active_key_count || 0),
+      stale_entry_count: Number(ackEvidenceSummary?.stale_entry_count || 0),
+      parse_error_count: Number(ackEvidenceSummary?.parse_error_count || 0),
+      evidence_json: process.env.ALERT_ACK_EVIDENCE_JSON || null,
+    },
+    escalation: escalationSummary,
+    routes: {
+      total: destinationRoutes.length,
+      destinations: destinationRoutes,
+    },
+  };
+
+  const digestOutDir = path.resolve(String(process.env.ALERT_DIGEST_OUT_DIR || "artifacts"));
+  const digestPrefix = String(process.env.ALERT_DIGEST_PREFIX || "ack-reminder-digest").trim() || "ack-reminder-digest";
+  const summaryPrefix = String(process.env.ALERT_SUMMARY_PREFIX || "dispatch-alert-summary").trim() || "dispatch-alert-summary";
+  fs.mkdirSync(digestOutDir, { recursive: true });
+  const fileToken = `${runDate || "unknown"}-${runMode || "unknown"}`;
+  const digestJsonPath = path.join(digestOutDir, `${digestPrefix}-${fileToken}.json`);
+  const digestMdPath = path.join(digestOutDir, `${digestPrefix}-${fileToken}.md`);
+  const summaryJsonPath = path.join(digestOutDir, `${summaryPrefix}-${fileToken}.json`);
+  fs.writeFileSync(digestJsonPath, `${JSON.stringify(digest, null, 2)}\n`, "utf8");
+  fs.writeFileSync(digestMdPath, toDigestMarkdown(digest), "utf8");
+  fs.writeFileSync(summaryJsonPath, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
+  appendGitHubOutput({
+    ack_digest_json_path: path.relative(process.cwd(), digestJsonPath),
+    ack_digest_md_path: path.relative(process.cwd(), digestMdPath),
+    dispatch_alert_summary_json_path: path.relative(process.cwd(), summaryJsonPath),
+    escalation_enabled: String(escalationEnabled),
+    drift_escalation_enabled: String(driftEscalationEnabled),
+    ack_reminders_due_count: String(reminderSummary.length),
+    ack_reminder_escalations_due_count: String(
+      reminderSummary.filter((item) => item.reminder_escalation_due).length
+    ),
+  });
   console.log(JSON.stringify(summary, null, 2));
+
+  if (noRoutesConfigured) {
+    console.log("No alert webhooks configured. Skipping outbound alert dispatch.");
+    return;
+  }
 
   if (dryRun) {
     console.log("ALERT_DRY_RUN enabled; no webhooks invoked.");

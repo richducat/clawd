@@ -295,6 +295,13 @@ Include:
   - ACK evidence ingestion artifacts emitted on failure:
     - `ack-evidence-YYYY-MM-DD.json`
     - `ack-evidence-YYYY-MM-DD.md`
+  - ACK reminder digest + dispatch summary artifacts emitted on failure:
+    - `ack-reminder-digest-YYYY-MM-DD-<mode>.json`
+    - `ack-reminder-digest-YYYY-MM-DD-<mode>.md`
+    - `dispatch-alert-summary-YYYY-MM-DD-<mode>.json`
+    - failure-path upload artifact bundles:
+      - `hybrid-daily-canary-ack-YYYY-MM-DD`
+      - `hybrid-daily-live-ack-YYYY-MM-DD`
   - escalation window format (`ET`):
     - `always`
     - or semicolon-delimited entries in `daySpec@HH:MM-HH:MM`
@@ -317,6 +324,11 @@ Include:
       - ACK reconciliation/reminder metadata (`ack_reconciled`, `ack_reconciliation_source`, `ack_reminders_due_count`, `ack_reminder_escalations_due_count`)
       - ACK stale-expiry metadata (`ack_stale_after_minutes`, `ack_stale_pending_count`, `ack_newly_stale_count`)
       - ACK evidence-ingestion metadata (`ack_evidence_active_marker_count`, `ack_evidence_active_key_count`, `ack_evidence_stale_entry_count`, `ack_evidence_parse_error_count`, `ack_evidence_json`)
+      - escalation summary contract (`escalation_summary`) with deterministic policy + route fields:
+        - `policy.windows_et`, `policy.et_now`, `policy.incident_type`, `policy.incident_drift_related`
+        - `routes.base_configured_count`, `routes.escalation_configured_count`, `routes.drift_configured_count`, `routes.drift_escalation_configured_count`
+        - `routes.ack_reminder_configured_count`, `routes.ack_reminder_escalation_configured_count`
+        - `routes.escalation_enabled`, `routes.drift_escalation_enabled`, `routes.reminder_escalation_due_count`
   - dispatcher persists ACK tracker state to `ALERT_ACK_STATE_PATH` and reconciles prior unresolved incidents when evidence vars are provided
   - stale pending ACK incidents are auto-marked `stale` after the configured expiry window and excluded from reminder fan-out
   - if no webhook routes are configured, workflow logs and skips outbound notification
