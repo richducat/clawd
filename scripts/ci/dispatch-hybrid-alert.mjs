@@ -176,7 +176,10 @@ function buildAlertText({ escalationEnabled }) {
   const ledgerMd = process.env.ALERT_INCIDENT_LEDGER_MD || "";
   const driftStatus = process.env.ALERT_DRIFT_STATUS || "";
   const driftSignals = process.env.ALERT_DRIFT_SIGNAL_COUNT || "";
+  const driftTotalSeverityScore = process.env.ALERT_DRIFT_TOTAL_SEVERITY_SCORE || "";
   const driftGateBreached = process.env.ALERT_DRIFT_GATE_BREACHED || "";
+  const driftGateBreachedBySignalCount = process.env.ALERT_DRIFT_GATE_BREACHED_BY_SIGNAL_COUNT || "";
+  const driftGateBreachedBySeverityScore = process.env.ALERT_DRIFT_GATE_BREACHED_BY_SEVERITY_SCORE || "";
   const driftJson = process.env.ALERT_DRIFT_JSON || "";
   const driftMd = process.env.ALERT_DRIFT_MD || "";
 
@@ -211,9 +214,18 @@ function buildAlertText({ escalationEnabled }) {
   if (ledgerJson || ledgerMd) {
     lines.push(`Incident ledger: json=${ledgerJson || "n/a"}, md=${ledgerMd || "n/a"}`);
   }
-  if (driftStatus || driftSignals || driftGateBreached || driftJson || driftMd) {
+  if (
+    driftStatus ||
+    driftSignals ||
+    driftTotalSeverityScore ||
+    driftGateBreached ||
+    driftGateBreachedBySignalCount ||
+    driftGateBreachedBySeverityScore ||
+    driftJson ||
+    driftMd
+  ) {
     lines.push(
-      `Canary-vs-live drift: status=${driftStatus || "n/a"}, signals=${driftSignals || "n/a"}, gateBreached=${driftGateBreached || "n/a"}`
+      `Canary-vs-live drift: status=${driftStatus || "n/a"}, signals=${driftSignals || "n/a"}, totalSeverityScore=${driftTotalSeverityScore || "n/a"}, gateBreached=${driftGateBreached || "n/a"}, gateBySignalCount=${driftGateBreachedBySignalCount || "n/a"}, gateBySeverityScore=${driftGateBreachedBySeverityScore || "n/a"}`
     );
     lines.push(`Drift evidence: json=${driftJson || "n/a"}, md=${driftMd || "n/a"}`);
   }

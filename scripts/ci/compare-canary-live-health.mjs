@@ -10,6 +10,7 @@ function parseArgs(argv) {
     outDir: "artifacts",
     runDate: "",
     maxDriftSignals: null,
+    maxDriftSeverityScore: null,
     maxSourceLagDeltaHours: 2,
     maxSourceSeenDriftDeltaHours: 4,
     maxTotalsDeltaPct: 25,
@@ -36,6 +37,13 @@ function parseArgs(argv) {
         throw new Error(`Invalid --max-drift-signals value: ${next}`);
       }
       args.maxDriftSignals = Math.floor(value);
+      idx += 1;
+    } else if (token === "--max-drift-severity-score") {
+      const value = Number(next);
+      if (!Number.isFinite(value) || value < 0) {
+        throw new Error(`Invalid --max-drift-severity-score value: ${next}`);
+      }
+      args.maxDriftSeverityScore = Math.floor(value);
       idx += 1;
     } else if (token === "--max-source-lag-delta-hours") {
       const value = Number(next);
@@ -112,8 +120,43 @@ function severityRank(level) {
   return 1;
 }
 
+function severityWeight(level) {
+  if (level === "high") return 5;
+  if (level === "medium") return 3;
+  return 1;
+}
+
+function categoryForCode(code) {
+  const map = {
+    source_missing: "coverage",
+    source_status_changed: "status",
+    source_lag_delta_exceeded: "latency",
+    source_seen_drift_delta_exceeded: "cursor_freshness",
+    failure_issues_increased: "artifacts",
+    threshold_breaches_increased: "thresholds",
+    baseline_anomalies_increased: "baselines",
+    entity_totals_delta_exceeded: "volume",
+    chunk_totals_delta_exceeded: "volume",
+  };
+  return map[code] || "general";
+}
+
+function withTaxonomy(signal) {
+  const severity = String(signal?.severity || "low");
+  const code = String(signal?.code || "unknown");
+  return {
+    ...signal,
+    severity,
+    category: String(signal?.category || categoryForCode(code)),
+    severity_weight: severityWeight(severity),
+  };
+}
+
 function compare(canary, live, thresholds) {
   const signals = [];
+  function addSignal(signal) {
+    signals.push(withTaxonomy(signal));
+  }
   const canarySources = sourceMap(canary);
   const liveSources = sourceMap(live);
   const allSources = [...new Set([...canarySources.keys(), ...liveSources.keys()])].sort();
@@ -122,7 +165,7 @@ function compare(canary, live, thresholds) {
     const c = canarySources.get(source) || null;
     const l = liveSources.get(source) || null;
     if (!c || !l) {
-      signals.push({
+      addSignal({
         code: "source_missing",
         severity: "high",
         source,
@@ -134,7 +177,7 @@ function compare(canary, live, thresholds) {
     const cStatus = String(c.status || "unknown");
     const lStatus = String(l.status || "unknown");
     if (cStatus !== lStatus) {
-      signals.push({
+      addSignal({
         code: "source_status_changed",
         severity: "medium",
         source,
@@ -146,7 +189,7 @@ function compare(canary, live, thresholds) {
 
     const lagDelta = toNumberOrNull(l.lag_hours) != null && toNumberOrNull(c.lag_hours) != null ? Number((l.lag_hours - c.lag_hours).toFixed(3)) : null;
     if (lagDelta != null && lagDelta > thresholds.max_source_lag_delta_hours) {
-      signals.push({
+      addSignal({
         code: "source_lag_delta_exceeded",
         severity: "medium",
         source,
@@ -163,7 +206,7 @@ function compare(canary, live, thresholds) {
         ? Number((l.seen_drift_hours - c.seen_drift_hours).toFixed(3))
         : null;
     if (seenDriftDelta != null && seenDriftDelta > thresholds.max_source_seen_drift_delta_hours) {
-      signals.push({
+      addSignal({
         code: "source_seen_drift_delta_exceeded",
         severity: "medium",
         source,
@@ -179,7 +222,7 @@ function compare(canary, live, thresholds) {
   const canaryFailures = Array.isArray(canary?.failures?.issues) ? canary.failures.issues.length : 0;
   const liveFailures = Array.isArray(live?.failures?.issues) ? live.failures.issues.length : 0;
   if (liveFailures > canaryFailures) {
-    signals.push({
+    addSignal({
       code: "failure_issues_increased",
       severity: "high",
       canary_failures: canaryFailures,
@@ -191,7 +234,7 @@ function compare(canary, live, thresholds) {
   const canaryBreaches = Array.isArray(canary?.breaches) ? canary.breaches.length : 0;
   const liveBreaches = Array.isArray(live?.breaches) ? live.breaches.length : 0;
   if (liveBreaches > canaryBreaches) {
-    signals.push({
+    addSignal({
       code: "threshold_breaches_increased",
       severity: "high",
       canary_breaches: canaryBreaches,
@@ -203,7 +246,7 @@ function compare(canary, live, thresholds) {
   const canaryAnomalies = toNumberOrNull(canary?.baselines?.totals?.anomalies) || 0;
   const liveAnomalies = toNumberOrNull(live?.baselines?.totals?.anomalies) || 0;
   if (liveAnomalies > canaryAnomalies) {
-    signals.push({
+    addSignal({
       code: "baseline_anomalies_increased",
       severity: "medium",
       canary_anomalies: canaryAnomalies,
@@ -219,7 +262,7 @@ function compare(canary, live, thresholds) {
   const entityDeltaPct = percentDelta(liveEntities, canaryEntities);
   const chunkDeltaPct = percentDelta(liveChunks, canaryChunks);
   if (entityDeltaPct != null && Math.abs(entityDeltaPct) > thresholds.max_totals_delta_pct) {
-    signals.push({
+    addSignal({
       code: "entity_totals_delta_exceeded",
       severity: "medium",
       canary_entities: canaryEntities,
@@ -230,7 +273,7 @@ function compare(canary, live, thresholds) {
     });
   }
   if (chunkDeltaPct != null && Math.abs(chunkDeltaPct) > thresholds.max_totals_delta_pct) {
-    signals.push({
+    addSignal({
       code: "chunk_totals_delta_exceeded",
       severity: "medium",
       canary_chunks: canaryChunks,
@@ -245,9 +288,24 @@ function compare(canary, live, thresholds) {
     .map((signal) => signal.severity || "low")
     .sort((left, right) => severityRank(right) - severityRank(left))[0];
 
+  const severity_counts = { low: 0, medium: 0, high: 0 };
+  const category_counts = {};
+  let total_severity_score = 0;
+  for (const signal of signals) {
+    if (signal.severity in severity_counts) {
+      severity_counts[signal.severity] += 1;
+    }
+    const category = signal.category || "general";
+    category_counts[category] = (category_counts[category] || 0) + 1;
+    total_severity_score += toNumberOrNull(signal.severity_weight) || 0;
+  }
+
   return {
     signals,
     highest_severity: highestSeverity || "none",
+    severity_counts,
+    category_counts,
+    total_severity_score,
     canary_metrics: {
       failures: canaryFailures,
       breaches: canaryBreaches,
@@ -273,6 +331,7 @@ function toMarkdown(report) {
     `- Canary baseline: ${report.inputs.canary_json || "unavailable"}`,
     `- Live health file: ${report.inputs.live_json}`,
     `- Signal count: ${report.summary.signal_count}`,
+    `- Total severity score: ${report.summary.total_severity_score}`,
     `- Highest severity: ${report.summary.highest_severity}`,
     "",
     "## Thresholds",
@@ -281,6 +340,7 @@ function toMarkdown(report) {
     `- max_source_seen_drift_delta_hours: ${report.thresholds.max_source_seen_drift_delta_hours}`,
     `- max_totals_delta_pct: ${report.thresholds.max_totals_delta_pct}`,
     `- max_drift_signals: ${report.thresholds.max_drift_signals ?? "report_only"}`,
+    `- max_drift_severity_score: ${report.thresholds.max_drift_severity_score ?? "report_only"}`,
     "",
   ];
 
@@ -293,8 +353,18 @@ function toMarkdown(report) {
   if (!report.signals.length) {
     lines.push("- none");
   } else {
+    lines.push(
+      `- Severity counts: high=${report.summary.severity_counts.high}, medium=${report.summary.severity_counts.medium}, low=${report.summary.severity_counts.low}`,
+    );
+    const categoryPairs = Object.entries(report.summary.category_counts || {})
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([category, count]) => `${category}=${count}`);
+    lines.push(`- Category counts: ${categoryPairs.length ? categoryPairs.join(", ") : "none"}`);
+    lines.push("");
     for (const signal of report.signals) {
-      lines.push(`- [${signal.severity}] ${signal.code}: ${signal.message}`);
+      lines.push(
+        `- [${signal.severity}] [${signal.category}] (weight=${signal.severity_weight}) ${signal.code}: ${signal.message}`,
+      );
     }
   }
 
@@ -320,6 +390,7 @@ function main() {
     max_source_seen_drift_delta_hours: args.maxSourceSeenDriftDeltaHours,
     max_totals_delta_pct: args.maxTotalsDeltaPct,
     max_drift_signals: args.maxDriftSignals,
+    max_drift_severity_score: args.maxDriftSeverityScore,
   };
 
   const report = {
@@ -333,8 +404,13 @@ function main() {
     thresholds,
     summary: {
       signal_count: 0,
+      total_severity_score: 0,
       highest_severity: "none",
       gate_breached: false,
+      gate_breached_by_signal_count: false,
+      gate_breached_by_severity_score: false,
+      severity_counts: { low: 0, medium: 0, high: 0 },
+      category_counts: {},
     },
     signals: [],
     metrics: {},
@@ -345,7 +421,10 @@ function main() {
     const comparison = compare(canaryDoc, liveDoc, thresholds);
     report.signals = comparison.signals;
     report.summary.signal_count = comparison.signals.length;
+    report.summary.total_severity_score = comparison.total_severity_score;
     report.summary.highest_severity = comparison.highest_severity;
+    report.summary.severity_counts = comparison.severity_counts;
+    report.summary.category_counts = comparison.category_counts;
     report.metrics = {
       canary: comparison.canary_metrics,
       live: comparison.live_metrics,
@@ -361,9 +440,12 @@ function main() {
     };
   }
 
-  if (args.maxDriftSignals != null && report.summary.signal_count > args.maxDriftSignals) {
-    report.summary.gate_breached = true;
-  }
+  report.summary.gate_breached_by_signal_count =
+    args.maxDriftSignals != null && report.summary.signal_count > args.maxDriftSignals;
+  report.summary.gate_breached_by_severity_score =
+    args.maxDriftSeverityScore != null && report.summary.total_severity_score > args.maxDriftSeverityScore;
+  report.summary.gate_breached =
+    report.summary.gate_breached_by_signal_count || report.summary.gate_breached_by_severity_score;
 
   const stem = `canary-live-drift-${runDate}`;
   const jsonPath = path.join(outDir, `${stem}.json`);
@@ -374,14 +456,20 @@ function main() {
   const output = {
     status: report.status,
     signal_count: report.summary.signal_count,
+    total_severity_score: report.summary.total_severity_score,
     gate_breached: report.summary.gate_breached,
+    gate_breached_by_signal_count: report.summary.gate_breached_by_signal_count,
+    gate_breached_by_severity_score: report.summary.gate_breached_by_severity_score,
     json_path: path.relative(process.cwd(), jsonPath),
     md_path: path.relative(process.cwd(), mdPath),
   };
   appendGitHubOutput({
     drift_status: output.status,
     drift_signal_count: String(output.signal_count),
+    drift_total_severity_score: String(output.total_severity_score),
     drift_gate_breached: String(output.gate_breached),
+    drift_gate_breached_by_signal_count: String(output.gate_breached_by_signal_count),
+    drift_gate_breached_by_severity_score: String(output.gate_breached_by_severity_score),
     drift_json_path: output.json_path,
     drift_md_path: output.md_path,
   });
