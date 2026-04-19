@@ -179,18 +179,28 @@ Include:
   - `--allow-partial-sources` to allow CRM ingest to continue when one live connector source fails
   - `--connector-retries <n>`, `--connector-backoff-ms <n>`, `--connector-backoff-factor <n>` for live connector retry/backoff tuning
 
-## 15) Scheduled hybrid daily run (artifact retention)
+## 15) Scheduled hybrid daily run (canary + live lanes)
 - Workflow: `.github/workflows/hybrid-daily-pipeline.yml`
 - Runs:
   - daily at `13:20 UTC`
-  - manual dispatch with inputs (`account`, `date`, `use_fixtures`, `skip_kb`, `max_lag_hours`, `max_seen_drift_hours`, `max_artifact_issues`)
+  - manual dispatch with inputs (`account`, `date`, `use_fixtures`, `live_mode`, `skip_kb`, `max_lag_hours`, `max_seen_drift_hours`, `max_artifact_issues`)
 - Artifacts kept for 14 days:
   - `meeting-prep-YYYY-MM-DD.md`
   - `pipeline-summary-YYYY-MM-DD.json`
   - `ingestion-health-YYYY-MM-DD.md`
   - `ingestion-health-YYYY-MM-DD.json`
-- Default scheduled/manual behavior uses repository fixtures for deterministic canary runs.
-- For live-source execution, run manually on an environment with live source prerequisites and set `use_fixtures=false`.
+- Artifact names now include execution lane:
+  - `hybrid-daily-canary-YYYY-MM-DD`
+  - `hybrid-daily-live-YYYY-MM-DD`
+- Lane behavior:
+  - **Canary lane** (schedule + manual with `live_mode=false`) runs on `ubuntu-latest`.
+  - **Live lane** (manual with `live_mode=true`) runs on `self-hosted`.
+- Default scheduled behavior remains fixture-backed deterministic canary.
+- For live-source execution, use manual dispatch with `live_mode=true` (fixtures are not used in live lane).
+- Live lane preflight checks before running pipeline:
+  - `gog` binary must exist on runner PATH
+  - Gmail connectivity probe succeeds for selected `account`
+  - Calendar connectivity probe succeeds for selected `account`
 - Workflow health gate:
   - runs `db:hybrid:health` after `db:hybrid:daily`
   - emits both markdown and JSON health artifacts
@@ -202,9 +212,10 @@ Include:
 - Optional breach alert hook:
   - set repo secret `HYBRID_ALERT_WEBHOOK_URL` to enable outbound notifications
   - on health-gate failure, workflow posts a JSON payload (`text`) with:
+    - run mode (`canary` or `live`)
     - run URL
     - run date + threshold values
-    - artifact label (`hybrid-daily-YYYY-MM-DD`)
+    - artifact label (`hybrid-daily-<mode>-YYYY-MM-DD`)
   - if the secret is not set, workflow logs a warning and skips notification
 
 ## 16) Hybrid retrieval query (entities + chunks)
