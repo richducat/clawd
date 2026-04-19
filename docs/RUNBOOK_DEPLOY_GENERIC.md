@@ -246,11 +246,18 @@ Include:
     - `--max-lag-hours <n>`
     - `--max-seen-drift-hours <n>`
     - `--max-artifact-issues <n>`
+    - `--max-entity-delta-pct <n>`
+    - `--max-chunk-ratio-delta <n>`
+    - `--max-link-delta-pct <n>`
 - Report fields include:
   - source cursor lag/drift for `gmail`, `google_calendar`, and `kb_ingest`
   - entity/chunk coverage totals and grouped `domain/type` counts
   - recent entity update snapshots
   - recent artifact-derived error/failure indicators (when artifacts exist)
+  - source reconciliation (latest vs previous run) from `ingestion_run_metrics`, including:
+    - entity delta + entity delta %
+    - chunk-per-entity ratio drift
+    - link delta + link delta %
   - threshold metadata + explicit breach records in JSON mode
 
 CI/alerting example:

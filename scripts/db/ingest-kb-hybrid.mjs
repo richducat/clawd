@@ -26,6 +26,7 @@ main().catch((err) => {
 async function main() {
   loadEnvLocal();
   await ensureDbDir();
+  const runStartedAt = new Date().toISOString();
 
   const targetPath = dbPath('hybrid-core.sqlite');
   const db = openSqlite(targetPath);
@@ -76,6 +77,31 @@ async function main() {
       files,
       urls,
     });
+
+    const runCompletedAt = new Date().toISOString();
+    const totalScanned = Number(summary.scanned.files || 0) + Number(summary.scanned.urls || 0);
+    const failedCount = Array.isArray(summary.failed) ? summary.failed.length : 0;
+    const status = failedCount === 0
+      ? 'ok'
+      : (summary.upserted.entities > 0 ? 'partial_failure' : 'failed');
+
+    writeIngestionRunMetric(db, {
+      run_id: crypto.randomUUID(),
+      source: 'kb_ingest',
+      status,
+      run_started_at: runStartedAt,
+      run_completed_at: runCompletedAt,
+      records_scanned: totalScanned,
+      entities_upserted: Number(summary.upserted.entities || 0),
+      chunks_upserted: Number(summary.upserted.chunks || 0),
+      links_upserted: 0,
+      error_message: failedCount ? cleanLine(summary.failed[0]?.reason || 'kb_source_failure', 300) : null,
+      metrics_json: JSON.stringify({
+        failed_sources: failedCount,
+        skipped_unchanged: Number(summary.skippedUnchanged || 0),
+      }),
+    });
+
     console.log(JSON.stringify(summary, null, 2));
   } finally {
     db.close();
@@ -306,6 +332,20 @@ function writeCursor(db, source, payload) {
   `).run({ source, cursor_json: JSON.stringify(payload) });
 }
 
+function writeIngestionRunMetric(db, metric) {
+  db.prepare(`
+    INSERT INTO ingestion_run_metrics (
+      run_id, source, status, run_started_at, run_completed_at,
+      records_scanned, entities_upserted, chunks_upserted, links_upserted,
+      error_message, metrics_json
+    ) VALUES (
+      @run_id, @source, @status, @run_started_at, @run_completed_at,
+      @records_scanned, @entities_upserted, @chunks_upserted, @links_upserted,
+      @error_message, @metrics_json
+    )
+  `).run(metric);
+}
+
 function loadSourcesFile(filePath) {
   const fullPath = path.resolve(filePath);
   const raw = fs.readFileSync(fullPath, 'utf8');
@@ -333,7 +373,13 @@ function loadSourcesFile(filePath) {
 }
 
 function assertHybridSchemaReady(db) {
-  const requiredTables = ['entities', 'entity_chunks', 'entity_links', 'ingestion_cursors'];
+  const requiredTables = [
+    'entities',
+    'entity_chunks',
+    'entity_links',
+    'ingestion_cursors',
+    'ingestion_run_metrics',
+  ];
   const rows = db
     .prepare(`
       SELECT name FROM sqlite_master
