@@ -236,6 +236,20 @@ function parseAckEvidenceTokens(value) {
   ]).filter(Boolean);
 }
 
+function parseAckEvidenceSummary(pathLike) {
+  const filePath = String(pathLike || "").trim();
+  if (!filePath) return null;
+  const resolved = path.resolve(filePath);
+  if (!fs.existsSync(resolved)) return null;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(resolved, "utf8"));
+    if (typeof parsed !== "object" || parsed == null) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 function readAckState(filePath) {
   if (!filePath) return { schema_version: 1, incidents: {} };
   if (!fs.existsSync(filePath)) {
@@ -309,6 +323,8 @@ function buildAlertText({
   ackMarker,
   reminderSummary,
   ackStatePath,
+  staleSummary,
+  ackEvidenceSummary,
 }) {
   const mode = process.env.RUN_MODE || "unknown";
   const repo = process.env.REPO || "unknown";
@@ -396,8 +412,21 @@ function buildAlertText({
       );
     }
   }
+  if (staleSummary.stale_pending_count > 0) {
+    lines.push(
+      `ACK stale expiry: stalePending=${staleSummary.stale_pending_count}, staleAfter=${staleSummary.stale_after_minutes}m, newlyStale=${staleSummary.newly_stale_count}`
+    );
+  }
+  if (ackEvidenceSummary) {
+    lines.push(
+      `ACK evidence ingest: activeMarkers=${ackEvidenceSummary.active_marker_count || 0}, activeKeys=${ackEvidenceSummary.active_key_count || 0}, staleEntries=${ackEvidenceSummary.stale_entry_count || 0}, parseErrors=${ackEvidenceSummary.parse_error_count || 0}`
+    );
+  }
   if (ackStatePath) {
     lines.push(`ACK state file: ${ackStatePath}`);
+  }
+  if (process.env.ALERT_ACK_EVIDENCE_JSON) {
+    lines.push(`ACK evidence artifact: ${process.env.ALERT_ACK_EVIDENCE_JSON}`);
   }
   return lines.join("\n");
 }
@@ -436,8 +465,10 @@ async function main() {
   const ackState = readAckState(ackStatePath);
   const ackReminderIntervalMinutes = toPositiveIntegerOrNull(process.env.ALERT_ACK_REMINDER_INTERVAL_MINUTES) ?? 30;
   const ackEscalateAfterReminders = toPositiveIntegerOrNull(process.env.ALERT_ACK_ESCALATE_AFTER_REMINDERS) ?? 2;
+  const ackStaleAfterMinutes = toPositiveIntegerOrNull(process.env.ALERT_ACK_STALE_AFTER_MINUTES) ?? 1440;
   const ackEvidenceMarkers = new Set(parseAckEvidenceTokens(process.env.ALERT_ACK_EVIDENCE_MARKERS));
   const ackEvidenceKeys = new Set(parseAckEvidenceTokens(process.env.ALERT_ACK_EVIDENCE_KEYS));
+  const ackEvidenceSummary = parseAckEvidenceSummary(process.env.ALERT_ACK_EVIDENCE_JSON);
   const nowIso = new Date().toISOString();
 
   const existing = ackState.incidents[ackKey];
@@ -477,6 +508,20 @@ async function main() {
 
   ackState.incidents[ackKey] = nextIncident;
 
+  let newlyStaleCount = 0;
+  for (const [key, item] of Object.entries(ackState.incidents)) {
+    if (key === ackKey) continue;
+    if (item?.status !== "pending") continue;
+    const lastSeenMinutes = minutesSince(item.last_seen_at_utc || item.first_seen_at_utc);
+    if (lastSeenMinutes == null || lastSeenMinutes < ackStaleAfterMinutes) continue;
+
+    item.status = "stale";
+    item.stale_at_utc = nowIso;
+    item.stale_reason = `last_seen_expired_${ackStaleAfterMinutes}m`;
+    item.next_reminder_at_utc = null;
+    newlyStaleCount += 1;
+  }
+
   const reminderSummary = [];
   for (const [key, item] of Object.entries(ackState.incidents)) {
     if (item?.status !== "pending") continue;
@@ -503,6 +548,13 @@ async function main() {
   }
 
   writeAckState(ackStatePath, ackState);
+
+  const stalePendingCount = Object.values(ackState.incidents).filter((item) => item?.status === "stale").length;
+  const staleSummary = {
+    stale_after_minutes: ackStaleAfterMinutes,
+    stale_pending_count: stalePendingCount,
+    newly_stale_count: newlyStaleCount,
+  };
 
   const escalationWindows = parseEscalationWindows(process.env.ALERT_ESCALATION_WINDOWS_ET);
   const escalationEnabled = escalationRoutes.length > 0 && escalationWindows.some((window) => isWindowMatch(window, nowEt));
@@ -537,6 +589,8 @@ async function main() {
       ackMarker,
       reminderSummary,
       ackStatePath,
+      staleSummary,
+      ackEvidenceSummary,
     }),
     metadata: {
       incident_type: incident.type,
@@ -550,6 +604,14 @@ async function main() {
       ack_reconciliation_source: nextIncident.acknowledgment_source || null,
       ack_reminders_due_count: reminderSummary.length,
       ack_reminder_escalations_due_count: reminderSummary.filter((item) => item.reminder_escalation_due).length,
+      ack_stale_after_minutes: staleSummary.stale_after_minutes,
+      ack_stale_pending_count: staleSummary.stale_pending_count,
+      ack_newly_stale_count: staleSummary.newly_stale_count,
+      ack_evidence_active_marker_count: Number(ackEvidenceSummary?.active_marker_count || 0),
+      ack_evidence_active_key_count: Number(ackEvidenceSummary?.active_key_count || 0),
+      ack_evidence_stale_entry_count: Number(ackEvidenceSummary?.stale_entry_count || 0),
+      ack_evidence_parse_error_count: Number(ackEvidenceSummary?.parse_error_count || 0),
+      ack_evidence_json: process.env.ALERT_ACK_EVIDENCE_JSON || null,
     },
   };
   const dryRun = toBoolean(process.env.ALERT_DRY_RUN);
@@ -575,9 +637,17 @@ async function main() {
     ack_reconciliation_source: nextIncident.acknowledgment_source || null,
     ack_reminders_due_count: reminderSummary.length,
     ack_reminder_escalations_due_count: reminderSummary.filter((item) => item.reminder_escalation_due).length,
+    ack_stale_after_minutes: staleSummary.stale_after_minutes,
+    ack_stale_pending_count: staleSummary.stale_pending_count,
+    ack_newly_stale_count: staleSummary.newly_stale_count,
     ack_sla_minutes: ackMarker.ack_sla_minutes,
     ack_due_at_utc: ackMarker.ack_due_at_utc,
     ack_marker: ackMarker.ack_marker,
+    ack_evidence_active_marker_count: Number(ackEvidenceSummary?.active_marker_count || 0),
+    ack_evidence_active_key_count: Number(ackEvidenceSummary?.active_key_count || 0),
+    ack_evidence_stale_entry_count: Number(ackEvidenceSummary?.stale_entry_count || 0),
+    ack_evidence_parse_error_count: Number(ackEvidenceSummary?.parse_error_count || 0),
+    ack_evidence_json: process.env.ALERT_ACK_EVIDENCE_JSON || null,
     dry_run: dryRun,
   };
   console.log(JSON.stringify(summary, null, 2));

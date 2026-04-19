@@ -8,6 +8,7 @@
     "db:hybrid:query": "node scripts/db/query-hybrid.mjs",
     "db:hybrid:health": "node scripts/db/hybrid-ingestion-health.mjs",
     "db:hybrid:drift": "node scripts/ci/compare-canary-live-health.mjs",
+    "ci:ack:evidence": "node scripts/ci/ingest-ack-evidence.mjs",
     "md:audit": "node scripts/maintenance/markdown-audit.mjs",
     "md:audit:strict": "node scripts/maintenance/markdown-audit.mjs --strict"
   },

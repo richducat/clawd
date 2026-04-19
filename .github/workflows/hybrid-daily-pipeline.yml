@@ -176,6 +176,24 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Ingest ACK evidence
+        if: ${{ failure() }}
+        id: ack_evidence
+        env:
+          ALERT_ACK_EVIDENCE_MARKERS: ${{ vars.HYBRID_ALERT_ACK_EVIDENCE_MARKERS || '' }}
+          ALERT_ACK_EVIDENCE_KEYS: ${{ vars.HYBRID_ALERT_ACK_EVIDENCE_KEYS || '' }}
+          ALERT_ACK_EVIDENCE_STALE_AFTER_MINUTES: ${{ vars.HYBRID_ALERT_ACK_EVIDENCE_STALE_AFTER_MINUTES || '10080' }}
+          RUN_DATE: ${{ steps.args.outputs.run_date }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/ack-evidence
+          node scripts/ci/ingest-ack-evidence.mjs \
+            --run-date "${RUN_DATE}" \
+            --out-dir artifacts \
+            --evidence-dir artifacts/ack-evidence \
+            --stale-after-minutes "${ALERT_ACK_EVIDENCE_STALE_AFTER_MINUTES}"
+
       - name: Dispatch health-gate alerts
         if: ${{ failure() }}
         env:
@@ -195,8 +213,10 @@ jobs:
           ALERT_ACK_SLA_MINUTES: ${{ vars.HYBRID_ALERT_ACK_SLA_MINUTES || '' }}
           ALERT_ACK_REMINDER_INTERVAL_MINUTES: ${{ vars.HYBRID_ALERT_ACK_REMINDER_INTERVAL_MINUTES || '30' }}
           ALERT_ACK_ESCALATE_AFTER_REMINDERS: ${{ vars.HYBRID_ALERT_ACK_ESCALATE_AFTER_REMINDERS || '2' }}
-          ALERT_ACK_EVIDENCE_MARKERS: ${{ vars.HYBRID_ALERT_ACK_EVIDENCE_MARKERS || '' }}
-          ALERT_ACK_EVIDENCE_KEYS: ${{ vars.HYBRID_ALERT_ACK_EVIDENCE_KEYS || '' }}
+          ALERT_ACK_EVIDENCE_MARKERS: ${{ steps.ack_evidence.outputs.ack_evidence_markers }}
+          ALERT_ACK_EVIDENCE_KEYS: ${{ steps.ack_evidence.outputs.ack_evidence_keys }}
+          ALERT_ACK_EVIDENCE_JSON: ${{ steps.ack_evidence.outputs.ack_evidence_json_path }}
+          ALERT_ACK_STALE_AFTER_MINUTES: ${{ vars.HYBRID_ALERT_ACK_STALE_AFTER_MINUTES || '1440' }}
           ALERT_ACK_STATE_PATH: artifacts/ack-state-canary.json
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           REPO: ${{ github.repository }}
@@ -484,6 +504,24 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Ingest ACK evidence
+        if: ${{ failure() }}
+        id: ack_evidence
+        env:
+          ALERT_ACK_EVIDENCE_MARKERS: ${{ vars.HYBRID_ALERT_ACK_EVIDENCE_MARKERS || '' }}
+          ALERT_ACK_EVIDENCE_KEYS: ${{ vars.HYBRID_ALERT_ACK_EVIDENCE_KEYS || '' }}
+          ALERT_ACK_EVIDENCE_STALE_AFTER_MINUTES: ${{ vars.HYBRID_ALERT_ACK_EVIDENCE_STALE_AFTER_MINUTES || '10080' }}
+          RUN_DATE: ${{ steps.args.outputs.run_date }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/ack-evidence
+          node scripts/ci/ingest-ack-evidence.mjs \
+            --run-date "${RUN_DATE}" \
+            --out-dir artifacts \
+            --evidence-dir artifacts/ack-evidence \
+            --stale-after-minutes "${ALERT_ACK_EVIDENCE_STALE_AFTER_MINUTES}"
+
       - name: Dispatch health-gate alerts
         if: ${{ failure() }}
         env:
@@ -503,8 +541,10 @@ jobs:
           ALERT_ACK_SLA_MINUTES: ${{ vars.HYBRID_ALERT_ACK_SLA_MINUTES || '' }}
           ALERT_ACK_REMINDER_INTERVAL_MINUTES: ${{ vars.HYBRID_ALERT_ACK_REMINDER_INTERVAL_MINUTES || '30' }}
           ALERT_ACK_ESCALATE_AFTER_REMINDERS: ${{ vars.HYBRID_ALERT_ACK_ESCALATE_AFTER_REMINDERS || '2' }}
-          ALERT_ACK_EVIDENCE_MARKERS: ${{ vars.HYBRID_ALERT_ACK_EVIDENCE_MARKERS || '' }}
-          ALERT_ACK_EVIDENCE_KEYS: ${{ vars.HYBRID_ALERT_ACK_EVIDENCE_KEYS || '' }}
+          ALERT_ACK_EVIDENCE_MARKERS: ${{ steps.ack_evidence.outputs.ack_evidence_markers }}
+          ALERT_ACK_EVIDENCE_KEYS: ${{ steps.ack_evidence.outputs.ack_evidence_keys }}
+          ALERT_ACK_EVIDENCE_JSON: ${{ steps.ack_evidence.outputs.ack_evidence_json_path }}
+          ALERT_ACK_STALE_AFTER_MINUTES: ${{ vars.HYBRID_ALERT_ACK_STALE_AFTER_MINUTES || '1440' }}
           ALERT_ACK_STATE_PATH: ${{ github.workspace }}/.tmp/openclaw-db/live-ack-state.json
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           REPO: ${{ github.repository }}

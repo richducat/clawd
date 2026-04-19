@@ -284,6 +284,14 @@ Include:
     - `HYBRID_ALERT_ACK_ESCALATE_AFTER_REMINDERS` (default `2`)
     - `HYBRID_ALERT_ACK_EVIDENCE_MARKERS` (comma/newline/JSON-array list of acknowledged markers)
     - `HYBRID_ALERT_ACK_EVIDENCE_KEYS` (comma/newline/JSON-array list of acknowledged incident keys)
+    - `HYBRID_ALERT_ACK_EVIDENCE_STALE_AFTER_MINUTES` (default `10080`; drops stale evidence entries during ingestion)
+    - `HYBRID_ALERT_ACK_STALE_AFTER_MINUTES` (default `1440`; marks pending incidents stale when not seen recently)
+  - optional ACK evidence ingestion directory:
+    - on failure, workflow ingests `artifacts/ack-evidence/*.json` and merges results with repo-variable ACK evidence lists
+    - accepted JSON supports `ack_marker`, `ack_key`, optional `acknowledged_at_utc`, plus aggregate `ack_markers` / `ack_keys` / `acknowledgements` fields
+  - ACK evidence ingestion artifacts emitted on failure:
+    - `ack-evidence-YYYY-MM-DD.json`
+    - `ack-evidence-YYYY-MM-DD.md`
   - escalation window format (`ET`):
     - `always`
     - or semicolon-delimited entries in `daySpec@HH:MM-HH:MM`
@@ -304,7 +312,10 @@ Include:
       - canary-vs-live drift artifact paths (json + markdown)
       - deterministic ACK metadata (`ack_key`, `ack_marker`, `ack_sla_minutes`, `ack_due_at_utc`, `ack_due_at_et`, `ack_policy`)
       - ACK reconciliation/reminder metadata (`ack_reconciled`, `ack_reconciliation_source`, `ack_reminders_due_count`, `ack_reminder_escalations_due_count`)
+      - ACK stale-expiry metadata (`ack_stale_after_minutes`, `ack_stale_pending_count`, `ack_newly_stale_count`)
+      - ACK evidence-ingestion metadata (`ack_evidence_active_marker_count`, `ack_evidence_active_key_count`, `ack_evidence_stale_entry_count`, `ack_evidence_parse_error_count`, `ack_evidence_json`)
   - dispatcher persists ACK tracker state to `ALERT_ACK_STATE_PATH` and reconciles prior unresolved incidents when evidence vars are provided
+  - stale pending ACK incidents are auto-marked `stale` after the configured expiry window and excluded from reminder fan-out
   - if no webhook routes are configured, workflow logs and skips outbound notification
 
 ## 16) Hybrid retrieval query (entities + chunks)
