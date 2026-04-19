@@ -54,12 +54,14 @@ const thresholds = {
   max_quality_drift_signals: readOptionalNumberArg(args, '--max-quality-drift-signals'),
   max_quality_severity_score: readOptionalNumberArg(args, '--max-quality-severity-score'),
   max_quality_readiness_drop: readOptionalNumberArg(args, '--max-quality-readiness-drop'),
+  max_quality_confidence_calibration_drop: readOptionalNumberArg(args, '--max-quality-confidence-calibration-drop'),
   min_quality_narrative_coverage_pct: readOptionalNumberArg(args, '--min-quality-narrative-coverage-pct'),
   min_quality_dependency_coverage_pct: readOptionalNumberArg(args, '--min-quality-dependency-coverage-pct'),
   min_quality_decision_sequencing_coverage_pct: readOptionalNumberArg(args, '--min-quality-decision-sequencing-coverage-pct'),
   min_quality_close_scripts_coverage_pct: readOptionalNumberArg(args, '--min-quality-close-scripts-coverage-pct'),
   min_quality_failure_mode_rehearsal_coverage_pct: readOptionalNumberArg(args, '--min-quality-failure-mode-rehearsal-coverage-pct'),
   min_quality_stakeholder_proof_request_coverage_pct: readOptionalNumberArg(args, '--min-quality-stakeholder-proof-request-coverage-pct'),
+  min_quality_owner_assignment_coverage_pct: readOptionalNumberArg(args, '--min-quality-owner-assignment-coverage-pct'),
 };
 const hasThresholds = Object.values(thresholds).some((value) => value !== null);
 
@@ -471,9 +473,9 @@ function printMarkdown(result, artifactDirInput) {
   } else {
     console.log(`- scanned_artifacts=${result.meeting_prep_quality.scanned_artifacts}, snapshots=${result.meeting_prep_quality.snapshots}, meetings_scored=${result.meeting_prep_quality.meetings_scored}`);
     console.log(`- latest_avg_score=${formatNumber(result.meeting_prep_quality.latest?.avg_score)}, latest_avg_gap_count=${formatNumber(result.meeting_prep_quality.latest?.avg_gap_count)}, latest_severity_score=${formatNumber(result.meeting_prep_quality.latest?.severity_score)}`);
-    console.log(`- latest_readiness_score=${formatNumber(result.meeting_prep_quality.latest?.readiness_score)}, latest_narrative_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.narrative_coverage_pct)}, latest_dependency_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.dependency_coverage_pct)}, latest_decision_sequencing_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.decision_sequencing_coverage_pct)}, latest_close_scripts_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.close_scripts_coverage_pct)}, latest_failure_mode_rehearsal_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.failure_mode_rehearsal_coverage_pct)}, latest_stakeholder_proof_request_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.stakeholder_proof_request_coverage_pct)}`);
+    console.log(`- latest_readiness_score=${formatNumber(result.meeting_prep_quality.latest?.readiness_score)}, latest_narrative_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.narrative_coverage_pct)}, latest_dependency_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.dependency_coverage_pct)}, latest_decision_sequencing_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.decision_sequencing_coverage_pct)}, latest_close_scripts_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.close_scripts_coverage_pct)}, latest_failure_mode_rehearsal_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.failure_mode_rehearsal_coverage_pct)}, latest_stakeholder_proof_request_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.stakeholder_proof_request_coverage_pct)}, latest_confidence_calibration_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.confidence_calibration_coverage_pct)}, latest_confidence_calibration_avg_delta=${formatNumber(result.meeting_prep_quality.latest?.confidence_calibration_avg_delta)}, latest_owner_assignment_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.owner_assignment_coverage_pct)}`);
     console.log(`- oldest_avg_score=${formatNumber(result.meeting_prep_quality.oldest?.avg_score)}, oldest_avg_gap_count=${formatNumber(result.meeting_prep_quality.oldest?.avg_gap_count)}, oldest_severity_score=${formatNumber(result.meeting_prep_quality.oldest?.severity_score)}`);
-    console.log(`- oldest_readiness_score=${formatNumber(result.meeting_prep_quality.oldest?.readiness_score)}, oldest_narrative_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.narrative_coverage_pct)}, oldest_dependency_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.dependency_coverage_pct)}, oldest_decision_sequencing_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.decision_sequencing_coverage_pct)}, oldest_close_scripts_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.close_scripts_coverage_pct)}, oldest_failure_mode_rehearsal_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.failure_mode_rehearsal_coverage_pct)}, oldest_stakeholder_proof_request_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.stakeholder_proof_request_coverage_pct)}`);
+    console.log(`- oldest_readiness_score=${formatNumber(result.meeting_prep_quality.oldest?.readiness_score)}, oldest_narrative_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.narrative_coverage_pct)}, oldest_dependency_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.dependency_coverage_pct)}, oldest_decision_sequencing_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.decision_sequencing_coverage_pct)}, oldest_close_scripts_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.close_scripts_coverage_pct)}, oldest_failure_mode_rehearsal_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.failure_mode_rehearsal_coverage_pct)}, oldest_stakeholder_proof_request_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.stakeholder_proof_request_coverage_pct)}, oldest_confidence_calibration_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.confidence_calibration_coverage_pct)}, oldest_confidence_calibration_avg_delta=${formatNumber(result.meeting_prep_quality.oldest?.confidence_calibration_avg_delta)}, oldest_owner_assignment_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.owner_assignment_coverage_pct)}`);
 
     const driftSignals = Array.isArray(result.meeting_prep_quality.drift_signals) ? result.meeting_prep_quality.drift_signals : [];
     if (!driftSignals.length) {
@@ -589,12 +591,14 @@ function printMarkdown(result, artifactDirInput) {
   console.log(`- max_quality_drift_signals=${formatNumber(result.thresholds.max_quality_drift_signals)}`);
   console.log(`- max_quality_severity_score=${formatNumber(result.thresholds.max_quality_severity_score)}`);
   console.log(`- max_quality_readiness_drop=${formatNumber(result.thresholds.max_quality_readiness_drop)}`);
+  console.log(`- max_quality_confidence_calibration_drop=${formatNumber(result.thresholds.max_quality_confidence_calibration_drop)}`);
   console.log(`- min_quality_narrative_coverage_pct=${formatNumber(result.thresholds.min_quality_narrative_coverage_pct)}`);
   console.log(`- min_quality_dependency_coverage_pct=${formatNumber(result.thresholds.min_quality_dependency_coverage_pct)}`);
   console.log(`- min_quality_decision_sequencing_coverage_pct=${formatNumber(result.thresholds.min_quality_decision_sequencing_coverage_pct)}`);
   console.log(`- min_quality_close_scripts_coverage_pct=${formatNumber(result.thresholds.min_quality_close_scripts_coverage_pct)}`);
   console.log(`- min_quality_failure_mode_rehearsal_coverage_pct=${formatNumber(result.thresholds.min_quality_failure_mode_rehearsal_coverage_pct)}`);
   console.log(`- min_quality_stakeholder_proof_request_coverage_pct=${formatNumber(result.thresholds.min_quality_stakeholder_proof_request_coverage_pct)}`);
+  console.log(`- min_quality_owner_assignment_coverage_pct=${formatNumber(result.thresholds.min_quality_owner_assignment_coverage_pct)}`);
   console.log(`- breaches=${result.breaches.length}`);
 
   if (!result.breaches.length) {
@@ -639,6 +643,10 @@ function printMarkdown(result, artifactDirInput) {
       console.log(`- [breach] quality readiness drop: actual=${breach.actual} > limit=${breach.limit}`);
       continue;
     }
+    if (breach.kind === 'quality_confidence_calibration_drop') {
+      console.log(`- [breach] quality confidence-calibration drop: actual=${breach.actual} > limit=${breach.limit}`);
+      continue;
+    }
     if (breach.kind === 'quality_narrative_coverage_pct') {
       console.log(`- [breach] quality narrative coverage: actual=${breach.actual} < minimum=${breach.limit}`);
       continue;
@@ -661,6 +669,10 @@ function printMarkdown(result, artifactDirInput) {
     }
     if (breach.kind === 'quality_stakeholder_proof_request_coverage_pct') {
       console.log(`- [breach] quality stakeholder proof-request coverage: actual=${breach.actual} < minimum=${breach.limit}`);
+      continue;
+    }
+    if (breach.kind === 'quality_owner_assignment_coverage_pct') {
+      console.log(`- [breach] quality owner-assignment coverage: actual=${breach.actual} < minimum=${breach.limit}`);
       continue;
     }
     console.log(`- [breach] ${breach.source} ${breach.kind}: actual=${breach.actual} > limit=${breach.limit}`);
@@ -1387,6 +1399,9 @@ function readMeetingPrepQualityTrends({ artifactDirInput }) {
     let closeScriptsCovered = 0;
     let failureModeRehearsalCovered = 0;
     let stakeholderProofRequestCovered = 0;
+    let confidenceCalibrationCovered = 0;
+    const confidenceCalibrationDeltas = [];
+    const ownerAssignmentCoveragePcts = [];
     const readinessScores = [];
 
     for (const meeting of meetings) {
@@ -1399,12 +1414,23 @@ function readMeetingPrepQualityTrends({ artifactDirInput }) {
       const closeScriptsComplete = hasStakeholderCloseScripts(meeting?.stakeholderCloseScripts);
       const failureModeRehearsalComplete = hasFailureModeRehearsals(meeting?.failureModeRehearsals);
       const stakeholderProofRequestComplete = hasStakeholderProofRequests(meeting?.stakeholderProofRequests);
+      const confidenceCalibrationComplete = hasConfidenceCalibrationTrend(meeting?.confidenceCalibrationTrend);
+      const ownerAssignmentCoveragePct = computeOwnerAssignmentCoveragePct({
+        balancing: meeting?.actionOwnerLoadBalancing,
+        meetingRecommendations: meeting?.meetingRecommendations,
+        commitmentCloseChecklist: meeting?.commitmentCloseChecklist,
+      });
       if (narrativeComplete) narrativeCovered += 1;
       if (dependencyComplete) dependencyCovered += 1;
       if (sequencingComplete) sequencingCovered += 1;
       if (closeScriptsComplete) closeScriptsCovered += 1;
       if (failureModeRehearsalComplete) failureModeRehearsalCovered += 1;
       if (stakeholderProofRequestComplete) stakeholderProofRequestCovered += 1;
+      if (confidenceCalibrationComplete) {
+        confidenceCalibrationCovered += 1;
+        confidenceCalibrationDeltas.push(Number(meeting?.confidenceCalibrationTrend?.averageDelta || 0));
+      }
+      ownerAssignmentCoveragePcts.push(ownerAssignmentCoveragePct);
 
       const readinessScore = computeMeetingReadinessScore({
         qualityScore: Number(quality.score || 0),
@@ -1423,6 +1449,13 @@ function readMeetingPrepQualityTrends({ artifactDirInput }) {
     const closeScriptsCoveragePct = Number(((closeScriptsCovered / scored.length) * 100).toFixed(3));
     const failureModeRehearsalCoveragePct = Number(((failureModeRehearsalCovered / scored.length) * 100).toFixed(3));
     const stakeholderProofRequestCoveragePct = Number(((stakeholderProofRequestCovered / scored.length) * 100).toFixed(3));
+    const confidenceCalibrationCoveragePct = Number(((confidenceCalibrationCovered / scored.length) * 100).toFixed(3));
+    const confidenceCalibrationAvgDelta = confidenceCalibrationDeltas.length
+      ? Number((confidenceCalibrationDeltas.reduce((sum, value) => sum + value, 0) / confidenceCalibrationDeltas.length).toFixed(3))
+      : null;
+    const ownerAssignmentCoveragePct = ownerAssignmentCoveragePcts.length
+      ? Number((ownerAssignmentCoveragePcts.reduce((sum, value) => sum + value, 0) / ownerAssignmentCoveragePcts.length).toFixed(3))
+      : null;
     const readinessScore = readinessScores.length
       ? Number((readinessScores.reduce((sum, value) => sum + value, 0) / readinessScores.length).toFixed(3))
       : null;
@@ -1448,12 +1481,16 @@ function readMeetingPrepQualityTrends({ artifactDirInput }) {
       close_scripts_coverage_pct: closeScriptsCoveragePct,
       failure_mode_rehearsal_coverage_pct: failureModeRehearsalCoveragePct,
       stakeholder_proof_request_coverage_pct: stakeholderProofRequestCoveragePct,
+      confidence_calibration_coverage_pct: confidenceCalibrationCoveragePct,
+      confidence_calibration_avg_delta: confidenceCalibrationAvgDelta,
+      owner_assignment_coverage_pct: ownerAssignmentCoveragePct,
       narrative_covered_count: narrativeCovered,
       dependency_covered_count: dependencyCovered,
       sequencing_covered_count: sequencingCovered,
       close_scripts_covered_count: closeScriptsCovered,
       failure_mode_rehearsal_covered_count: failureModeRehearsalCovered,
       stakeholder_proof_request_covered_count: stakeholderProofRequestCovered,
+      confidence_calibration_covered_count: confidenceCalibrationCovered,
       severity_score: severityScore,
       levels: levelCounts,
       failing_check_severity: severityCounts,
@@ -1505,6 +1542,9 @@ function buildMeetingPrepQualityDriftSignals({ oldest, latest }) {
   const closeScriptsCoverageDelta = Number((Number(latest.close_scripts_coverage_pct || 0) - Number(oldest.close_scripts_coverage_pct || 0)).toFixed(3));
   const failureModeRehearsalCoverageDelta = Number((Number(latest.failure_mode_rehearsal_coverage_pct || 0) - Number(oldest.failure_mode_rehearsal_coverage_pct || 0)).toFixed(3));
   const stakeholderProofRequestCoverageDelta = Number((Number(latest.stakeholder_proof_request_coverage_pct || 0) - Number(oldest.stakeholder_proof_request_coverage_pct || 0)).toFixed(3));
+  const confidenceCalibrationCoverageDelta = Number((Number(latest.confidence_calibration_coverage_pct || 0) - Number(oldest.confidence_calibration_coverage_pct || 0)).toFixed(3));
+  const confidenceCalibrationAvgDeltaDelta = Number((Number(latest.confidence_calibration_avg_delta || 0) - Number(oldest.confidence_calibration_avg_delta || 0)).toFixed(3));
+  const ownerAssignmentCoverageDelta = Number((Number(latest.owner_assignment_coverage_pct || 0) - Number(oldest.owner_assignment_coverage_pct || 0)).toFixed(3));
   const severityDelta = Number((Number(latest.severity_score || 0) - Number(oldest.severity_score || 0)).toFixed(3));
   const highDelta = Number((Number(latest.failing_check_severity?.high || 0) - Number(oldest.failing_check_severity?.high || 0)).toFixed(3));
 
@@ -1608,6 +1648,33 @@ function buildMeetingPrepQualityDriftSignals({ oldest, latest }) {
     });
   }
 
+  if (confidenceCalibrationCoverageDelta <= -5) {
+    signals.push({
+      code: 'confidence_calibration_coverage_drop',
+      severity: confidenceCalibrationCoverageDelta <= -30 ? 'high' : confidenceCalibrationCoverageDelta <= -15 ? 'medium' : 'low',
+      delta: confidenceCalibrationCoverageDelta,
+      message: `Confidence-calibration trend coverage dropped by ${Math.abs(confidenceCalibrationCoverageDelta)} pct vs oldest snapshot.`,
+    });
+  }
+
+  if (confidenceCalibrationAvgDeltaDelta <= -2) {
+    signals.push({
+      code: 'confidence_calibration_avg_delta_drop',
+      severity: confidenceCalibrationAvgDeltaDelta <= -8 ? 'high' : confidenceCalibrationAvgDeltaDelta <= -4 ? 'medium' : 'low',
+      delta: confidenceCalibrationAvgDeltaDelta,
+      message: `Confidence-calibration average delta dropped by ${Math.abs(confidenceCalibrationAvgDeltaDelta)} vs oldest snapshot.`,
+    });
+  }
+
+  if (ownerAssignmentCoverageDelta <= -5) {
+    signals.push({
+      code: 'owner_assignment_coverage_drop',
+      severity: ownerAssignmentCoverageDelta <= -30 ? 'high' : ownerAssignmentCoverageDelta <= -15 ? 'medium' : 'low',
+      delta: ownerAssignmentCoverageDelta,
+      message: `Owner-assignment coverage dropped by ${Math.abs(ownerAssignmentCoverageDelta)} pct vs oldest snapshot.`,
+    });
+  }
+
   return signals;
 }
 
@@ -1650,6 +1717,8 @@ function buildMeetingPrepQualityEscalationLanes(latestSnapshot) {
   const closeScriptsCoverage = Number(latestSnapshot.close_scripts_coverage_pct || 0);
   const failureModeRehearsalCoverage = Number(latestSnapshot.failure_mode_rehearsal_coverage_pct || 0);
   const stakeholderProofRequestCoverage = Number(latestSnapshot.stakeholder_proof_request_coverage_pct || 0);
+  const confidenceCalibrationCoverage = Number(latestSnapshot.confidence_calibration_coverage_pct || 0);
+  const ownerAssignmentCoverage = Number(latestSnapshot.owner_assignment_coverage_pct || 0);
   if (narrativeCoverage < 80) {
     lanes.push({
       lane: 'stakeholder_narrative_pack_remediation',
@@ -1696,6 +1765,22 @@ function buildMeetingPrepQualityEscalationLanes(latestSnapshot) {
       severity: stakeholderProofRequestCoverage < 60 ? 'high' : 'medium',
       trigger_count: Number(latestSnapshot.scored_meetings || 0) - Number(latestSnapshot.stakeholder_proof_request_covered_count || 0),
       message: 'Stakeholder proof-request coverage is below target; require explicit proof-capture requests before closeout.',
+    });
+  }
+  if (confidenceCalibrationCoverage < 80) {
+    lanes.push({
+      lane: 'confidence_calibration_trend_remediation',
+      severity: confidenceCalibrationCoverage < 60 ? 'high' : 'medium',
+      trigger_count: Number(latestSnapshot.scored_meetings || 0) - Number(latestSnapshot.confidence_calibration_covered_count || 0),
+      message: 'Confidence-calibration trend coverage is below target; require attendee-level baseline telemetry before final prep handoff.',
+    });
+  }
+  if (ownerAssignmentCoverage < 80) {
+    lanes.push({
+      lane: 'owner_assignment_balance_remediation',
+      severity: ownerAssignmentCoverage < 60 ? 'high' : 'medium',
+      trigger_count: Number(latestSnapshot.scored_meetings || 0),
+      message: 'Owner-assignment coverage is below target; require deterministic action-owner balancing before closeout.',
     });
   }
 
@@ -1770,6 +1855,22 @@ function hasStakeholderProofRequests(requests) {
     const dueWindow = String(request?.dueWindow || '').trim();
     return attendee.length > 0 && proofRequest.length > 0 && rationale.length > 0 && dueWindow.length > 0;
   });
+}
+
+function hasConfidenceCalibrationTrend(trend) {
+  if (!trend || typeof trend !== 'object') return false;
+  return Number.isFinite(Number(trend.currentAverageConfidence))
+    && Number.isFinite(Number(trend.trailingAverageConfidence))
+    && Number.isFinite(Number(trend.averageDelta));
+}
+
+function computeOwnerAssignmentCoveragePct({ balancing, meetingRecommendations, commitmentCloseChecklist }) {
+  const recommendationsCount = Array.isArray(meetingRecommendations) ? meetingRecommendations.length : 0;
+  const checklistCount = Array.isArray(commitmentCloseChecklist) ? commitmentCloseChecklist.length : 0;
+  const expected = Math.min(6, recommendationsCount + checklistCount);
+  if (expected <= 0) return 100;
+  const assigned = Array.isArray(balancing?.suggestedAssignments) ? balancing.suggestedAssignments.length : 0;
+  return Number((Math.min(assigned, expected) / expected * 100).toFixed(3));
 }
 
 function computeMeetingReadinessScore({ qualityScore, gapCount, narrativeComplete, dependencyComplete }) {
@@ -2074,12 +2175,14 @@ function evaluateThresholdBreaches({ sources, failures, reconciliation, baseline
     thresholds.max_quality_drift_signals !== null
     || thresholds.max_quality_severity_score !== null
     || thresholds.max_quality_readiness_drop !== null
+    || thresholds.max_quality_confidence_calibration_drop !== null
     || thresholds.min_quality_narrative_coverage_pct !== null
     || thresholds.min_quality_dependency_coverage_pct !== null
     || thresholds.min_quality_decision_sequencing_coverage_pct !== null
     || thresholds.min_quality_close_scripts_coverage_pct !== null
     || thresholds.min_quality_failure_mode_rehearsal_coverage_pct !== null
     || thresholds.min_quality_stakeholder_proof_request_coverage_pct !== null
+    || thresholds.min_quality_owner_assignment_coverage_pct !== null
   ) {
     if (!meetingPrepQuality?.available) {
       breaches.push({
@@ -2119,6 +2222,25 @@ function evaluateThresholdBreaches({ sources, failures, reconciliation, baseline
             kind: 'quality_readiness_drop',
             actual: readinessDrop,
             limit: thresholds.max_quality_readiness_drop,
+          });
+        }
+      }
+
+      if (thresholds.max_quality_confidence_calibration_drop !== null) {
+        const confidenceCalibrationDelta = Number(
+          (
+            Number(meetingPrepQuality?.latest?.confidence_calibration_avg_delta || 0)
+            - Number(meetingPrepQuality?.oldest?.confidence_calibration_avg_delta || 0)
+          ).toFixed(3)
+        );
+        const confidenceCalibrationDrop = confidenceCalibrationDelta < 0
+          ? Number(Math.abs(confidenceCalibrationDelta).toFixed(3))
+          : 0;
+        if (confidenceCalibrationDrop > thresholds.max_quality_confidence_calibration_drop) {
+          breaches.push({
+            kind: 'quality_confidence_calibration_drop',
+            actual: confidenceCalibrationDrop,
+            limit: thresholds.max_quality_confidence_calibration_drop,
           });
         }
       }
@@ -2185,6 +2307,17 @@ function evaluateThresholdBreaches({ sources, failures, reconciliation, baseline
             kind: 'quality_stakeholder_proof_request_coverage_pct',
             actual: latestStakeholderProofRequestCoverage,
             limit: thresholds.min_quality_stakeholder_proof_request_coverage_pct,
+          });
+        }
+      }
+
+      if (thresholds.min_quality_owner_assignment_coverage_pct !== null) {
+        const latestOwnerAssignmentCoverage = Number(meetingPrepQuality?.latest?.owner_assignment_coverage_pct || 0);
+        if (latestOwnerAssignmentCoverage < thresholds.min_quality_owner_assignment_coverage_pct) {
+          breaches.push({
+            kind: 'quality_owner_assignment_coverage_pct',
+            actual: latestOwnerAssignmentCoverage,
+            limit: thresholds.min_quality_owner_assignment_coverage_pct,
           });
         }
       }
@@ -2469,10 +2602,10 @@ function readBreachRollupFeed({ artifactDirInput, windowStart, windowEnd }) {
 
 function severityForBreachKind(kind) {
   const k = String(kind || '').toLowerCase();
-  if (['lag_hours', 'seen_drift_hours', 'baseline_anomalies_count', 'reconciliation_unavailable', 'slo_budget_unavailable', 'slo_budget_burn_pct', 'meeting_prep_quality_unavailable', 'quality_severity_score', 'quality_readiness_drop'].includes(k)) {
+  if (['lag_hours', 'seen_drift_hours', 'baseline_anomalies_count', 'reconciliation_unavailable', 'slo_budget_unavailable', 'slo_budget_burn_pct', 'meeting_prep_quality_unavailable', 'quality_severity_score', 'quality_readiness_drop', 'quality_confidence_calibration_drop'].includes(k)) {
     return 'high';
   }
-  if (['entity_delta_pct', 'chunk_ratio_delta', 'link_delta_pct', 'artifact_issues_count', 'quality_drift_signals_count', 'quality_narrative_coverage_pct', 'quality_dependency_coverage_pct', 'quality_decision_sequencing_coverage_pct', 'quality_close_scripts_coverage_pct', 'quality_failure_mode_rehearsal_coverage_pct', 'quality_stakeholder_proof_request_coverage_pct'].includes(k)) {
+  if (['entity_delta_pct', 'chunk_ratio_delta', 'link_delta_pct', 'artifact_issues_count', 'quality_drift_signals_count', 'quality_narrative_coverage_pct', 'quality_dependency_coverage_pct', 'quality_decision_sequencing_coverage_pct', 'quality_close_scripts_coverage_pct', 'quality_failure_mode_rehearsal_coverage_pct', 'quality_stakeholder_proof_request_coverage_pct', 'quality_owner_assignment_coverage_pct'].includes(k)) {
     return 'medium';
   }
   return 'low';
@@ -2649,7 +2782,7 @@ function buildTrendArtifactMarkdown(payload) {
   } else {
     lines.push(`- scanned_artifacts=${prep.scanned_artifacts ?? 0}, snapshots=${prep.snapshots ?? 0}, meetings_scored=${prep.meetings_scored ?? 0}`);
     lines.push(`- latest_avg_score=${formatNumber(prep.latest?.avg_score)}, latest_avg_gap_count=${formatNumber(prep.latest?.avg_gap_count)}, latest_severity_score=${formatNumber(prep.latest?.severity_score)}`);
-    lines.push(`- latest_readiness_score=${formatNumber(prep.latest?.readiness_score)}, latest_narrative_coverage_pct=${formatNumber(prep.latest?.narrative_coverage_pct)}, latest_dependency_coverage_pct=${formatNumber(prep.latest?.dependency_coverage_pct)}, latest_decision_sequencing_coverage_pct=${formatNumber(prep.latest?.decision_sequencing_coverage_pct)}, latest_close_scripts_coverage_pct=${formatNumber(prep.latest?.close_scripts_coverage_pct)}, latest_failure_mode_rehearsal_coverage_pct=${formatNumber(prep.latest?.failure_mode_rehearsal_coverage_pct)}, latest_stakeholder_proof_request_coverage_pct=${formatNumber(prep.latest?.stakeholder_proof_request_coverage_pct)}`);
+    lines.push(`- latest_readiness_score=${formatNumber(prep.latest?.readiness_score)}, latest_narrative_coverage_pct=${formatNumber(prep.latest?.narrative_coverage_pct)}, latest_dependency_coverage_pct=${formatNumber(prep.latest?.dependency_coverage_pct)}, latest_decision_sequencing_coverage_pct=${formatNumber(prep.latest?.decision_sequencing_coverage_pct)}, latest_close_scripts_coverage_pct=${formatNumber(prep.latest?.close_scripts_coverage_pct)}, latest_failure_mode_rehearsal_coverage_pct=${formatNumber(prep.latest?.failure_mode_rehearsal_coverage_pct)}, latest_stakeholder_proof_request_coverage_pct=${formatNumber(prep.latest?.stakeholder_proof_request_coverage_pct)}, latest_confidence_calibration_coverage_pct=${formatNumber(prep.latest?.confidence_calibration_coverage_pct)}, latest_confidence_calibration_avg_delta=${formatNumber(prep.latest?.confidence_calibration_avg_delta)}, latest_owner_assignment_coverage_pct=${formatNumber(prep.latest?.owner_assignment_coverage_pct)}`);
     const driftSignals = Array.isArray(prep.drift_signals) ? prep.drift_signals : [];
     if (!driftSignals.length) {
       lines.push('- drift_signals=none');
