@@ -21,6 +21,13 @@ const sloDigestPrefix = sanitizeFileStem(getArg(args, '--slo-digest-prefix') || 
 const sloWindowDays = toSafeInt(getArg(args, '--slo-window-days'), 7, 2, 90);
 const sloRetentionDays = readOptionalNumberArg(args, '--slo-retention-days');
 const sloRetentionCount = readOptionalNumberArg(args, '--slo-retention-count');
+const defaultSloTargetPct = toSafeFloat(getArg(args, '--slo-target-default-pct'), 99, 90, 100);
+const sourceSloTargets = readSourceSloTargets(args, defaultSloTargetPct);
+const sloBudgetConfig = {
+  window_days: toSafeInt(getArg(args, '--slo-budget-window-days'), 7, 2, 90),
+  partial_failure_weight: toSafeFloat(getArg(args, '--slo-partial-failure-weight'), 0.5, 0, 1),
+  target_pct_by_source: sourceSloTargets,
+};
 const baselineConfig = {
   window_runs: toSafeInt(getArg(args, '--baseline-window-runs'), 14, 3, 180),
   min_samples: toSafeInt(getArg(args, '--baseline-min-samples'), 5, 2, 50),
@@ -34,6 +41,7 @@ const thresholds = {
   max_chunk_ratio_delta: readOptionalNumberArg(args, '--max-chunk-ratio-delta'),
   max_link_delta_pct: readOptionalNumberArg(args, '--max-link-delta-pct'),
   max_baseline_anomalies: readOptionalNumberArg(args, '--max-baseline-anomalies'),
+  max_slo_budget_burn_pct: readOptionalNumberArg(args, '--max-slo-budget-burn-pct'),
 };
 const hasThresholds = Object.values(thresholds).some((value) => value !== null);
 
@@ -62,6 +70,10 @@ async function main() {
     const recentEntityUpdates = readRecentEntityUpdates(db);
     const failureSummary = readFailureSummary(artifactDirArg, artifactsMax);
     const reconciliation = readSourceReconciliation(db);
+    const sloBudgets = readSourceSloBudgets(db, {
+      asOf,
+      config: sloBudgetConfig,
+    });
     const baselines = readSourceBaselines(db, baselineConfig);
     const baselineSnapshots = persistBaselineSnapshots(db, {
       asOfIso: asOf.toISOString(),
@@ -80,6 +92,7 @@ async function main() {
       failures: failureSummary,
       reconciliation,
       baselines,
+      sloBudgets,
       thresholds,
     });
 
@@ -93,6 +106,7 @@ async function main() {
       recent_updates: recentEntityUpdates,
       failures: failureSummary,
       reconciliation,
+      slo_budgets: sloBudgets,
       baselines,
       baseline_snapshots: baselineSnapshots,
       trends,
@@ -102,6 +116,7 @@ async function main() {
       slo_config: {
         window_days: sloWindowDays,
       },
+      slo_budget_config: sloBudgetConfig,
       baseline_config: baselineConfig,
       thresholds: {
         configured: hasThresholds,
@@ -373,6 +388,19 @@ function printMarkdown(result, artifactDirInput) {
   }
   console.log('');
 
+  console.log('## Source SLO Budget');
+  if (!result.slo_budgets?.available) {
+    console.log(`- ${result.slo_budgets?.note || 'source SLO budget unavailable'}`);
+  } else {
+    console.log(`- window_start=${result.slo_budgets.window_start}, window_end=${result.slo_budgets.window_end}, window_days=${result.slo_budget_config?.window_days}`);
+    console.log(`- partial_failure_weight=${formatNumber(result.slo_budget_config?.partial_failure_weight)}`);
+    console.log(`- total_runs=${result.slo_budgets.totals?.total_runs || 0}, over_budget_sources=${result.slo_budgets.totals?.over_budget_sources || 0}, alerted_sources=${result.slo_budgets.totals?.alerted_sources || 0}`);
+    for (const source of result.slo_budgets.sources || []) {
+      console.log(`- ${source.source}: status=${source.status}, target_pct=${formatNumber(source.target_pct)}, runs=${source.total_runs}, ok=${source.ok_runs}, partial_failure=${source.partial_failure_runs}, failed=${source.failed_runs}, error_rate_pct=${formatNumber(source.actual_error_rate_pct)}, budget_pct=${formatNumber(source.error_budget_pct)}, burn_pct=${formatNumber(source.budget_burn_pct)}, burn_rate=${formatNumber(source.burn_rate)}, remaining_budget_pct=${formatNumber(source.remaining_budget_pct)}, alert=${source.alert}`);
+    }
+  }
+  console.log('');
+
   console.log('## Rolling Baselines');
   if (!result.baselines?.available) {
     console.log(`- ${result.baselines?.note || 'baseline model unavailable'}`);
@@ -502,6 +530,7 @@ function printMarkdown(result, artifactDirInput) {
   console.log(`- max_chunk_ratio_delta=${formatNumber(result.thresholds.max_chunk_ratio_delta)}`);
   console.log(`- max_link_delta_pct=${formatNumber(result.thresholds.max_link_delta_pct)}`);
   console.log(`- max_baseline_anomalies=${formatNumber(result.thresholds.max_baseline_anomalies)}`);
+  console.log(`- max_slo_budget_burn_pct=${formatNumber(result.thresholds.max_slo_budget_burn_pct)}`);
   console.log(`- breaches=${result.breaches.length}`);
 
   if (!result.breaches.length) {
@@ -520,6 +549,14 @@ function printMarkdown(result, artifactDirInput) {
     }
     if (breach.kind === 'baseline_anomalies_count') {
       console.log(`- [breach] baseline anomalies: actual=${breach.actual} > limit=${breach.limit}`);
+      continue;
+    }
+    if (breach.kind === 'slo_budget_unavailable') {
+      console.log(`- [breach] source SLO budget unavailable: ${breach.message}`);
+      continue;
+    }
+    if (breach.kind === 'slo_budget_burn_pct') {
+      console.log(`- [breach] ${breach.source} SLO budget burn: actual=${breach.actual} > limit=${breach.limit}`);
       continue;
     }
     console.log(`- [breach] ${breach.source} ${breach.kind}: actual=${breach.actual} > limit=${breach.limit}`);
@@ -615,6 +652,123 @@ function readSourceReconciliation(db) {
   return {
     available: true,
     note: rows.length ? null : 'no ingestion run history found yet',
+    sources,
+  };
+}
+
+function readSourceSloBudgets(db, { asOf, config }) {
+  if (!tableExists(db, 'ingestion_run_metrics')) {
+    return {
+      available: false,
+      note: 'ingestion_run_metrics table missing (run npm run db:hybrid:init)',
+      sources: [],
+      totals: {
+        total_runs: 0,
+        ok_runs: 0,
+        partial_failure_runs: 0,
+        failed_runs: 0,
+        over_budget_sources: 0,
+        alerted_sources: 0,
+      },
+    };
+  }
+
+  const windowEnd = asOf.toISOString();
+  const windowStartDate = new Date(asOf.getTime() - config.window_days * 24 * 60 * 60 * 1000);
+  const windowStart = windowStartDate.toISOString();
+
+  const rows = db.prepare(`
+    SELECT source, status
+    FROM ingestion_run_metrics
+    WHERE source IN (${DEFAULT_SOURCES.map(() => '?').join(',')})
+      AND run_completed_at >= ?
+      AND run_completed_at <= ?
+    ORDER BY source ASC, run_completed_at DESC, run_id DESC
+  `).all(...DEFAULT_SOURCES, windowStart, windowEnd);
+
+  const grouped = new Map();
+  for (const source of DEFAULT_SOURCES) grouped.set(source, []);
+  for (const row of rows) {
+    const source = String(row.source || '');
+    if (!grouped.has(source)) continue;
+    grouped.get(source).push(String(row.status || 'failed'));
+  }
+
+  const sources = DEFAULT_SOURCES.map((source) => {
+    const statuses = grouped.get(source) || [];
+    const totalRuns = statuses.length;
+    const okRuns = statuses.filter((status) => status === 'ok').length;
+    const partialFailureRuns = statuses.filter((status) => status === 'partial_failure').length;
+    const failedRuns = statuses.filter((status) => status === 'failed').length;
+
+    const targetPct = Number(config.target_pct_by_source[source] ?? defaultSloTargetPct);
+    const errorBudgetPct = Number((100 - targetPct).toFixed(3));
+    const weightedErrorUnits = Number((failedRuns + (partialFailureRuns * config.partial_failure_weight)).toFixed(6));
+
+    let actualErrorRatePct = null;
+    let budgetBurnPct = null;
+    let burnRate = null;
+    let remainingBudgetPct = null;
+    let status = 'no_runs';
+    let alert = 'none';
+
+    if (totalRuns > 0) {
+      actualErrorRatePct = Number(((weightedErrorUnits / totalRuns) * 100).toFixed(3));
+      if (errorBudgetPct > 0) {
+        budgetBurnPct = Number(((actualErrorRatePct / errorBudgetPct) * 100).toFixed(3));
+        burnRate = Number((actualErrorRatePct / errorBudgetPct).toFixed(3));
+        remainingBudgetPct = Number(Math.max(0, errorBudgetPct - actualErrorRatePct).toFixed(3));
+      } else {
+        budgetBurnPct = weightedErrorUnits > 0 ? 1000 : 0;
+        burnRate = weightedErrorUnits > 0 ? 10 : 0;
+        remainingBudgetPct = 0;
+      }
+
+      if (budgetBurnPct > 200) {
+        status = 'critical_over_budget';
+        alert = 'high';
+      } else if (budgetBurnPct > 100) {
+        status = 'over_budget';
+        alert = 'medium';
+      } else if (budgetBurnPct >= 80) {
+        status = 'near_budget';
+        alert = 'watch';
+      } else {
+        status = 'within_budget';
+      }
+    }
+
+    return {
+      source,
+      status,
+      alert,
+      target_pct: targetPct,
+      error_budget_pct: errorBudgetPct,
+      total_runs: totalRuns,
+      ok_runs: okRuns,
+      partial_failure_runs: partialFailureRuns,
+      failed_runs: failedRuns,
+      weighted_error_units: weightedErrorUnits,
+      actual_error_rate_pct: actualErrorRatePct,
+      budget_burn_pct: budgetBurnPct,
+      burn_rate: burnRate,
+      remaining_budget_pct: remainingBudgetPct,
+    };
+  });
+
+  return {
+    available: true,
+    note: rows.length ? null : 'no ingestion runs found in source SLO window',
+    window_start: windowStart,
+    window_end: windowEnd,
+    totals: {
+      total_runs: sources.reduce((sum, source) => sum + source.total_runs, 0),
+      ok_runs: sources.reduce((sum, source) => sum + source.ok_runs, 0),
+      partial_failure_runs: sources.reduce((sum, source) => sum + source.partial_failure_runs, 0),
+      failed_runs: sources.reduce((sum, source) => sum + source.failed_runs, 0),
+      over_budget_sources: sources.filter((source) => source.total_runs > 0 && Number(source.budget_burn_pct || 0) > 100).length,
+      alerted_sources: sources.filter((source) => source.alert !== 'none').length,
+    },
     sources,
   };
 }
@@ -1071,6 +1225,24 @@ function readOptionalNumberArg(argv, name) {
   return Number(value.toFixed(3));
 }
 
+function readOptionalPercentArg(argv, name) {
+  const raw = getArg(argv, name);
+  if (raw === null) return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0 || value > 100) {
+    throw new Error(`Invalid ${name} value: ${raw}. Expected a number between 0 and 100.`);
+  }
+  return Number(value.toFixed(3));
+}
+
+function readSourceSloTargets(argv, defaultTargetPct) {
+  return {
+    gmail: readOptionalPercentArg(argv, '--slo-target-gmail-pct') ?? defaultTargetPct,
+    google_calendar: readOptionalPercentArg(argv, '--slo-target-google-calendar-pct') ?? defaultTargetPct,
+    kb_ingest: readOptionalPercentArg(argv, '--slo-target-kb-ingest-pct') ?? defaultTargetPct,
+  };
+}
+
 function hasFlag(argv, name) {
   return argv.includes(name);
 }
@@ -1127,7 +1299,7 @@ function formatNumber(value) {
   return String(value);
 }
 
-function evaluateThresholdBreaches({ sources, failures, reconciliation, baselines, thresholds }) {
+function evaluateThresholdBreaches({ sources, failures, reconciliation, baselines, sloBudgets, thresholds }) {
   const breaches = [];
 
   if (thresholds.max_lag_hours !== null) {
@@ -1166,6 +1338,27 @@ function evaluateThresholdBreaches({ sources, failures, reconciliation, baseline
         actual: issueCount,
         limit: thresholds.max_artifact_issues,
       });
+    }
+  }
+
+  if (thresholds.max_slo_budget_burn_pct !== null) {
+    if (!sloBudgets?.available) {
+      breaches.push({
+        kind: 'slo_budget_unavailable',
+        message: sloBudgets?.note || 'missing source SLO budget data',
+      });
+    } else {
+      for (const source of sloBudgets.sources || []) {
+        if (source.budget_burn_pct === null || source.budget_burn_pct === undefined) continue;
+        if (source.budget_burn_pct > thresholds.max_slo_budget_burn_pct) {
+          breaches.push({
+            kind: 'slo_budget_burn_pct',
+            source: source.source,
+            actual: source.budget_burn_pct,
+            limit: thresholds.max_slo_budget_burn_pct,
+          });
+        }
+      }
     }
   }
 
@@ -1447,7 +1640,7 @@ function readBreachRollupFeed({ artifactDirInput, windowStart, windowEnd }) {
 
 function severityForBreachKind(kind) {
   const k = String(kind || '').toLowerCase();
-  if (['lag_hours', 'seen_drift_hours', 'baseline_anomalies_count', 'reconciliation_unavailable'].includes(k)) {
+  if (['lag_hours', 'seen_drift_hours', 'baseline_anomalies_count', 'reconciliation_unavailable', 'slo_budget_unavailable', 'slo_budget_burn_pct'].includes(k)) {
     return 'high';
   }
   if (['entity_delta_pct', 'chunk_ratio_delta', 'link_delta_pct', 'artifact_issues_count'].includes(k)) {
@@ -1468,10 +1661,12 @@ function buildTrendArtifactPayload(result) {
       failures_scanned_files: Number(result.failures?.scanned_files || 0),
       failures_issue_count: Array.isArray(result.failures?.issues) ? result.failures.issues.length : 0,
       baseline_anomalies: Number(result.baselines?.totals?.anomalies || 0),
+      slo_over_budget_sources: Number(result.slo_budgets?.totals?.over_budget_sources || 0),
       breach_count: Array.isArray(result.breaches) ? result.breaches.length : 0,
     },
     sources: result.sources || [],
     reconciliation: result.reconciliation || null,
+    slo_budgets: result.slo_budgets || null,
     baselines: result.baselines || null,
     trends: result.trends || null,
     thresholds: result.thresholds || null,
@@ -1595,6 +1790,7 @@ function buildTrendArtifactMarkdown(payload) {
   lines.push(`- trend_window_snapshots: ${payload.trend_config?.window_snapshots ?? 'n/a'}`);
   lines.push(`- baseline_window_runs: ${payload.baseline_config?.window_runs ?? 'n/a'}`);
   lines.push(`- baseline_anomalies: ${payload.totals?.baseline_anomalies ?? 0}`);
+  lines.push(`- slo_over_budget_sources: ${payload.totals?.slo_over_budget_sources ?? 0}`);
   lines.push(`- breaches: ${payload.totals?.breach_count ?? 0}`);
   lines.push('');
 

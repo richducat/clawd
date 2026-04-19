@@ -164,6 +164,7 @@ jobs:
             --max-lag-hours "${MAX_LAG_HOURS_INPUT}" \
             --max-seen-drift-hours "${MAX_SEEN_DRIFT_HOURS_INPUT}" \
             --max-artifact-issues "${MAX_ARTIFACT_ISSUES_INPUT}" \
+            --max-slo-budget-burn-pct 100 \
             | tee "artifacts/ingestion-health-${run_date}.json"
 
       - name: Upload artifacts
@@ -383,6 +384,7 @@ jobs:
             --max-lag-hours "${MAX_LAG_HOURS_INPUT}" \
             --max-seen-drift-hours "${MAX_SEEN_DRIFT_HOURS_INPUT}" \
             --max-artifact-issues "${MAX_ARTIFACT_ISSUES_INPUT}" \
+            --max-slo-budget-burn-pct 100 \
             | tee "artifacts/ingestion-health-${run_date}.json"
 
       - name: Resolve same-date canary artifact baseline

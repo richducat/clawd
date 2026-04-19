@@ -245,6 +245,7 @@ Include:
     - `max_lag_hours=24`
     - `max_seen_drift_hours=48`
     - `max_artifact_issues=0`
+    - `max_slo_budget_burn_pct=100`
   - threshold breach exits `2` and fails the run (artifacts still upload because upload step uses `if: always()`)
 - Live drift detector (live lane):
   - resolves latest same-date canary artifact (`hybrid-daily-canary-YYYY-MM-DD`) from GitHub Actions artifacts
@@ -332,6 +333,13 @@ Include:
     - `--slo-digest-prefix <stem>` file prefix for exported SLO digest artifacts (default `ingestion-slo-weekly`)
     - `--slo-retention-days <n>` prunes exported SLO digest artifacts older than `n` days
     - `--slo-retention-count <n>` keeps only the newest `n` exported SLO digest snapshots (markdown+json pair)
+  - source-level SLO budget controls:
+    - `--slo-budget-window-days <n>` run-history window in days for source budget tracking (default `7`)
+    - `--slo-target-default-pct <n>` default target availability percentage for all sources (default `99`)
+    - `--slo-target-gmail-pct <n>` Gmail source target availability percentage override
+    - `--slo-target-google-calendar-pct <n>` Google Calendar source target availability percentage override
+    - `--slo-target-kb-ingest-pct <n>` KB ingest source target availability percentage override
+    - `--slo-partial-failure-weight <n>` weighted error cost for `partial_failure` runs in budget burn calculations (default `0.5`)
   - threshold guards (non-zero exit on breach):
     - `--max-lag-hours <n>`
     - `--max-seen-drift-hours <n>`
@@ -340,6 +348,7 @@ Include:
     - `--max-chunk-ratio-delta <n>`
     - `--max-link-delta-pct <n>`
     - `--max-baseline-anomalies <n>`
+    - `--max-slo-budget-burn-pct <n>`
 - Report fields include:
   - source cursor lag/drift for `gmail`, `google_calendar`, and `kb_ingest`
   - entity/chunk coverage totals and grouped `domain/type` counts
@@ -361,6 +370,10 @@ Include:
   - weekly SLO digest from persisted baseline snapshots:
     - digest window summary + source-level anomaly-free coverage
     - source-level average/latest anomaly counts
+  - source-level SLO budget tracking from `ingestion_run_metrics`:
+    - run mixes (`ok`, `partial_failure`, `failed`) for each source in the configured budget window
+    - weighted error rate, error budget, burn %, burn rate, and remaining budget %
+    - deterministic budget status + alert level for burn escalation handling
   - breach rollup feed for digest window:
     - scans `ingestion-trends-*.json` and `ingestion-health-*.json`
     - aggregates breach events by severity and source/top breach kinds
@@ -380,9 +393,13 @@ npm run db:hybrid:health -- \
   --slo-digest-prefix ingestion-slo-weekly \
   --slo-window-days 7 \
   --slo-retention-count 52 \
+  --slo-budget-window-days 7 \
+  --slo-target-default-pct 99 \
+  --slo-partial-failure-weight 0.5 \
   --max-lag-hours 24 \
   --max-seen-drift-hours 48 \
-  --max-artifact-issues 0
+  --max-artifact-issues 0 \
+  --max-slo-budget-burn-pct 100
 ```
 
 Exit behavior:
