@@ -229,6 +229,10 @@ jobs:
               quality_stakeholder_signoff_escalation_ladder_breach_count: "0",
               quality_phase16_top_breach_kind: "",
               quality_phase16_gate_breached: "false",
+              quality_readiness_cadence_contract_pack_breach_count: "0",
+              quality_readiness_cadence_high_priority_breach_count: "0",
+              quality_phase17_top_breach_kind: "",
+              quality_phase17_gate_breached: "false",
               quality_phase12_top_breach_kind: "",
               quality_phase12_gate_breached: "false",
               quality_phase13_top_breach_kind: "",
@@ -273,14 +277,18 @@ jobs:
             const crossOwnerDependencySignoffBreachCount = breaches.filter((b) => b?.kind === "quality_cross_owner_dependency_signoff_coverage_pct").length;
             const closeReadinessGateMatrixBreachCount = breaches.filter((b) => b?.kind === "quality_close_readiness_gate_matrix_coverage_pct").length;
             const stakeholderSignoffEscalationLadderBreachCount = breaches.filter((b) => b?.kind === "quality_stakeholder_signoff_escalation_ladder_coverage_pct").length;
+            const readinessCadenceContractPackBreachCount = breaches.filter((b) => b?.kind === "quality_readiness_cadence_contract_pack_coverage_pct").length;
+            const readinessCadenceHighPriorityBreachCount = breaches.filter((b) => b?.kind === "quality_readiness_cadence_high_priority_coverage_pct").length;
             const qualityPhase14GateBreached = counterfactualDecisionDrillBreachCount > 0 || stakeholderObjectionHandoffBreachCount > 0;
             const qualityPhase15GateBreached = riskWeightedClosePlanSequencingBreachCount > 0 || crossOwnerDependencySignoffBreachCount > 0;
             const qualityPhase16GateBreached = closeReadinessGateMatrixBreachCount > 0 || stakeholderSignoffEscalationLadderBreachCount > 0;
+            const qualityPhase17GateBreached = readinessCadenceContractPackBreachCount > 0 || readinessCadenceHighPriorityBreachCount > 0;
             const qualityPhase12GateBreached = failureModeRehearsalBreachCount > 0 || stakeholderProofRequestBreachCount > 0;
             const qualityPhase13GateBreached = confidenceCalibrationBreachCount > 0 || ownerAssignmentBreachCount > 0;
             const qualityGateBreached = qualityPhase14GateBreached
               || qualityPhase15GateBreached
               || qualityPhase16GateBreached
+              || qualityPhase17GateBreached
               || qualityPhase12GateBreached
               || qualityPhase13GateBreached
               || breaches.some((b) => b?.kind === "quality_drift_signals_count" || b?.kind === "quality_severity_score");
@@ -304,6 +312,10 @@ jobs:
               closeReadinessGateMatrixBreachCount >= stakeholderSignoffEscalationLadderBreachCount
                 ? (closeReadinessGateMatrixBreachCount > 0 ? "quality_close_readiness_gate_matrix_coverage_pct" : "")
                 : "quality_stakeholder_signoff_escalation_ladder_coverage_pct";
+            const qualityPhase17TopBreachKind =
+              readinessCadenceContractPackBreachCount >= readinessCadenceHighPriorityBreachCount
+                ? (readinessCadenceContractPackBreachCount > 0 ? "quality_readiness_cadence_contract_pack_coverage_pct" : "")
+                : "quality_readiness_cadence_high_priority_coverage_pct";
 
             append({
               quality_signal_count: Number.isFinite(driftSignals) ? String(driftSignals) : "0",
@@ -324,6 +336,10 @@ jobs:
               quality_stakeholder_signoff_escalation_ladder_breach_count: String(stakeholderSignoffEscalationLadderBreachCount),
               quality_phase16_top_breach_kind: qualityPhase16TopBreachKind,
               quality_phase16_gate_breached: qualityPhase16GateBreached ? "true" : "false",
+              quality_readiness_cadence_contract_pack_breach_count: String(readinessCadenceContractPackBreachCount),
+              quality_readiness_cadence_high_priority_breach_count: String(readinessCadenceHighPriorityBreachCount),
+              quality_phase17_top_breach_kind: qualityPhase17TopBreachKind,
+              quality_phase17_gate_breached: qualityPhase17GateBreached ? "true" : "false",
               quality_phase12_top_breach_kind: qualityPhase12TopBreachKind,
               quality_phase12_gate_breached: qualityPhase12GateBreached ? "true" : "false",
               quality_phase13_top_breach_kind: qualityPhase13TopBreachKind,
@@ -420,6 +436,10 @@ jobs:
           ALERT_QUALITY_STAKEHOLDER_SIGNOFF_ESCALATION_LADDER_BREACH_COUNT: ${{ steps.quality.outputs.quality_stakeholder_signoff_escalation_ladder_breach_count }}
           ALERT_QUALITY_PHASE16_TOP_BREACH_KIND: ${{ steps.quality.outputs.quality_phase16_top_breach_kind }}
           ALERT_QUALITY_PHASE16_GATE_BREACHED: ${{ steps.quality.outputs.quality_phase16_gate_breached }}
+          ALERT_QUALITY_READINESS_CADENCE_CONTRACT_PACK_BREACH_COUNT: ${{ steps.quality.outputs.quality_readiness_cadence_contract_pack_breach_count }}
+          ALERT_QUALITY_READINESS_CADENCE_HIGH_PRIORITY_BREACH_COUNT: ${{ steps.quality.outputs.quality_readiness_cadence_high_priority_breach_count }}
+          ALERT_QUALITY_PHASE17_TOP_BREACH_KIND: ${{ steps.quality.outputs.quality_phase17_top_breach_kind }}
+          ALERT_QUALITY_PHASE17_GATE_BREACHED: ${{ steps.quality.outputs.quality_phase17_gate_breached }}
           ALERT_QUALITY_PHASE12_TOP_BREACH_KIND: ${{ steps.quality.outputs.quality_phase12_top_breach_kind }}
           ALERT_QUALITY_PHASE12_GATE_BREACHED: ${{ steps.quality.outputs.quality_phase12_gate_breached }}
           ALERT_QUALITY_PHASE13_TOP_BREACH_KIND: ${{ steps.quality.outputs.quality_phase13_top_breach_kind }}
@@ -680,6 +700,10 @@ jobs:
               quality_stakeholder_signoff_escalation_ladder_breach_count: "0",
               quality_phase16_top_breach_kind: "",
               quality_phase16_gate_breached: "false",
+              quality_readiness_cadence_contract_pack_breach_count: "0",
+              quality_readiness_cadence_high_priority_breach_count: "0",
+              quality_phase17_top_breach_kind: "",
+              quality_phase17_gate_breached: "false",
               quality_phase12_top_breach_kind: "",
               quality_phase12_gate_breached: "false",
               quality_phase13_top_breach_kind: "",
@@ -724,14 +748,18 @@ jobs:
             const crossOwnerDependencySignoffBreachCount = breaches.filter((b) => b?.kind === "quality_cross_owner_dependency_signoff_coverage_pct").length;
             const closeReadinessGateMatrixBreachCount = breaches.filter((b) => b?.kind === "quality_close_readiness_gate_matrix_coverage_pct").length;
             const stakeholderSignoffEscalationLadderBreachCount = breaches.filter((b) => b?.kind === "quality_stakeholder_signoff_escalation_ladder_coverage_pct").length;
+            const readinessCadenceContractPackBreachCount = breaches.filter((b) => b?.kind === "quality_readiness_cadence_contract_pack_coverage_pct").length;
+            const readinessCadenceHighPriorityBreachCount = breaches.filter((b) => b?.kind === "quality_readiness_cadence_high_priority_coverage_pct").length;
             const qualityPhase14GateBreached = counterfactualDecisionDrillBreachCount > 0 || stakeholderObjectionHandoffBreachCount > 0;
             const qualityPhase15GateBreached = riskWeightedClosePlanSequencingBreachCount > 0 || crossOwnerDependencySignoffBreachCount > 0;
             const qualityPhase16GateBreached = closeReadinessGateMatrixBreachCount > 0 || stakeholderSignoffEscalationLadderBreachCount > 0;
+            const qualityPhase17GateBreached = readinessCadenceContractPackBreachCount > 0 || readinessCadenceHighPriorityBreachCount > 0;
             const qualityPhase12GateBreached = failureModeRehearsalBreachCount > 0 || stakeholderProofRequestBreachCount > 0;
             const qualityPhase13GateBreached = confidenceCalibrationBreachCount > 0 || ownerAssignmentBreachCount > 0;
             const qualityGateBreached = qualityPhase14GateBreached
               || qualityPhase15GateBreached
               || qualityPhase16GateBreached
+              || qualityPhase17GateBreached
               || qualityPhase12GateBreached
               || qualityPhase13GateBreached
               || breaches.some((b) => b?.kind === "quality_drift_signals_count" || b?.kind === "quality_severity_score");
@@ -755,6 +783,10 @@ jobs:
               closeReadinessGateMatrixBreachCount >= stakeholderSignoffEscalationLadderBreachCount
                 ? (closeReadinessGateMatrixBreachCount > 0 ? "quality_close_readiness_gate_matrix_coverage_pct" : "")
                 : "quality_stakeholder_signoff_escalation_ladder_coverage_pct";
+            const qualityPhase17TopBreachKind =
+              readinessCadenceContractPackBreachCount >= readinessCadenceHighPriorityBreachCount
+                ? (readinessCadenceContractPackBreachCount > 0 ? "quality_readiness_cadence_contract_pack_coverage_pct" : "")
+                : "quality_readiness_cadence_high_priority_coverage_pct";
 
             append({
               quality_signal_count: Number.isFinite(driftSignals) ? String(driftSignals) : "0",
@@ -775,6 +807,10 @@ jobs:
               quality_stakeholder_signoff_escalation_ladder_breach_count: String(stakeholderSignoffEscalationLadderBreachCount),
               quality_phase16_top_breach_kind: qualityPhase16TopBreachKind,
               quality_phase16_gate_breached: qualityPhase16GateBreached ? "true" : "false",
+              quality_readiness_cadence_contract_pack_breach_count: String(readinessCadenceContractPackBreachCount),
+              quality_readiness_cadence_high_priority_breach_count: String(readinessCadenceHighPriorityBreachCount),
+              quality_phase17_top_breach_kind: qualityPhase17TopBreachKind,
+              quality_phase17_gate_breached: qualityPhase17GateBreached ? "true" : "false",
               quality_phase12_top_breach_kind: qualityPhase12TopBreachKind,
               quality_phase12_gate_breached: qualityPhase12GateBreached ? "true" : "false",
               quality_phase13_top_breach_kind: qualityPhase13TopBreachKind,
@@ -967,6 +1003,10 @@ jobs:
           ALERT_QUALITY_STAKEHOLDER_SIGNOFF_ESCALATION_LADDER_BREACH_COUNT: ${{ steps.quality.outputs.quality_stakeholder_signoff_escalation_ladder_breach_count }}
           ALERT_QUALITY_PHASE16_TOP_BREACH_KIND: ${{ steps.quality.outputs.quality_phase16_top_breach_kind }}
           ALERT_QUALITY_PHASE16_GATE_BREACHED: ${{ steps.quality.outputs.quality_phase16_gate_breached }}
+          ALERT_QUALITY_READINESS_CADENCE_CONTRACT_PACK_BREACH_COUNT: ${{ steps.quality.outputs.quality_readiness_cadence_contract_pack_breach_count }}
+          ALERT_QUALITY_READINESS_CADENCE_HIGH_PRIORITY_BREACH_COUNT: ${{ steps.quality.outputs.quality_readiness_cadence_high_priority_breach_count }}
+          ALERT_QUALITY_PHASE17_TOP_BREACH_KIND: ${{ steps.quality.outputs.quality_phase17_top_breach_kind }}
+          ALERT_QUALITY_PHASE17_GATE_BREACHED: ${{ steps.quality.outputs.quality_phase17_gate_breached }}
           ALERT_QUALITY_PHASE12_TOP_BREACH_KIND: ${{ steps.quality.outputs.quality_phase12_top_breach_kind }}
           ALERT_QUALITY_PHASE12_GATE_BREACHED: ${{ steps.quality.outputs.quality_phase12_gate_breached }}
           ALERT_QUALITY_PHASE13_TOP_BREACH_KIND: ${{ steps.quality.outputs.quality_phase13_top_breach_kind }}
