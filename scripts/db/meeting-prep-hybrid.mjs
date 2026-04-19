@@ -241,6 +241,18 @@ async function main() {
         meetingRecommendations,
         commitmentCloseChecklist,
       });
+      const prepQuality = buildMeetingPrepQuality({
+        attendees: attendeeBriefs,
+        relationshipRiskSignals,
+        agendaGapSignals,
+        meetingRecommendations,
+        talkingPointSequence,
+        objectionRebuttalPacks,
+        stakeholderIntentSummaries,
+        negotiationFallbackPrompts,
+        commitmentCloseChecklist,
+        followUpDraftPack,
+      });
 
       if (insertSnapshotStmt) {
         const tx = db.transaction((rows) => {
@@ -287,6 +299,7 @@ async function main() {
         meetingRecommendations,
         commitmentCloseChecklist,
         followUpDraftPack,
+        prepQuality,
       });
     }
 
@@ -419,6 +432,19 @@ function printMarkdownBrief({ account, date, timezone, internalDomains, meetings
       if (Array.isArray(meeting.followUpDraftPack.messageLines) && meeting.followUpDraftPack.messageLines.length) {
         for (const line of meeting.followUpDraftPack.messageLines) {
           console.log(`  - Draft line: ${line}`);
+        }
+      }
+    }
+    if (meeting.prepQuality) {
+      console.log(
+        `- Prep quality: ${meeting.prepQuality.score}/100 (${meeting.prepQuality.level}); gaps=${meeting.prepQuality.gapCount}`
+      );
+      if (meeting.prepQuality.summary) {
+        console.log(`  - Summary: ${meeting.prepQuality.summary}`);
+      }
+      if (Array.isArray(meeting.prepQuality.coverageChecks) && meeting.prepQuality.coverageChecks.length) {
+        for (const check of meeting.prepQuality.coverageChecks) {
+          console.log(`  - [${check.severity}] ${check.status}: ${check.message}`);
         }
       }
     }
@@ -1488,6 +1514,136 @@ function buildFollowUpDraftPack({
       ? `Primary external attendees: ${topNames.join(', ')}${externalCount > topNames.length ? ` (+${externalCount - topNames.length} more)` : ''}`
       : 'No named external attendees resolved.',
     messageLines: messageLines.slice(0, 6),
+  };
+}
+
+function buildMeetingPrepQuality({
+  attendees,
+  relationshipRiskSignals,
+  agendaGapSignals,
+  meetingRecommendations,
+  talkingPointSequence,
+  objectionRebuttalPacks,
+  stakeholderIntentSummaries,
+  negotiationFallbackPrompts,
+  commitmentCloseChecklist,
+  followUpDraftPack,
+}) {
+  const checks = [];
+  const push = (code, severity, status, message) => {
+    checks.push({ code, severity, status, message });
+  };
+  const has = (value) => Array.isArray(value) && value.length > 0;
+
+  const attendeeCount = Number(attendees?.length || 0);
+  const lowConfidenceCount = (attendees || []).filter((a) => Number(a?.attendeeConfidence?.score || 0) < 45).length;
+  const highRiskSignals = (relationshipRiskSignals || []).filter((s) => s.severity === 'high');
+  const unresolvedAgendaGaps = (agendaGapSignals || []).filter((g) => g.severity === 'high' || g.severity === 'medium');
+
+  if (attendeeCount === 0) {
+    push('attendee_coverage', 'high', 'fail', 'No external attendees found for quality evaluation.');
+  } else {
+    push('attendee_coverage', 'low', 'pass', `Attendee coverage present (${attendeeCount}).`);
+  }
+
+  if (has(meetingRecommendations)) {
+    push('recommendations_present', 'low', 'pass', `Meeting recommendations present (${meetingRecommendations.length}).`);
+  } else {
+    push('recommendations_present', 'high', 'fail', 'Missing meeting recommendations section.');
+  }
+
+  if (has(talkingPointSequence)) {
+    push('talking_points_present', 'low', 'pass', `Talking-point sequence present (${talkingPointSequence.length}).`);
+  } else {
+    push('talking_points_present', 'high', 'fail', 'Missing talking-point sequence section.');
+  }
+
+  if (has(commitmentCloseChecklist)) {
+    const hasHigh = commitmentCloseChecklist.some((item) => item.priority === 'high');
+    if (hasHigh) push('closeout_checklist_strength', 'low', 'pass', 'Commitment closeout checklist includes high-priority closure items.');
+    else push('closeout_checklist_strength', 'medium', 'warn', 'Commitment closeout checklist has no high-priority item.');
+  } else {
+    push('closeout_checklist_strength', 'high', 'fail', 'Missing commitment closeout checklist.');
+  }
+
+  const followUpHasAsks = has(followUpDraftPack?.asks);
+  const followUpHasLines = has(followUpDraftPack?.messageLines);
+  if (followUpDraftPack && followUpHasAsks && followUpHasLines) {
+    push('followup_pack_quality', 'low', 'pass', 'Follow-up draft pack includes asks and draft lines.');
+  } else if (followUpDraftPack) {
+    push('followup_pack_quality', 'medium', 'warn', 'Follow-up draft pack is present but missing asks or draft lines.');
+  } else {
+    push('followup_pack_quality', 'high', 'fail', 'Missing follow-up draft pack.');
+  }
+
+  if (highRiskSignals.length > 0 && !has(objectionRebuttalPacks)) {
+    push('objection_coverage', 'high', 'fail', 'High-risk signals detected but objection rebuttal packs are missing.');
+  } else if (highRiskSignals.length > 0) {
+    push('objection_coverage', 'low', 'pass', 'High-risk coverage includes objection rebuttal packs.');
+  } else {
+    push('objection_coverage', 'low', 'pass', 'No high-risk signal requiring mandatory objection packs.');
+  }
+
+  if (has(stakeholderIntentSummaries) && has(negotiationFallbackPrompts)) {
+    push('intent_negotiation_coverage', 'low', 'pass', 'Intent summaries and negotiation fallback prompts are both present.');
+  } else {
+    push('intent_negotiation_coverage', 'medium', 'warn', 'Intent/negotiation coverage is partial.');
+  }
+
+  if (unresolvedAgendaGaps.length > 0) {
+    const hasChecklistMitigation = has(commitmentCloseChecklist) && commitmentCloseChecklist.some((item) => {
+      const text = `${item.check || ''} ${item.why || ''}`.toLowerCase();
+      return text.includes('owner') || text.includes('risk') || text.includes('scope');
+    });
+    if (hasChecklistMitigation) {
+      push('agenda_gap_mitigation', 'low', 'pass', 'Agenda-gap signals are paired with closeout mitigation checks.');
+    } else {
+      push('agenda_gap_mitigation', 'medium', 'warn', 'Agenda-gap signals detected without clear closeout mitigation checks.');
+    }
+  } else {
+    push('agenda_gap_mitigation', 'low', 'pass', 'No agenda-gap mitigation required for this meeting.');
+  }
+
+  if (lowConfidenceCount > 0 && !has(negotiationFallbackPrompts)) {
+    push('low_confidence_support', 'medium', 'warn', 'Low-confidence attendees detected without fallback prompts.');
+  } else if (lowConfidenceCount > 0) {
+    push('low_confidence_support', 'low', 'pass', 'Low-confidence attendees have negotiation fallback support.');
+  } else {
+    push('low_confidence_support', 'low', 'pass', 'No low-confidence attendee coverage gap detected.');
+  }
+
+  const penalties = {
+    fail: { high: 18, medium: 12, low: 8 },
+    warn: { high: 10, medium: 7, low: 4 },
+    pass: { high: 0, medium: 0, low: 0 },
+  };
+  let score = 100;
+  let gapCount = 0;
+  for (const check of checks) {
+    const status = check.status || 'warn';
+    const severity = check.severity || 'medium';
+    const penalty = penalties?.[status]?.[severity] ?? 6;
+    score -= penalty;
+    if (status !== 'pass') gapCount += 1;
+  }
+  score = clampInt(score, 0, 100);
+
+  let level = 'high';
+  if (score < 80) level = 'medium';
+  if (score < 60) level = 'low';
+
+  let summary = 'Coverage is healthy for current meeting context.';
+  if (gapCount > 0) {
+    const topGap = checks.find((c) => c.status !== 'pass');
+    summary = `Coverage gaps detected (${gapCount}); prioritize ${topGap?.code || 'quality remediation'}.`;
+  }
+
+  return {
+    score,
+    level,
+    gapCount,
+    summary,
+    coverageChecks: checks,
   };
 }
 
