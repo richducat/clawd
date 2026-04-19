@@ -197,6 +197,7 @@ function classifyIncident() {
   const driftGateBreached = toBoolean(process.env.ALERT_DRIFT_GATE_BREACHED);
   const driftSignalCount = Number(process.env.ALERT_DRIFT_SIGNAL_COUNT || "0");
   const qualityGateBreached = toBoolean(process.env.ALERT_QUALITY_GATE_BREACHED);
+  const qualityPhase17GateBreached = toBoolean(process.env.ALERT_QUALITY_PHASE17_GATE_BREACHED);
   const qualityPhase16GateBreached = toBoolean(process.env.ALERT_QUALITY_PHASE16_GATE_BREACHED);
   const qualityPhase15GateBreached = toBoolean(process.env.ALERT_QUALITY_PHASE15_GATE_BREACHED);
   const qualityPhase14GateBreached = toBoolean(process.env.ALERT_QUALITY_PHASE14_GATE_BREACHED);
@@ -209,6 +210,9 @@ function classifyIncident() {
   const qualityPhase16BreachCount =
     Number(process.env.ALERT_QUALITY_CLOSE_READINESS_GATE_MATRIX_BREACH_COUNT || "0")
     + Number(process.env.ALERT_QUALITY_STAKEHOLDER_SIGNOFF_ESCALATION_LADDER_BREACH_COUNT || "0");
+  const qualityPhase17BreachCount =
+    Number(process.env.ALERT_QUALITY_READINESS_CADENCE_CONTRACT_PACK_BREACH_COUNT || "0")
+    + Number(process.env.ALERT_QUALITY_READINESS_CADENCE_HIGH_PRIORITY_BREACH_COUNT || "0");
   const qualityPhase14BreachCount =
     Number(process.env.ALERT_QUALITY_COUNTERFACTUAL_DECISION_DRILL_BREACH_COUNT || "0")
     + Number(process.env.ALERT_QUALITY_STAKEHOLDER_OBJECTION_HANDOFF_BREACH_COUNT || "0");
@@ -220,6 +224,9 @@ function classifyIncident() {
     + Number(process.env.ALERT_QUALITY_OWNER_ASSIGNMENT_BREACH_COUNT || "0");
   if (driftGateBreached) {
     return { type: "drift_gate_breach", drift_related: true, quality_related: false, severity: "high" };
+  }
+  if (qualityPhase17GateBreached) {
+    return { type: "quality_phase17_gate_breach", drift_related: false, quality_related: true, severity: "high" };
   }
   if (qualityPhase16GateBreached) {
     return { type: "quality_phase16_gate_breach", drift_related: false, quality_related: true, severity: "high" };
@@ -241,6 +248,9 @@ function classifyIncident() {
   }
   if (Number.isFinite(driftSignalCount) && driftSignalCount > 0) {
     return { type: "drift_signal_detected", drift_related: true, quality_related: false, severity: "medium" };
+  }
+  if (Number.isFinite(qualityPhase17BreachCount) && qualityPhase17BreachCount > 0) {
+    return { type: "quality_phase17_signal_detected", drift_related: false, quality_related: true, severity: "medium" };
   }
   if (Number.isFinite(qualityPhase16BreachCount) && qualityPhase16BreachCount > 0) {
     return { type: "quality_phase16_signal_detected", drift_related: false, quality_related: true, severity: "medium" };
@@ -303,7 +313,7 @@ function resolveAckPolicy({ incident, runMode, policyConfig }) {
     defaults.ack_sla_minutes = 15;
     defaults.ack_reminder_interval_minutes = 15;
     defaults.ack_escalate_after_reminders = 1;
-  } else if (incident.type === "quality_phase16_gate_breach" || incident.type === "quality_phase15_gate_breach" || incident.type === "quality_phase14_gate_breach" || incident.type === "quality_phase13_gate_breach" || incident.type === "quality_phase12_gate_breach") {
+  } else if (incident.type === "quality_phase17_gate_breach" || incident.type === "quality_phase16_gate_breach" || incident.type === "quality_phase15_gate_breach" || incident.type === "quality_phase14_gate_breach" || incident.type === "quality_phase13_gate_breach" || incident.type === "quality_phase12_gate_breach") {
     defaults.ack_sla_minutes = 15;
     defaults.ack_reminder_interval_minutes = 15;
     defaults.ack_escalate_after_reminders = 1;
@@ -315,7 +325,7 @@ function resolveAckPolicy({ incident, runMode, policyConfig }) {
     defaults.ack_sla_minutes = 20;
   } else if (incident.type === "drift_signal_detected") {
     defaults.ack_sla_minutes = 30;
-  } else if (incident.type === "quality_phase16_signal_detected" || incident.type === "quality_phase15_signal_detected" || incident.type === "quality_phase14_signal_detected" || incident.type === "quality_phase13_signal_detected" || incident.type === "quality_phase12_signal_detected") {
+  } else if (incident.type === "quality_phase17_signal_detected" || incident.type === "quality_phase16_signal_detected" || incident.type === "quality_phase15_signal_detected" || incident.type === "quality_phase14_signal_detected" || incident.type === "quality_phase13_signal_detected" || incident.type === "quality_phase12_signal_detected") {
     defaults.ack_sla_minutes = 25;
   } else if (incident.type === "quality_drift_signal_detected") {
     defaults.ack_sla_minutes = 35;
@@ -766,7 +776,13 @@ function buildAlertText({
   const qualitySignals = process.env.ALERT_QUALITY_DRIFT_SIGNAL_COUNT || "";
   const qualitySeverityScore = process.env.ALERT_QUALITY_SEVERITY_SCORE || "";
   const qualityGateBreached = process.env.ALERT_QUALITY_GATE_BREACHED || "";
+  const qualityPhase17GateBreached = process.env.ALERT_QUALITY_PHASE17_GATE_BREACHED || "";
   const qualityPhase16GateBreached = process.env.ALERT_QUALITY_PHASE16_GATE_BREACHED || "";
+  const qualityReadinessCadenceContractPackBreachCount =
+    process.env.ALERT_QUALITY_READINESS_CADENCE_CONTRACT_PACK_BREACH_COUNT || "";
+  const qualityReadinessCadenceHighPriorityBreachCount =
+    process.env.ALERT_QUALITY_READINESS_CADENCE_HIGH_PRIORITY_BREACH_COUNT || "";
+  const qualityPhase17TopBreachKind = process.env.ALERT_QUALITY_PHASE17_TOP_BREACH_KIND || "";
   const qualityCloseReadinessGateMatrixBreachCount = process.env.ALERT_QUALITY_CLOSE_READINESS_GATE_MATRIX_BREACH_COUNT || "";
   const qualityStakeholderSignoffEscalationLadderBreachCount =
     process.env.ALERT_QUALITY_STAKEHOLDER_SIGNOFF_ESCALATION_LADDER_BREACH_COUNT || "";
@@ -835,6 +851,10 @@ function buildAlertText({
     qualitySignals ||
     qualitySeverityScore ||
     qualityGateBreached ||
+    qualityPhase17GateBreached ||
+    qualityReadinessCadenceContractPackBreachCount ||
+    qualityReadinessCadenceHighPriorityBreachCount ||
+    qualityPhase17TopBreachKind ||
     qualityPhase16GateBreached ||
     qualityCloseReadinessGateMatrixBreachCount ||
     qualityStakeholderSignoffEscalationLadderBreachCount ||
@@ -861,6 +881,9 @@ function buildAlertText({
   ) {
     lines.push(
       `Meeting-prep quality drift: signals=${qualitySignals || "n/a"}, severityScore=${qualitySeverityScore || "n/a"}, gateBreached=${qualityGateBreached || "n/a"}, phase12GateBreached=${qualityPhase12GateBreached || "n/a"}, failureModeRehearsalBreaches=${qualityFailureModeRehearsalBreachCount || "0"}, stakeholderProofRequestBreaches=${qualityStakeholderProofRequestBreachCount || "0"}, phase12TopBreachKind=${qualityPhase12TopBreachKind || "n/a"}, topLane=${qualityTopLane || "n/a"}, topLaneSeverity=${qualityTopLaneSeverity || "n/a"}`
+    );
+    lines.push(
+      `Meeting-prep quality phase17: gateBreached=${qualityPhase17GateBreached || "n/a"}, readinessCadenceContractPackBreaches=${qualityReadinessCadenceContractPackBreachCount || "0"}, readinessCadenceHighPriorityBreaches=${qualityReadinessCadenceHighPriorityBreachCount || "0"}, phase17TopBreachKind=${qualityPhase17TopBreachKind || "n/a"}`
     );
     lines.push(
       `Meeting-prep quality phase16: gateBreached=${qualityPhase16GateBreached || "n/a"}, closeReadinessGateMatrixBreaches=${qualityCloseReadinessGateMatrixBreachCount || "0"}, stakeholderSignoffEscalationLadderBreaches=${qualityStakeholderSignoffEscalationLadderBreachCount || "0"}, phase16TopBreachKind=${qualityPhase16TopBreachKind || "n/a"}`
@@ -1180,11 +1203,15 @@ async function main() {
       quality_drift_signal_count: Number(process.env.ALERT_QUALITY_DRIFT_SIGNAL_COUNT || 0),
       quality_severity_score: Number(process.env.ALERT_QUALITY_SEVERITY_SCORE || 0),
       quality_gate_breached: toBoolean(process.env.ALERT_QUALITY_GATE_BREACHED),
+      quality_phase17_gate_breached: toBoolean(process.env.ALERT_QUALITY_PHASE17_GATE_BREACHED),
       quality_phase16_gate_breached: toBoolean(process.env.ALERT_QUALITY_PHASE16_GATE_BREACHED),
       quality_phase15_gate_breached: toBoolean(process.env.ALERT_QUALITY_PHASE15_GATE_BREACHED),
       quality_phase14_gate_breached: toBoolean(process.env.ALERT_QUALITY_PHASE14_GATE_BREACHED),
       quality_phase13_gate_breached: toBoolean(process.env.ALERT_QUALITY_PHASE13_GATE_BREACHED),
       quality_phase12_gate_breached: toBoolean(process.env.ALERT_QUALITY_PHASE12_GATE_BREACHED),
+      quality_readiness_cadence_contract_pack_breach_count: Number(process.env.ALERT_QUALITY_READINESS_CADENCE_CONTRACT_PACK_BREACH_COUNT || 0),
+      quality_readiness_cadence_high_priority_breach_count: Number(process.env.ALERT_QUALITY_READINESS_CADENCE_HIGH_PRIORITY_BREACH_COUNT || 0),
+      quality_phase17_top_breach_kind: process.env.ALERT_QUALITY_PHASE17_TOP_BREACH_KIND || null,
       quality_close_readiness_gate_matrix_breach_count: Number(process.env.ALERT_QUALITY_CLOSE_READINESS_GATE_MATRIX_BREACH_COUNT || 0),
       quality_stakeholder_signoff_escalation_ladder_breach_count: Number(process.env.ALERT_QUALITY_STAKEHOLDER_SIGNOFF_ESCALATION_LADDER_BREACH_COUNT || 0),
       quality_phase16_top_breach_kind: process.env.ALERT_QUALITY_PHASE16_TOP_BREACH_KIND || null,
@@ -1257,11 +1284,15 @@ async function main() {
     quality_drift_signal_count: Number(process.env.ALERT_QUALITY_DRIFT_SIGNAL_COUNT || 0),
     quality_severity_score: Number(process.env.ALERT_QUALITY_SEVERITY_SCORE || 0),
     quality_gate_breached: toBoolean(process.env.ALERT_QUALITY_GATE_BREACHED),
+    quality_phase17_gate_breached: toBoolean(process.env.ALERT_QUALITY_PHASE17_GATE_BREACHED),
     quality_phase16_gate_breached: toBoolean(process.env.ALERT_QUALITY_PHASE16_GATE_BREACHED),
     quality_phase15_gate_breached: toBoolean(process.env.ALERT_QUALITY_PHASE15_GATE_BREACHED),
     quality_phase14_gate_breached: toBoolean(process.env.ALERT_QUALITY_PHASE14_GATE_BREACHED),
     quality_phase13_gate_breached: toBoolean(process.env.ALERT_QUALITY_PHASE13_GATE_BREACHED),
     quality_phase12_gate_breached: toBoolean(process.env.ALERT_QUALITY_PHASE12_GATE_BREACHED),
+    quality_readiness_cadence_contract_pack_breach_count: Number(process.env.ALERT_QUALITY_READINESS_CADENCE_CONTRACT_PACK_BREACH_COUNT || 0),
+    quality_readiness_cadence_high_priority_breach_count: Number(process.env.ALERT_QUALITY_READINESS_CADENCE_HIGH_PRIORITY_BREACH_COUNT || 0),
+    quality_phase17_top_breach_kind: process.env.ALERT_QUALITY_PHASE17_TOP_BREACH_KIND || null,
     quality_close_readiness_gate_matrix_breach_count: Number(process.env.ALERT_QUALITY_CLOSE_READINESS_GATE_MATRIX_BREACH_COUNT || 0),
     quality_stakeholder_signoff_escalation_ladder_breach_count: Number(process.env.ALERT_QUALITY_STAKEHOLDER_SIGNOFF_ESCALATION_LADDER_BREACH_COUNT || 0),
     quality_phase16_top_breach_kind: process.env.ALERT_QUALITY_PHASE16_TOP_BREACH_KIND || null,

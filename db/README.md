@@ -338,7 +338,7 @@ Runtime notes:
       - `default`
       - `run_mode.<canary|live>`
       - `incident_severity.<medium|high>`
-      - `incident_type.<health_gate_breach|drift_signal_detected|drift_gate_breach|quality_drift_signal_detected|quality_drift_gate_breach|quality_phase12_signal_detected|quality_phase12_gate_breach|quality_phase13_signal_detected|quality_phase13_gate_breach|quality_phase14_signal_detected|quality_phase14_gate_breach|quality_phase15_signal_detected|quality_phase15_gate_breach|quality_phase16_signal_detected|quality_phase16_gate_breach>`
+      - `incident_type.<health_gate_breach|drift_signal_detected|drift_gate_breach|quality_drift_signal_detected|quality_drift_gate_breach|quality_phase12_signal_detected|quality_phase12_gate_breach|quality_phase13_signal_detected|quality_phase13_gate_breach|quality_phase14_signal_detected|quality_phase14_gate_breach|quality_phase15_signal_detected|quality_phase15_gate_breach|quality_phase16_signal_detected|quality_phase16_gate_breach|quality_phase17_signal_detected|quality_phase17_gate_breach>`
       - `incident_age_band.<new|fresh|aging|critical>`
     - each node supports:
       - `ack_sla_minutes`
@@ -419,6 +419,10 @@ Runtime notes:
       - `quality_close_readiness_gate_matrix_breach_count`
       - `quality_stakeholder_signoff_escalation_ladder_breach_count`
       - `quality_phase16_top_breach_kind`
+      - `quality_phase17_gate_breached`
+      - `quality_readiness_cadence_contract_pack_breach_count`
+      - `quality_readiness_cadence_high_priority_breach_count`
+      - `quality_phase17_top_breach_kind`
       - `quality_phase15_gate_breached`
       - `quality_risk_weighted_close_plan_sequencing_breach_count`
       - `quality_cross_owner_dependency_signoff_breach_count`
@@ -654,8 +658,8 @@ Output includes:
   - aggregates breach events by severity and source/top breach kinds
 - threshold metadata (`thresholds`) and explicit breach records (`breaches`)
 - meeting-prep quality trendline drift analysis from `artifacts/meeting-prep-quality-*.json` and `artifacts/meeting-prep-phase*.json`:
-  - trendline snapshots (`avg_score`, `avg_gap_count`, failing-check severity score, `readiness_score`, `narrative_coverage_pct`, `dependency_coverage_pct`, `decision_sequencing_coverage_pct`, `close_scripts_coverage_pct`, `failure_mode_rehearsal_coverage_pct`, `stakeholder_proof_request_coverage_pct`, `confidence_calibration_coverage_pct`, `confidence_calibration_avg_delta`, `owner_assignment_coverage_pct`, `counterfactual_decision_drill_coverage_pct`, `stakeholder_objection_handoff_coverage_pct`, `risk_weighted_close_plan_sequencing_coverage_pct`, `cross_owner_dependency_signoff_coverage_pct`, `close_readiness_gate_matrix_coverage_pct`, `stakeholder_signoff_escalation_ladder_coverage_pct`)
-  - deterministic drift signals (`quality_score_drop`, `quality_gap_growth`, `gap_severity_growth`, `high_severity_gap_growth`, `quality_readiness_drop`, `narrative_coverage_drop`, `dependency_coverage_drop`, `decision_sequencing_coverage_drop`, `close_scripts_coverage_drop`, `failure_mode_rehearsal_coverage_drop`, `stakeholder_proof_request_coverage_drop`, `confidence_calibration_coverage_drop`, `confidence_calibration_avg_delta_drop`, `owner_assignment_coverage_drop`, `counterfactual_decision_drill_coverage_drop`, `stakeholder_objection_handoff_coverage_drop`, `risk_weighted_close_plan_sequencing_coverage_drop`, `cross_owner_dependency_signoff_coverage_drop`, `close_readiness_gate_matrix_coverage_drop`, `stakeholder_signoff_escalation_ladder_coverage_drop`)
+  - trendline snapshots (`avg_score`, `avg_gap_count`, failing-check severity score, `readiness_score`, `narrative_coverage_pct`, `dependency_coverage_pct`, `decision_sequencing_coverage_pct`, `close_scripts_coverage_pct`, `failure_mode_rehearsal_coverage_pct`, `stakeholder_proof_request_coverage_pct`, `confidence_calibration_coverage_pct`, `confidence_calibration_avg_delta`, `owner_assignment_coverage_pct`, `counterfactual_decision_drill_coverage_pct`, `stakeholder_objection_handoff_coverage_pct`, `risk_weighted_close_plan_sequencing_coverage_pct`, `cross_owner_dependency_signoff_coverage_pct`, `close_readiness_gate_matrix_coverage_pct`, `stakeholder_signoff_escalation_ladder_coverage_pct`, `readiness_cadence_contract_pack_coverage_pct`, `readiness_cadence_high_priority_coverage_pct`)
+  - deterministic drift signals (`quality_score_drop`, `quality_gap_growth`, `gap_severity_growth`, `high_severity_gap_growth`, `quality_readiness_drop`, `narrative_coverage_drop`, `dependency_coverage_drop`, `decision_sequencing_coverage_drop`, `close_scripts_coverage_drop`, `failure_mode_rehearsal_coverage_drop`, `stakeholder_proof_request_coverage_drop`, `confidence_calibration_coverage_drop`, `confidence_calibration_avg_delta_drop`, `owner_assignment_coverage_drop`, `counterfactual_decision_drill_coverage_drop`, `stakeholder_objection_handoff_coverage_drop`, `risk_weighted_close_plan_sequencing_coverage_drop`, `cross_owner_dependency_signoff_coverage_drop`, `close_readiness_gate_matrix_coverage_drop`, `stakeholder_signoff_escalation_ladder_coverage_drop`, `readiness_cadence_contract_pack_coverage_drop`, `readiness_cadence_high_priority_coverage_drop`)
   - deterministic escalation lanes by latest gap severity (`immediate_owner_escalation`, `same_day_quality_remediation`, `next_cycle_hardening`, `monitor_only`)
 - trend artifact export metadata (`trend_artifacts`) with written/pruned file paths when enabled
 - weekly SLO digest artifact export metadata (`slo_digest_artifacts`) with written/pruned file paths when enabled
