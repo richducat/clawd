@@ -171,6 +171,7 @@ Include:
   - stakeholder intent rollup and negotiation fallback prompt packs for resistance handling (`trigger`, `prompt`, `desiredOutcome`, `priority`, `drivers`)
   - commitment closeout checklist to lock owner/date/risk-mitigation closure before meeting end (`check`, `priority`, `why`, `ownerHint`)
   - follow-up draft pack for deterministic post-meeting outbound (`subject`, `sendBy`, `summary`, `asks`, `recipientsHint`, `messageLines`)
+  - meeting-prep quality scoring + coverage checks for output completeness (`score`, `level`, `gapCount`, `summary`, `coverageChecks`)
   - meeting-level recommendations with confidence metadata
   - cross-attendee relationship risk signals for escalation-aware prep
   - meeting-level risk-delta summary vs prior runs
