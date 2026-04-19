@@ -198,6 +198,7 @@ jobs:
       MAX_ARTIFACT_ISSUES_INPUT: ${{ inputs.max_artifact_issues || '0' }}
       LIVE_ALLOWED_ACTORS_INPUT: ${{ vars.HYBRID_LIVE_ALLOWED_ACTORS || 'richducat' }}
       LIVE_EMERGENCY_STOP_INPUT: ${{ vars.HYBRID_LIVE_EMERGENCY_STOP || 'false' }}
+      LIVE_APPROVAL_ENVIRONMENT: hybrid-live
       BREAK_GLASS_INPUT: ${{ inputs.break_glass }}
       BREAK_GLASS_REASON_INPUT: ${{ inputs.break_glass_reason || '' }}
       TRIGGER_ACTOR: ${{ github.triggering_actor || github.actor }}
@@ -258,6 +259,43 @@ jobs:
             exit 1
           fi
 
+      - name: Build run args
+        id: args
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+
+          run_date="${DATE_INPUT}"
+          if [[ -z "$run_date" ]]; then
+            run_date="$(date +%F)"
+          fi
+
+          account="${ACCOUNT_INPUT}"
+          args=(--account "$account" --date "$run_date" --brief-out "artifacts/meeting-prep-${run_date}.md")
+
+          if [[ "${SKIP_KB_INPUT:-false}" == "true" ]]; then
+            args+=(--skip-kb)
+          fi
+
+          {
+            echo "run_date=$run_date"
+            echo "account=$account"
+            printf 'args<<EOF\n'
+            printf '%q ' "${args[@]}"
+            printf '\nEOF\n'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Export immutable live incident ledger
+        id: ledger
+        shell: bash
+        env:
+          RUN_DATE: ${{ steps.args.outputs.run_date }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          node scripts/ci/export-live-incident-ledger.mjs --out-dir artifacts
+
       - name: Emit live audit context
         shell: bash
         run: |
@@ -289,33 +327,6 @@ jobs:
 
           gog gmail messages search "newer_than:7d" --max 1 --account "${ACCOUNT_INPUT}" --json > /dev/null
           gog calendar events primary --from "${from_iso}" --to "${to_iso}" --account "${ACCOUNT_INPUT}" --json > /dev/null
-
-      - name: Build run args
-        id: args
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p artifacts
-
-          run_date="${DATE_INPUT}"
-          if [[ -z "$run_date" ]]; then
-            run_date="$(date +%F)"
-          fi
-
-          account="${ACCOUNT_INPUT}"
-          args=(--account "$account" --date "$run_date" --brief-out "artifacts/meeting-prep-${run_date}.md")
-
-          if [[ "${SKIP_KB_INPUT:-false}" == "true" ]]; then
-            args+=(--skip-kb)
-          fi
-
-          {
-            echo "run_date=$run_date"
-            echo "account=$account"
-            printf 'args<<EOF\n'
-            printf '%q ' "${args[@]}"
-            printf '\nEOF\n'
-          } >> "$GITHUB_OUTPUT"
 
       - name: Run daily hybrid pipeline
         shell: bash
@@ -368,6 +379,15 @@ jobs:
           MAX_LAG_HOURS: ${{ env.MAX_LAG_HOURS_INPUT }}
           MAX_SEEN_DRIFT_HOURS: ${{ env.MAX_SEEN_DRIFT_HOURS_INPUT }}
           MAX_ARTIFACT_ISSUES: ${{ env.MAX_ARTIFACT_ISSUES_INPUT }}
+          ALERT_APPROVAL_REQUIRED: "true"
+          ALERT_APPROVAL_ENVIRONMENT: ${{ env.LIVE_APPROVAL_ENVIRONMENT }}
+          ALERT_APPROVAL_TRIGGER_ACTOR: ${{ env.TRIGGER_ACTOR }}
+          ALERT_APPROVAL_DISPATCH_ACTOR: ${{ github.actor }}
+          ALERT_BREAK_GLASS: ${{ env.BREAK_GLASS_INPUT }}
+          ALERT_BREAK_GLASS_REASON: ${{ env.BREAK_GLASS_REASON_INPUT }}
+          ALERT_EMERGENCY_STOP: ${{ env.LIVE_EMERGENCY_STOP_INPUT }}
+          ALERT_INCIDENT_LEDGER_JSON: ${{ steps.ledger.outputs.ledger_json_path }}
+          ALERT_INCIDENT_LEDGER_MD: ${{ steps.ledger.outputs.ledger_md_path }}
         shell: bash
         run: |
           set -euo pipefail

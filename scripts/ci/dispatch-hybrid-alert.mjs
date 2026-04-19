@@ -165,6 +165,15 @@ function buildAlertText({ escalationEnabled }) {
   const lag = process.env.MAX_LAG_HOURS || "n/a";
   const drift = process.env.MAX_SEEN_DRIFT_HOURS || "n/a";
   const artifactIssues = process.env.MAX_ARTIFACT_ISSUES || "n/a";
+  const approvalRequired = String(process.env.ALERT_APPROVAL_REQUIRED || "").trim().toLowerCase();
+  const approvalEnvironment = process.env.ALERT_APPROVAL_ENVIRONMENT || "";
+  const approvalTriggeringActor = process.env.ALERT_APPROVAL_TRIGGER_ACTOR || "";
+  const approvalDispatchActor = process.env.ALERT_APPROVAL_DISPATCH_ACTOR || "";
+  const breakGlass = String(process.env.ALERT_BREAK_GLASS || "").trim().toLowerCase();
+  const breakGlassReason = process.env.ALERT_BREAK_GLASS_REASON || "";
+  const emergencyStop = String(process.env.ALERT_EMERGENCY_STOP || "").trim().toLowerCase();
+  const ledgerJson = process.env.ALERT_INCIDENT_LEDGER_JSON || "";
+  const ledgerMd = process.env.ALERT_INCIDENT_LEDGER_MD || "";
 
   const lines = [
     ":rotating_light: Hybrid daily pipeline health gate breached",
@@ -177,8 +186,26 @@ function buildAlertText({ escalationEnabled }) {
   if (escalationEnabled) {
     lines.push("Escalation: ACTIVE (inside configured ET window)");
   }
+  if (
+    approvalRequired === "true" ||
+    approvalEnvironment ||
+    approvalTriggeringActor ||
+    approvalDispatchActor ||
+    breakGlass ||
+    emergencyStop
+  ) {
+    lines.push(
+      `Approval context: required=${approvalRequired === "true" ? "true" : "unknown"}, env=${approvalEnvironment || "n/a"}, triggeringActor=${approvalTriggeringActor || "n/a"}, dispatchActor=${approvalDispatchActor || "n/a"}`
+    );
+    lines.push(
+      `Emergency controls: stop=${emergencyStop || "n/a"}, breakGlass=${breakGlass || "n/a"}, reason=${breakGlassReason || "n/a"}`
+    );
+  }
   lines.push(`Run: ${runUrl}`);
   lines.push(`Artifacts: ${artifactLabel} (see run page)`);
+  if (ledgerJson || ledgerMd) {
+    lines.push(`Incident ledger: json=${ledgerJson || "n/a"}, md=${ledgerMd || "n/a"}`);
+  }
   return lines.join("\n");
 }
 

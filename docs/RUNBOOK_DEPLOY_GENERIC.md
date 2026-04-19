@@ -194,6 +194,9 @@ Include:
   - `pipeline-summary-YYYY-MM-DD.json`
   - `ingestion-health-YYYY-MM-DD.md`
   - `ingestion-health-YYYY-MM-DD.json`
+  - live lane only:
+    - `live-incident-ledger-YYYY-MM-DD-run-<run_id>-attempt-<run_attempt>.json`
+    - `live-incident-ledger-YYYY-MM-DD-run-<run_id>-attempt-<run_attempt>.md`
 - Artifact names now include execution lane:
   - `hybrid-daily-canary-YYYY-MM-DD`
   - `hybrid-daily-live-YYYY-MM-DD`
@@ -243,6 +246,11 @@ Include:
     - run URL
     - run date + threshold values
     - artifact label (`hybrid-daily-<mode>-YYYY-MM-DD`)
+    - live-mode manual-approval + emergency-control context:
+      - approval-required flag + approval environment
+      - triggering actor + dispatch actor
+      - emergency stop + break-glass flag/reason
+      - incident-ledger artifact paths (json + markdown)
   - if no webhook routes are configured, workflow logs and skips outbound notification
 
 ## 16) Hybrid retrieval query (entities + chunks)

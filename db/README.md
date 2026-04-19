@@ -202,6 +202,9 @@ Artifacts:
 - `pipeline-summary-YYYY-MM-DD.json`
 - `ingestion-health-YYYY-MM-DD.md`
 - `ingestion-health-YYYY-MM-DD.json`
+- live lane only:
+  - `live-incident-ledger-YYYY-MM-DD-run-<run_id>-attempt-<run_attempt>.json`
+  - `live-incident-ledger-YYYY-MM-DD-run-<run_id>-attempt-<run_attempt>.md`
 - uploaded as workflow artifact with lane-specific name:
   - `hybrid-daily-canary-YYYY-MM-DD`
   - `hybrid-daily-live-YYYY-MM-DD`
@@ -247,6 +250,11 @@ Runtime notes:
     - or semicolon-delimited entries in `daySpec@HH:MM-HH:MM`
     - examples: `mon-fri@08:00-18:00;sat@09:00-12:00`, `sun@00:00-23:59`
   - on health-gate failure, workflow dispatches one JSON payload (`text`) to all base routes; escalation routes are included only when current ET time is inside configured escalation windows
+  - live-mode alerts include manual-approval context and emergency control state:
+    - approval required flag + environment
+    - triggering actor + dispatch actor
+    - emergency stop + break-glass flag/reason
+    - incident-ledger artifact paths (json + markdown)
 
 ## Retrieval/query layer (roadmap tranche option #2)
 
