@@ -215,8 +215,12 @@ jobs:
               quality_severity_score: "0",
               quality_failure_mode_rehearsal_breach_count: "0",
               quality_stakeholder_proof_request_breach_count: "0",
+              quality_confidence_calibration_breach_count: "0",
+              quality_owner_assignment_breach_count: "0",
               quality_phase12_top_breach_kind: "",
               quality_phase12_gate_breached: "false",
+              quality_phase13_top_breach_kind: "",
+              quality_phase13_gate_breached: "false",
               quality_top_lane: "",
               quality_top_lane_severity: "",
               quality_gate_breached: "false",
@@ -249,20 +253,33 @@ jobs:
             const breaches = Array.isArray(parsed?.breaches) ? parsed.breaches : [];
             const failureModeRehearsalBreachCount = breaches.filter((b) => b?.kind === "quality_failure_mode_rehearsal_coverage_pct").length;
             const stakeholderProofRequestBreachCount = breaches.filter((b) => b?.kind === "quality_stakeholder_proof_request_coverage_pct").length;
+            const confidenceCalibrationBreachCount = breaches.filter((b) => b?.kind === "quality_confidence_calibration_drop").length;
+            const ownerAssignmentBreachCount = breaches.filter((b) => b?.kind === "quality_owner_assignment_coverage_pct").length;
             const qualityPhase12GateBreached = failureModeRehearsalBreachCount > 0 || stakeholderProofRequestBreachCount > 0;
-            const qualityGateBreached = qualityPhase12GateBreached || breaches.some((b) => b?.kind === "quality_drift_signals_count" || b?.kind === "quality_severity_score");
+            const qualityPhase13GateBreached = confidenceCalibrationBreachCount > 0 || ownerAssignmentBreachCount > 0;
+            const qualityGateBreached = qualityPhase12GateBreached
+              || qualityPhase13GateBreached
+              || breaches.some((b) => b?.kind === "quality_drift_signals_count" || b?.kind === "quality_severity_score");
             const qualityPhase12TopBreachKind =
               failureModeRehearsalBreachCount >= stakeholderProofRequestBreachCount
                 ? (failureModeRehearsalBreachCount > 0 ? "quality_failure_mode_rehearsal_coverage_pct" : "")
                 : "quality_stakeholder_proof_request_coverage_pct";
+            const qualityPhase13TopBreachKind =
+              confidenceCalibrationBreachCount >= ownerAssignmentBreachCount
+                ? (confidenceCalibrationBreachCount > 0 ? "quality_confidence_calibration_drop" : "")
+                : "quality_owner_assignment_coverage_pct";
 
             append({
               quality_signal_count: Number.isFinite(driftSignals) ? String(driftSignals) : "0",
               quality_severity_score: Number.isFinite(severityScore) ? String(severityScore) : "0",
               quality_failure_mode_rehearsal_breach_count: String(failureModeRehearsalBreachCount),
               quality_stakeholder_proof_request_breach_count: String(stakeholderProofRequestBreachCount),
+              quality_confidence_calibration_breach_count: String(confidenceCalibrationBreachCount),
+              quality_owner_assignment_breach_count: String(ownerAssignmentBreachCount),
               quality_phase12_top_breach_kind: qualityPhase12TopBreachKind,
               quality_phase12_gate_breached: qualityPhase12GateBreached ? "true" : "false",
+              quality_phase13_top_breach_kind: qualityPhase13TopBreachKind,
+              quality_phase13_gate_breached: qualityPhase13GateBreached ? "true" : "false",
               quality_top_lane: typeof lane.lane === "string" ? lane.lane : "",
               quality_top_lane_severity: typeof lane.severity === "string" ? lane.severity : "",
               quality_gate_breached: qualityGateBreached ? "true" : "false",
@@ -341,8 +358,12 @@ jobs:
           ALERT_QUALITY_SEVERITY_SCORE: ${{ steps.quality.outputs.quality_severity_score }}
           ALERT_QUALITY_FAILURE_MODE_REHEARSAL_BREACH_COUNT: ${{ steps.quality.outputs.quality_failure_mode_rehearsal_breach_count }}
           ALERT_QUALITY_STAKEHOLDER_PROOF_REQUEST_BREACH_COUNT: ${{ steps.quality.outputs.quality_stakeholder_proof_request_breach_count }}
+          ALERT_QUALITY_CONFIDENCE_CALIBRATION_BREACH_COUNT: ${{ steps.quality.outputs.quality_confidence_calibration_breach_count }}
+          ALERT_QUALITY_OWNER_ASSIGNMENT_BREACH_COUNT: ${{ steps.quality.outputs.quality_owner_assignment_breach_count }}
           ALERT_QUALITY_PHASE12_TOP_BREACH_KIND: ${{ steps.quality.outputs.quality_phase12_top_breach_kind }}
           ALERT_QUALITY_PHASE12_GATE_BREACHED: ${{ steps.quality.outputs.quality_phase12_gate_breached }}
+          ALERT_QUALITY_PHASE13_TOP_BREACH_KIND: ${{ steps.quality.outputs.quality_phase13_top_breach_kind }}
+          ALERT_QUALITY_PHASE13_GATE_BREACHED: ${{ steps.quality.outputs.quality_phase13_gate_breached }}
           ALERT_QUALITY_TOP_LANE: ${{ steps.quality.outputs.quality_top_lane }}
           ALERT_QUALITY_TOP_LANE_SEVERITY: ${{ steps.quality.outputs.quality_top_lane_severity }}
           ALERT_QUALITY_GATE_BREACHED: ${{ steps.quality.outputs.quality_gate_breached }}
@@ -585,8 +606,12 @@ jobs:
               quality_severity_score: "0",
               quality_failure_mode_rehearsal_breach_count: "0",
               quality_stakeholder_proof_request_breach_count: "0",
+              quality_confidence_calibration_breach_count: "0",
+              quality_owner_assignment_breach_count: "0",
               quality_phase12_top_breach_kind: "",
               quality_phase12_gate_breached: "false",
+              quality_phase13_top_breach_kind: "",
+              quality_phase13_gate_breached: "false",
               quality_top_lane: "",
               quality_top_lane_severity: "",
               quality_gate_breached: "false",
@@ -619,20 +644,33 @@ jobs:
             const breaches = Array.isArray(parsed?.breaches) ? parsed.breaches : [];
             const failureModeRehearsalBreachCount = breaches.filter((b) => b?.kind === "quality_failure_mode_rehearsal_coverage_pct").length;
             const stakeholderProofRequestBreachCount = breaches.filter((b) => b?.kind === "quality_stakeholder_proof_request_coverage_pct").length;
+            const confidenceCalibrationBreachCount = breaches.filter((b) => b?.kind === "quality_confidence_calibration_drop").length;
+            const ownerAssignmentBreachCount = breaches.filter((b) => b?.kind === "quality_owner_assignment_coverage_pct").length;
             const qualityPhase12GateBreached = failureModeRehearsalBreachCount > 0 || stakeholderProofRequestBreachCount > 0;
-            const qualityGateBreached = qualityPhase12GateBreached || breaches.some((b) => b?.kind === "quality_drift_signals_count" || b?.kind === "quality_severity_score");
+            const qualityPhase13GateBreached = confidenceCalibrationBreachCount > 0 || ownerAssignmentBreachCount > 0;
+            const qualityGateBreached = qualityPhase12GateBreached
+              || qualityPhase13GateBreached
+              || breaches.some((b) => b?.kind === "quality_drift_signals_count" || b?.kind === "quality_severity_score");
             const qualityPhase12TopBreachKind =
               failureModeRehearsalBreachCount >= stakeholderProofRequestBreachCount
                 ? (failureModeRehearsalBreachCount > 0 ? "quality_failure_mode_rehearsal_coverage_pct" : "")
                 : "quality_stakeholder_proof_request_coverage_pct";
+            const qualityPhase13TopBreachKind =
+              confidenceCalibrationBreachCount >= ownerAssignmentBreachCount
+                ? (confidenceCalibrationBreachCount > 0 ? "quality_confidence_calibration_drop" : "")
+                : "quality_owner_assignment_coverage_pct";
 
             append({
               quality_signal_count: Number.isFinite(driftSignals) ? String(driftSignals) : "0",
               quality_severity_score: Number.isFinite(severityScore) ? String(severityScore) : "0",
               quality_failure_mode_rehearsal_breach_count: String(failureModeRehearsalBreachCount),
               quality_stakeholder_proof_request_breach_count: String(stakeholderProofRequestBreachCount),
+              quality_confidence_calibration_breach_count: String(confidenceCalibrationBreachCount),
+              quality_owner_assignment_breach_count: String(ownerAssignmentBreachCount),
               quality_phase12_top_breach_kind: qualityPhase12TopBreachKind,
               quality_phase12_gate_breached: qualityPhase12GateBreached ? "true" : "false",
+              quality_phase13_top_breach_kind: qualityPhase13TopBreachKind,
+              quality_phase13_gate_breached: qualityPhase13GateBreached ? "true" : "false",
               quality_top_lane: typeof lane.lane === "string" ? lane.lane : "",
               quality_top_lane_severity: typeof lane.severity === "string" ? lane.severity : "",
               quality_gate_breached: qualityGateBreached ? "true" : "false",
@@ -807,8 +845,12 @@ jobs:
           ALERT_QUALITY_SEVERITY_SCORE: ${{ steps.quality.outputs.quality_severity_score }}
           ALERT_QUALITY_FAILURE_MODE_REHEARSAL_BREACH_COUNT: ${{ steps.quality.outputs.quality_failure_mode_rehearsal_breach_count }}
           ALERT_QUALITY_STAKEHOLDER_PROOF_REQUEST_BREACH_COUNT: ${{ steps.quality.outputs.quality_stakeholder_proof_request_breach_count }}
+          ALERT_QUALITY_CONFIDENCE_CALIBRATION_BREACH_COUNT: ${{ steps.quality.outputs.quality_confidence_calibration_breach_count }}
+          ALERT_QUALITY_OWNER_ASSIGNMENT_BREACH_COUNT: ${{ steps.quality.outputs.quality_owner_assignment_breach_count }}
           ALERT_QUALITY_PHASE12_TOP_BREACH_KIND: ${{ steps.quality.outputs.quality_phase12_top_breach_kind }}
           ALERT_QUALITY_PHASE12_GATE_BREACHED: ${{ steps.quality.outputs.quality_phase12_gate_breached }}
+          ALERT_QUALITY_PHASE13_TOP_BREACH_KIND: ${{ steps.quality.outputs.quality_phase13_top_breach_kind }}
+          ALERT_QUALITY_PHASE13_GATE_BREACHED: ${{ steps.quality.outputs.quality_phase13_gate_breached }}
           ALERT_QUALITY_TOP_LANE: ${{ steps.quality.outputs.quality_top_lane }}
           ALERT_QUALITY_TOP_LANE_SEVERITY: ${{ steps.quality.outputs.quality_top_lane_severity }}
           ALERT_QUALITY_GATE_BREACHED: ${{ steps.quality.outputs.quality_gate_breached }}

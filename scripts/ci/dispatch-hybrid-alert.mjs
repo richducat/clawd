@@ -198,12 +198,19 @@ function classifyIncident() {
   const driftSignalCount = Number(process.env.ALERT_DRIFT_SIGNAL_COUNT || "0");
   const qualityGateBreached = toBoolean(process.env.ALERT_QUALITY_GATE_BREACHED);
   const qualityPhase12GateBreached = toBoolean(process.env.ALERT_QUALITY_PHASE12_GATE_BREACHED);
+  const qualityPhase13GateBreached = toBoolean(process.env.ALERT_QUALITY_PHASE13_GATE_BREACHED);
   const qualitySignalCount = Number(process.env.ALERT_QUALITY_DRIFT_SIGNAL_COUNT || "0");
   const qualityPhase12BreachCount =
     Number(process.env.ALERT_QUALITY_FAILURE_MODE_REHEARSAL_BREACH_COUNT || "0")
     + Number(process.env.ALERT_QUALITY_STAKEHOLDER_PROOF_REQUEST_BREACH_COUNT || "0");
+  const qualityPhase13BreachCount =
+    Number(process.env.ALERT_QUALITY_CONFIDENCE_CALIBRATION_BREACH_COUNT || "0")
+    + Number(process.env.ALERT_QUALITY_OWNER_ASSIGNMENT_BREACH_COUNT || "0");
   if (driftGateBreached) {
     return { type: "drift_gate_breach", drift_related: true, quality_related: false, severity: "high" };
+  }
+  if (qualityPhase13GateBreached) {
+    return { type: "quality_phase13_gate_breach", drift_related: false, quality_related: true, severity: "high" };
   }
   if (qualityPhase12GateBreached) {
     return { type: "quality_phase12_gate_breach", drift_related: false, quality_related: true, severity: "high" };
@@ -213,6 +220,9 @@ function classifyIncident() {
   }
   if (Number.isFinite(driftSignalCount) && driftSignalCount > 0) {
     return { type: "drift_signal_detected", drift_related: true, quality_related: false, severity: "medium" };
+  }
+  if (Number.isFinite(qualityPhase13BreachCount) && qualityPhase13BreachCount > 0) {
+    return { type: "quality_phase13_signal_detected", drift_related: false, quality_related: true, severity: "medium" };
   }
   if (Number.isFinite(qualityPhase12BreachCount) && qualityPhase12BreachCount > 0) {
     return { type: "quality_phase12_signal_detected", drift_related: false, quality_related: true, severity: "medium" };
@@ -263,7 +273,7 @@ function resolveAckPolicy({ incident, runMode, policyConfig }) {
     defaults.ack_sla_minutes = 15;
     defaults.ack_reminder_interval_minutes = 15;
     defaults.ack_escalate_after_reminders = 1;
-  } else if (incident.type === "quality_phase12_gate_breach") {
+  } else if (incident.type === "quality_phase13_gate_breach" || incident.type === "quality_phase12_gate_breach") {
     defaults.ack_sla_minutes = 15;
     defaults.ack_reminder_interval_minutes = 15;
     defaults.ack_escalate_after_reminders = 1;
@@ -275,7 +285,7 @@ function resolveAckPolicy({ incident, runMode, policyConfig }) {
     defaults.ack_sla_minutes = 20;
   } else if (incident.type === "drift_signal_detected") {
     defaults.ack_sla_minutes = 30;
-  } else if (incident.type === "quality_phase12_signal_detected") {
+  } else if (incident.type === "quality_phase13_signal_detected" || incident.type === "quality_phase12_signal_detected") {
     defaults.ack_sla_minutes = 25;
   } else if (incident.type === "quality_drift_signal_detected") {
     defaults.ack_sla_minutes = 35;
@@ -726,6 +736,10 @@ function buildAlertText({
   const qualitySignals = process.env.ALERT_QUALITY_DRIFT_SIGNAL_COUNT || "";
   const qualitySeverityScore = process.env.ALERT_QUALITY_SEVERITY_SCORE || "";
   const qualityGateBreached = process.env.ALERT_QUALITY_GATE_BREACHED || "";
+  const qualityPhase13GateBreached = process.env.ALERT_QUALITY_PHASE13_GATE_BREACHED || "";
+  const qualityConfidenceCalibrationBreachCount = process.env.ALERT_QUALITY_CONFIDENCE_CALIBRATION_BREACH_COUNT || "";
+  const qualityOwnerAssignmentBreachCount = process.env.ALERT_QUALITY_OWNER_ASSIGNMENT_BREACH_COUNT || "";
+  const qualityPhase13TopBreachKind = process.env.ALERT_QUALITY_PHASE13_TOP_BREACH_KIND || "";
   const qualityPhase12GateBreached = process.env.ALERT_QUALITY_PHASE12_GATE_BREACHED || "";
   const qualityFailureModeRehearsalBreachCount = process.env.ALERT_QUALITY_FAILURE_MODE_REHEARSAL_BREACH_COUNT || "";
   const qualityStakeholderProofRequestBreachCount = process.env.ALERT_QUALITY_STAKEHOLDER_PROOF_REQUEST_BREACH_COUNT || "";
@@ -778,6 +792,10 @@ function buildAlertText({
     qualitySignals ||
     qualitySeverityScore ||
     qualityGateBreached ||
+    qualityPhase13GateBreached ||
+    qualityConfidenceCalibrationBreachCount ||
+    qualityOwnerAssignmentBreachCount ||
+    qualityPhase13TopBreachKind ||
     qualityPhase12GateBreached ||
     qualityFailureModeRehearsalBreachCount ||
     qualityStakeholderProofRequestBreachCount ||
@@ -788,6 +806,9 @@ function buildAlertText({
   ) {
     lines.push(
       `Meeting-prep quality drift: signals=${qualitySignals || "n/a"}, severityScore=${qualitySeverityScore || "n/a"}, gateBreached=${qualityGateBreached || "n/a"}, phase12GateBreached=${qualityPhase12GateBreached || "n/a"}, failureModeRehearsalBreaches=${qualityFailureModeRehearsalBreachCount || "0"}, stakeholderProofRequestBreaches=${qualityStakeholderProofRequestBreachCount || "0"}, phase12TopBreachKind=${qualityPhase12TopBreachKind || "n/a"}, topLane=${qualityTopLane || "n/a"}, topLaneSeverity=${qualityTopLaneSeverity || "n/a"}`
+    );
+    lines.push(
+      `Meeting-prep quality phase13: gateBreached=${qualityPhase13GateBreached || "n/a"}, confidenceCalibrationBreaches=${qualityConfidenceCalibrationBreachCount || "0"}, ownerAssignmentBreaches=${qualityOwnerAssignmentBreachCount || "0"}, phase13TopBreachKind=${qualityPhase13TopBreachKind || "n/a"}`
     );
   }
   if (
@@ -1095,7 +1116,11 @@ async function main() {
       quality_drift_signal_count: Number(process.env.ALERT_QUALITY_DRIFT_SIGNAL_COUNT || 0),
       quality_severity_score: Number(process.env.ALERT_QUALITY_SEVERITY_SCORE || 0),
       quality_gate_breached: toBoolean(process.env.ALERT_QUALITY_GATE_BREACHED),
+      quality_phase13_gate_breached: toBoolean(process.env.ALERT_QUALITY_PHASE13_GATE_BREACHED),
       quality_phase12_gate_breached: toBoolean(process.env.ALERT_QUALITY_PHASE12_GATE_BREACHED),
+      quality_confidence_calibration_breach_count: Number(process.env.ALERT_QUALITY_CONFIDENCE_CALIBRATION_BREACH_COUNT || 0),
+      quality_owner_assignment_breach_count: Number(process.env.ALERT_QUALITY_OWNER_ASSIGNMENT_BREACH_COUNT || 0),
+      quality_phase13_top_breach_kind: process.env.ALERT_QUALITY_PHASE13_TOP_BREACH_KIND || null,
       quality_failure_mode_rehearsal_breach_count: Number(process.env.ALERT_QUALITY_FAILURE_MODE_REHEARSAL_BREACH_COUNT || 0),
       quality_stakeholder_proof_request_breach_count: Number(process.env.ALERT_QUALITY_STAKEHOLDER_PROOF_REQUEST_BREACH_COUNT || 0),
       quality_phase12_top_breach_kind: process.env.ALERT_QUALITY_PHASE12_TOP_BREACH_KIND || null,
@@ -1156,7 +1181,11 @@ async function main() {
     quality_drift_signal_count: Number(process.env.ALERT_QUALITY_DRIFT_SIGNAL_COUNT || 0),
     quality_severity_score: Number(process.env.ALERT_QUALITY_SEVERITY_SCORE || 0),
     quality_gate_breached: toBoolean(process.env.ALERT_QUALITY_GATE_BREACHED),
+    quality_phase13_gate_breached: toBoolean(process.env.ALERT_QUALITY_PHASE13_GATE_BREACHED),
     quality_phase12_gate_breached: toBoolean(process.env.ALERT_QUALITY_PHASE12_GATE_BREACHED),
+    quality_confidence_calibration_breach_count: Number(process.env.ALERT_QUALITY_CONFIDENCE_CALIBRATION_BREACH_COUNT || 0),
+    quality_owner_assignment_breach_count: Number(process.env.ALERT_QUALITY_OWNER_ASSIGNMENT_BREACH_COUNT || 0),
+    quality_phase13_top_breach_kind: process.env.ALERT_QUALITY_PHASE13_TOP_BREACH_KIND || null,
     quality_failure_mode_rehearsal_breach_count: Number(process.env.ALERT_QUALITY_FAILURE_MODE_REHEARSAL_BREACH_COUNT || 0),
     quality_stakeholder_proof_request_breach_count: Number(process.env.ALERT_QUALITY_STAKEHOLDER_PROOF_REQUEST_BREACH_COUNT || 0),
     quality_phase12_top_breach_kind: process.env.ALERT_QUALITY_PHASE12_TOP_BREACH_KIND || null,
