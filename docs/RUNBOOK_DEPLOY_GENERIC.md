@@ -143,3 +143,16 @@ Include:
 - Optional controls:
   - `--max-chars <n>` and `--overlap-chars <n>` for deterministic chunking
   - `--embed` (plus optional `--embedding-model`) to store chunk embeddings when `OPENAI_API_KEY` is configured
+
+## 13) Daily meeting prep brief (hybrid CRM)
+- Generate a daily external-meeting prep brief from ingested hybrid CRM data:
+  ```bash
+  npm run db:hybrid:meeting-prep -- --date 2026-04-18 --account richducat@gmail.com
+  ```
+- JSON output mode (for downstream automations):
+  ```bash
+  npm run db:hybrid:meeting-prep -- --date 2026-04-18 --json
+  ```
+- Optional controls:
+  - `--limit <n>` to cap number of meetings in the brief
+  - `--internal-domain <domain>` (repeatable) to expand internal-only filters

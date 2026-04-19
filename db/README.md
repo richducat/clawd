@@ -97,3 +97,23 @@ Design notes:
   - changed content re-upserts entity + deterministic chunk indexes
   - stale trailing chunks are deleted when chunk count shrinks
 - The ingestion checkpoint is tracked in `ingestion_cursors` under source key `kb_ingest`.
+
+## Roadmap item #5: Daily meeting prep brief (hybrid CRM)
+
+Brief command:
+```bash
+npm run db:hybrid:meeting-prep -- --date 2026-04-18 --account richducat@gmail.com
+```
+
+Optional flags:
+- `--date <YYYY-MM-DD>`: target local day (default `today`)
+- `--account <email>`: owner identity used to exclude self from attendee lists
+- `--limit <n>`: max external meetings in output (default `50`)
+- `--internal-domain <domain>`: additional internal domains to exclude (repeatable)
+- `--json`: emit machine-readable JSON instead of markdown text
+
+Output behavior:
+- Reads `calendar_event` + `contact` + `gmail_message` entities from `hybrid-core.sqlite`.
+- Includes only meetings on the target date with at least one external attendee.
+- Excludes internal-only attendees using account email + internal domain filters.
+- For each external attendee, includes latest ingested Gmail touchpoint when available.
