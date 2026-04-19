@@ -1,0 +1,12 @@
+[submodule "JSW"]
+	path = JSW
+	url = https://github.com/richducat/JSW.git
+[submodule "labstudio-fit"]
+	path = labstudio-fit
+	url = https://github.com/richducat/labstudio-fit.git
+[submodule "paid-media-buyer-pro"]
+	path = paid-media-buyer-pro
+	url = git@github.com:richducat/paid-media-buyer-pro.git
+[submodule "second-brain"]
+	path = second-brain
+	url = git@github.com:richducat/second-brain.git
