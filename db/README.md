@@ -144,6 +144,8 @@ Output behavior:
   - follow-up draft pack (`subject`, `sendBy`, `summary`, `asks`, `recipientsHint`, `messageLines`) for deterministic post-meeting outbound
   - commitment risk aging model (`summary`, `windows`) with deterministic 24h/72h/7d windows for post-meeting risk carryover
   - owner escalation prompt pack (`trigger`, `prompt`, `desiredOutcome`, `priority`, `ownerHint`) for deterministic ownership escalation follow-through
+  - stakeholder-ready narrative pack (`headline`, `opening`, `middle`, `close`, `proofPoints`, `topDependencies`) for concise executive-ready meeting storytelling
+  - dependency-aware follow-through prompts (`trigger`, `prompt`, `desiredOutcome`, `priority`, `ownerHint`, `dependsOn`) for deterministic dependency closure after the meeting
   - meeting-prep quality scoring (`score`, `level`, `gapCount`, `summary`, `coverageChecks`) for deterministic output-completeness assessment
   - deterministic meeting-level recommendations derived from cross-attendee risk patterns, each with confidence metadata
   - cross-attendee relationship risk signals (`code`, `severity`, `count`, `attendees`, `message`)
