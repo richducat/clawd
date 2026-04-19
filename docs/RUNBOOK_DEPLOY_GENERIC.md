@@ -156,6 +156,7 @@ Include:
 - Optional controls:
   - `--limit <n>` to cap number of meetings in the brief
   - `--internal-domain <domain>` (repeatable) to expand internal-only filters
+- Output now includes attendee relationship snapshots (`7d/30d/90d` touchpoint counts + recent subjects) and deterministic next-action recommendations derived from touchpoint recency and RSVP status.
 
 ## 14) One-command daily hybrid pipeline
 - Run schema init + CRM ingest + optional KB ingest + meeting prep in one command:
