@@ -363,6 +363,17 @@ Include:
       - ACK reconciliation/reminder metadata (`ack_reconciled`, `ack_reconciliation_source`, `ack_reminders_due_count`, `ack_reminder_escalations_due_count`)
       - ACK stale-expiry metadata (`ack_stale_after_minutes`, `ack_stale_pending_count`, `ack_newly_stale_count`)
       - ACK evidence-ingestion metadata (`ack_evidence_active_marker_count`, `ack_evidence_active_key_count`, `ack_evidence_stale_entry_count`, `ack_evidence_parse_error_count`, `ack_evidence_json`)
+      - ACK evidence normalization contract (`ack_evidence_contract`) with deterministic fields:
+        - `schema_version`, `source_path`, `source_present`, `source_valid`
+        - `active_marker_count`, `active_key_count`, `stale_entry_count`, `parse_error_count`
+      - ACK SLA/reminder contract (`ack_sla_reminder_contract`) with deterministic fields:
+        - `schema_version`, `policy_name`, `policy_applied`
+        - `sla_minutes`, `reminder_interval_minutes`, `escalate_after_reminders`, `stale_after_minutes`
+        - `ack_required`, `ack_due_at_utc`, `ack_due_at_et`
+        - `ack_reconciled`, `ack_reconciled_at_utc`, `ack_reconciliation_source`
+        - `reminders_due_count`, `reminder_escalations_due_count`
+        - `stale_pending_count`, `newly_stale_count`
+        - `incident_age_minutes`, `incident_age_band`, `incident_age_escalation_due`
       - escalation summary contract (`escalation_summary`) with deterministic policy + route fields:
         - `policy.windows_et`, `policy.et_now`, `policy.incident_type`, `policy.incident_drift_related`, `policy.incident_quality_related`
         - `policy.incident_age_band`, `policy.incident_age_minutes`, `policy.incident_age_warning_minutes`, `policy.incident_age_critical_minutes`, `policy.incident_age_escalation_due`
