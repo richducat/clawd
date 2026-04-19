@@ -260,6 +260,11 @@ Include:
   - optional quality-drift thresholds:
     - `max_quality_drift_signals`
     - `max_quality_severity_score`
+    - `max_quality_readiness_drop`
+    - `min_quality_narrative_coverage_pct`
+    - `min_quality_dependency_coverage_pct`
+    - `min_quality_decision_sequencing_coverage_pct`
+    - `min_quality_close_scripts_coverage_pct`
   - threshold breach exits `2` and fails the run (artifacts still upload because upload step uses `if: always()`)
 - Live drift detector (live lane):
   - resolves latest same-date canary artifact (`hybrid-daily-canary-YYYY-MM-DD`) from GitHub Actions artifacts
@@ -435,6 +440,8 @@ Include:
     - `--max-quality-readiness-drop <n>`
     - `--min-quality-narrative-coverage-pct <n>`
     - `--min-quality-dependency-coverage-pct <n>`
+    - `--min-quality-decision-sequencing-coverage-pct <n>`
+    - `--min-quality-close-scripts-coverage-pct <n>`
 - Report fields include:
   - source cursor lag/drift for `gmail`, `google_calendar`, and `kb_ingest`
   - entity/chunk coverage totals and grouped `domain/type` counts
@@ -468,7 +475,7 @@ Include:
   - meeting-prep quality trendline drift analysis:
     - scans `meeting-prep-quality-*.json` + `meeting-prep-phase*.json`
     - emits deterministic drift signals and severity-based escalation lanes
-    - includes phase-10 readiness metrics (`readiness_score`, `narrative_coverage_pct`, `dependency_coverage_pct`)
+    - includes readiness/coverage metrics (`readiness_score`, `narrative_coverage_pct`, `dependency_coverage_pct`, `decision_sequencing_coverage_pct`, `close_scripts_coverage_pct`)
   - trend artifact export metadata (`trend_artifacts`) with written/pruned files when export is enabled
   - weekly SLO digest artifact export metadata (`slo_digest_artifacts`) with written/pruned files when export is enabled
 
@@ -500,7 +507,9 @@ npm run db:hybrid:health -- \
   --max-quality-severity-score 999 \
   --max-quality-readiness-drop 999 \
   --min-quality-narrative-coverage-pct 0 \
-  --min-quality-dependency-coverage-pct 0
+  --min-quality-dependency-coverage-pct 0 \
+  --min-quality-decision-sequencing-coverage-pct 0 \
+  --min-quality-close-scripts-coverage-pct 0
 ```
 
 Exit behavior:
