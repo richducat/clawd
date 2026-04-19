@@ -176,3 +176,14 @@ Include:
   - `--skip-kb` to disable KB ingest for a run
   - `--brief-json` to write JSON brief output instead of markdown
   - `--internal-domain <domain>` (repeatable) forwarded to meeting prep filtering
+
+## 15) Scheduled hybrid daily run (artifact retention)
+- Workflow: `.github/workflows/hybrid-daily-pipeline.yml`
+- Runs:
+  - daily at `13:20 UTC`
+  - manual dispatch with inputs (`account`, `date`, `use_fixtures`, `skip_kb`)
+- Artifacts kept for 14 days:
+  - `meeting-prep-YYYY-MM-DD.md`
+  - `pipeline-summary-YYYY-MM-DD.json`
+- Default scheduled/manual behavior uses repository fixtures for deterministic canary runs.
+- For live-source execution, run manually on an environment with live source prerequisites and set `use_fixtures=false`.
