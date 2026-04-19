@@ -334,6 +334,21 @@ async function main() {
         failureModeRehearsals,
         stakeholderCloseScripts,
       });
+      const counterfactualDecisionDrillPrompts = buildCounterfactualDecisionDrillPrompts({
+        title: event.title || '',
+        attendees: attendeeBriefs,
+        relationshipRiskSignals,
+        decisionCommitmentSequencing,
+        failureModeRehearsals,
+        stakeholderProofRequests,
+      });
+      const stakeholderObjectionResponseHandoffMap = buildStakeholderObjectionResponseHandoffMap({
+        attendees: attendeeBriefs,
+        stakeholderIntentSummaries,
+        objectionRebuttalPacks,
+        stakeholderCloseScripts,
+        counterfactualDecisionDrillPrompts,
+      });
       const actionOwnerLoadBalancing = buildActionOwnerLoadBalancing({
         attendees: attendeeBriefs,
         meetingRecommendations,
@@ -358,6 +373,8 @@ async function main() {
         stakeholderCloseScripts,
         failureModeRehearsals,
         stakeholderProofRequests,
+        counterfactualDecisionDrillPrompts,
+        stakeholderObjectionResponseHandoffMap,
       });
 
       if (insertSnapshotStmt) {
@@ -414,6 +431,8 @@ async function main() {
         stakeholderCloseScripts,
         failureModeRehearsals,
         stakeholderProofRequests,
+        counterfactualDecisionDrillPrompts,
+        stakeholderObjectionResponseHandoffMap,
         actionOwnerLoadBalancing,
         prepQuality,
       });
@@ -692,6 +711,40 @@ function printMarkdownBrief({ account, date, timezone, internalDomains, meetings
         }
         if (req.dueWindow) {
           console.log(`    - Due window: ${req.dueWindow}`);
+        }
+      }
+    }
+    if (Array.isArray(meeting.counterfactualDecisionDrillPrompts) && meeting.counterfactualDecisionDrillPrompts.length) {
+      console.log('- Counterfactual decision-drill prompts:');
+      for (const drill of meeting.counterfactualDecisionDrillPrompts) {
+        const dependsOn = Array.isArray(drill.dependsOn) && drill.dependsOn.length
+          ? ` [depends_on=${drill.dependsOn.join(', ')}]`
+          : '';
+        console.log(`  - [${drill.priority}] ${drill.scenario} -> ${drill.prompt}${dependsOn}`);
+        if (drill.decisionFallback) {
+          console.log(`    - Decision fallback: ${drill.decisionFallback}`);
+        }
+        if (drill.ownerHint) {
+          console.log(`    - Owner hint: ${drill.ownerHint}`);
+        }
+      }
+    }
+    if (Array.isArray(meeting.stakeholderObjectionResponseHandoffMap) && meeting.stakeholderObjectionResponseHandoffMap.length) {
+      console.log('- Stakeholder objection-response handoff map:');
+      for (const item of meeting.stakeholderObjectionResponseHandoffMap) {
+        const who = item.attendeeName ? `${item.attendeeName} <${item.attendeeEmail}>` : item.attendeeEmail;
+        const dependsOn = Array.isArray(item.dependsOn) && item.dependsOn.length
+          ? ` [depends_on=${item.dependsOn.join(', ')}]`
+          : '';
+        console.log(`  - [${item.priority}] ${who}: ${item.objectionTheme}${dependsOn}`);
+        if (item.responseOwner) {
+          console.log(`    - Response owner: ${item.responseOwner}`);
+        }
+        if (item.responseScript) {
+          console.log(`    - Response script: ${item.responseScript}`);
+        }
+        if (item.proofRequest) {
+          console.log(`    - Proof request: ${item.proofRequest}`);
         }
       }
     }
@@ -2765,6 +2818,171 @@ function buildStakeholderProofRequests({
   return requests.slice(0, maxRequests);
 }
 
+function buildCounterfactualDecisionDrillPrompts({
+  title,
+  attendees,
+  relationshipRiskSignals,
+  decisionCommitmentSequencing,
+  failureModeRehearsals,
+  stakeholderProofRequests,
+}) {
+  const drills = [];
+  const signalByCode = new Map((relationshipRiskSignals || []).map((signal) => [signal.code, signal]));
+  const topStep = (decisionCommitmentSequencing?.steps || [])[0] || null;
+  const hasHighRehearsal = (failureModeRehearsals || []).some((item) => item.priority === 'high');
+  const highRiskAttendeeCount = (attendees || []).filter((attendee) => attendee?.relationshipRisk?.level === 'high').length;
+  const proofHeavy = (stakeholderProofRequests || []).filter((item) => item.priority === 'high').length;
+  const maxPrompts = 6;
+
+  const push = (code, priority, scenario, prompt, decisionFallback, ownerHint, dependsOn = []) => {
+    if (drills.some((item) => item.code === code)) return;
+    drills.push({
+      code,
+      priority,
+      scenario: cleanLine(scenario, 220),
+      prompt: cleanLine(prompt, 260),
+      decisionFallback: cleanLine(decisionFallback, 220),
+      ownerHint: cleanLine(ownerHint, 120),
+      dependsOn: dedupeArray(dependsOn).slice(0, 4),
+    });
+  };
+
+  if (signalByCode.has('rsvp_declined') || signalByCode.has('rsvp_unconfirmed')) {
+    push(
+      'counterfactual_attendance_drop',
+      'high',
+      'What if the critical stakeholder is absent when final decision language is needed?',
+      'Which delegate has authority, and what exact async checkpoint keeps decision lock within 24h?',
+      'Switch to delegate lane and preserve current decision boundary with owner/date lock.',
+      'Meeting owner',
+      ['sequence_delegate_or_async_lock']
+    );
+  }
+
+  if (signalByCode.has('high_individual_risk') || hasHighRehearsal || highRiskAttendeeCount > 0) {
+    push(
+      'counterfactual_high_risk_reopen',
+      'high',
+      'What if a high-risk stakeholder reopens scope after commitments are assigned?',
+      'Which one-sentence scope boundary ends the reopen, and what proof checkpoint must be accepted?',
+      'Freeze deferred scope and route blocker into mitigation owner lane.',
+      'Risk owner',
+      ['sequence_decision_boundary']
+    );
+  }
+
+  if (proofHeavy > 0 || hasKeyword(title, ['approval', 'review', 'roadmap', 'planning'])) {
+    push(
+      'counterfactual_proof_gap',
+      'medium',
+      'What if requested proof artifacts do not arrive before the next checkpoint?',
+      'Who triggers escalation, and what minimum proof substitute preserves execution progress?',
+      'Escalate at checkpoint threshold and continue with minimum proof package.',
+      'Program owner',
+      ['rehearsal_cross_function_handoff']
+    );
+  }
+
+  if (topStep) {
+    push(
+      'counterfactual_sequence_break',
+      'medium',
+      'What if step ordering breaks and downstream owners act before decision lock?',
+      `How will we restate sequencing anchor "${topStep.step}" and pause conflicting actions?`,
+      'Reissue sequencing anchor and resume only after decision lock confirmation.',
+      'Decision owner',
+      [topStep.code]
+    );
+  }
+
+  if (!drills.length) {
+    push(
+      'counterfactual_default',
+      'low',
+      'What if execution drifts immediately after closeout?',
+      'Which owner/date checkpoint catches drift by the next business day?',
+      'Trigger default owner/date reminder and publish checkpoint timestamp.',
+      'Meeting owner',
+      ['default']
+    );
+  }
+
+  return drills.slice(0, maxPrompts);
+}
+
+function buildStakeholderObjectionResponseHandoffMap({
+  attendees,
+  stakeholderIntentSummaries,
+  objectionRebuttalPacks,
+  stakeholderCloseScripts,
+  counterfactualDecisionDrillPrompts,
+}) {
+  const handoff = [];
+  const intentsByEmail = new Map((stakeholderIntentSummaries || []).map((summary) => [summary.attendeeEmail, summary]));
+  const rebuttalByEmail = new Map((objectionRebuttalPacks || []).map((pack) => [pack.attendeeEmail, pack]));
+  const closeScriptByEmail = new Map((stakeholderCloseScripts || []).map((item) => [item.attendeeEmail, item]));
+  const primaryDrill = (counterfactualDecisionDrillPrompts || [])[0] || null;
+  const maxRows = 6;
+
+  for (const attendee of attendees || []) {
+    if (handoff.length >= maxRows) break;
+    const email = attendee?.email;
+    if (!email) continue;
+
+    const riskLevel = attendee?.relationshipRisk?.level || 'low';
+    const priority = riskLevel === 'high' ? 'high' : riskLevel === 'medium' ? 'medium' : 'low';
+    const intent = intentsByEmail.get(email);
+    const rebuttalPack = rebuttalByEmail.get(email);
+    const closeScript = closeScriptByEmail.get(email);
+    const firstObjection = (rebuttalPack?.objections || [])[0] || null;
+
+    let objectionTheme = firstObjection?.objection || 'General execution confidence objection.';
+    let responseScript = firstObjection?.rebuttal || 'Reconfirm decision boundary, owner/date commitment, and proof checkpoint in one concise closeout line.';
+    let responseOwner = closeScript?.attendeeName || closeScript?.attendeeEmail || 'Meeting owner';
+    let proofRequest = firstObjection?.nextAsk || 'Request one verifiable owner/date proof line for next checkpoint.';
+    const dependsOn = [];
+
+    if (intent?.intent === 'constraint mitigation') {
+      objectionTheme = 'Constraint mitigation sufficiency challenge.';
+      responseScript = 'Acknowledge blocker, name mitigation owner/date, and anchor to checkpoint proof criteria.';
+      proofRequest = 'Provide mitigation artifact owner, timestamp, and acceptance criteria.';
+    } else if (intent?.intent === 'decision closure') {
+      objectionTheme = 'Decision boundary ambiguity objection.';
+      responseScript = 'State approved-now vs deferred-now boundary explicitly and bind deferred items to owner/date.';
+      proofRequest = 'Share one-line approved/deferred statement plus deferred owner/date.';
+    }
+
+    if (primaryDrill?.code) dependsOn.push(primaryDrill.code);
+    if (closeScript?.trigger) dependsOn.push('stakeholder_close_script');
+
+    handoff.push({
+      attendeeEmail: email,
+      attendeeName: cleanLine(attendee?.name || '', 100) || null,
+      priority,
+      objectionTheme: cleanLine(objectionTheme, 200),
+      responseOwner: cleanLine(responseOwner, 120),
+      responseScript: cleanLine(responseScript, 260),
+      proofRequest: cleanLine(proofRequest, 220),
+      dependsOn: dedupeArray(dependsOn).slice(0, 4),
+    });
+  }
+
+  if (!handoff.length) {
+    handoff.push({
+      attendeeEmail: 'external-stakeholder',
+      attendeeName: null,
+      priority: 'low',
+      objectionTheme: 'Fallback objection-response lane for missing stakeholder context.',
+      responseOwner: 'Meeting owner',
+      responseScript: 'Reconfirm owner/date lock and checkpoint path before closeout.',
+      proofRequest: 'Request one owner/date proof line in post-meeting recap.',
+      dependsOn: ['default'],
+    });
+  }
+
+  return handoff.slice(0, maxRows);
+}
+
 function buildMeetingPrepQuality({
   attendees,
   relationshipRiskSignals,
@@ -2784,6 +3002,8 @@ function buildMeetingPrepQuality({
   stakeholderCloseScripts,
   failureModeRehearsals,
   stakeholderProofRequests,
+  counterfactualDecisionDrillPrompts,
+  stakeholderObjectionResponseHandoffMap,
 }) {
   const checks = [];
   const push = (code, severity, status, message) => {
@@ -2913,6 +3133,28 @@ function buildMeetingPrepQuality({
     );
   } else {
     push('stakeholder_proof_request_coverage', 'high', 'fail', 'Missing stakeholder proof-request pack section.');
+  }
+
+  if (has(counterfactualDecisionDrillPrompts)) {
+    push(
+      'counterfactual_decision_drill_coverage',
+      'low',
+      'pass',
+      `Counterfactual decision-drill prompts present (${counterfactualDecisionDrillPrompts.length}).`
+    );
+  } else {
+    push('counterfactual_decision_drill_coverage', 'high', 'fail', 'Missing counterfactual decision-drill prompts section.');
+  }
+
+  if (has(stakeholderObjectionResponseHandoffMap)) {
+    push(
+      'stakeholder_objection_handoff_coverage',
+      'low',
+      'pass',
+      `Stakeholder objection-response handoff map present (${stakeholderObjectionResponseHandoffMap.length}).`
+    );
+  } else {
+    push('stakeholder_objection_handoff_coverage', 'high', 'fail', 'Missing stakeholder objection-response handoff map section.');
   }
 
   if (highRiskSignals.length > 0 && !has(objectionRebuttalPacks)) {
