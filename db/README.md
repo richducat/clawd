@@ -222,9 +222,18 @@ Runtime notes:
     - `--max-artifact-issues 0`
 - Threshold breaches return exit code `2`, causing the workflow job to fail while still uploading artifacts via `if: always()`.
 - Optional breach alerting:
-  - configure repo secret `HYBRID_ALERT_WEBHOOK_URL`
-  - when set, a failing health gate posts a JSON payload (`text` field) containing run mode, run URL, run date, threshold settings, and artifact label
-  - when unset, the workflow logs a warning and skips outbound notification
+  - base route config:
+    - `HYBRID_ALERT_WEBHOOK_URL` (single route)
+    - `HYBRID_ALERT_WEBHOOK_URLS` (comma/newline multi-route fan-out)
+  - optional escalation route config:
+    - `HYBRID_ALERT_ESCALATION_WEBHOOK_URL`
+    - `HYBRID_ALERT_ESCALATION_WEBHOOK_URLS`
+    - `HYBRID_ALERT_ESCALATION_WINDOWS_ET` (repo variable, defaults to `always`)
+  - window format (`ET`):
+    - `always`
+    - or semicolon-delimited entries in `daySpec@HH:MM-HH:MM`
+    - examples: `mon-fri@08:00-18:00;sat@09:00-12:00`, `sun@00:00-23:59`
+  - on health-gate failure, workflow dispatches one JSON payload (`text`) to all base routes; escalation routes are included only when current ET time is inside configured escalation windows
 
 ## Retrieval/query layer (roadmap tranche option #2)
 
