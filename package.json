@@ -2,6 +2,7 @@
   "scripts": {
     "db:hybrid:init": "node scripts/db/init-hybrid-db.mjs",
     "db:hybrid:ingest": "node scripts/db/ingest-gmail-calendar-hybrid.mjs",
+    "db:hybrid:ingest:kb": "node scripts/db/ingest-kb-hybrid.mjs",
     "md:audit": "node scripts/maintenance/markdown-audit.mjs",
     "md:audit:strict": "node scripts/maintenance/markdown-audit.mjs --strict"
   },

@@ -128,3 +128,18 @@ Include:
     --account richducat@gmail.com
   ```
 - The script is incremental and updates source checkpoints in `ingestion_cursors`.
+
+## 12) KB ingestion (URL/file sources)
+- Run knowledge-base ingestion into `hybrid-core.sqlite`:
+  ```bash
+  npm run db:hybrid:ingest:kb -- --from-file scripts/db/fixtures/kb-sources-sample.json
+  ```
+- Or pass sources explicitly:
+  ```bash
+  npm run db:hybrid:ingest:kb -- \
+    --file docs/reference/openclaw-docs-home.md \
+    --url https://example.com/
+  ```
+- Optional controls:
+  - `--max-chars <n>` and `--overlap-chars <n>` for deterministic chunking
+  - `--embed` (plus optional `--embedding-model`) to store chunk embeddings when `OPENAI_API_KEY` is configured

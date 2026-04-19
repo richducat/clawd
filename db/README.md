@@ -62,3 +62,38 @@ Design notes:
 - Retrieval text is stored in `entity_chunks` (chunk `0` for each entity).
 - Contact relations are stored in `entity_links` (`gmail_counterparty`, `calendar_attendee`).
 - `ingestion_cursors` tracks latest ingestion timestamp per source for incremental reruns.
+
+## Roadmap item #4: Knowledge base ingestion (URLs + files)
+
+Ingestion command:
+```bash
+npm run db:hybrid:ingest:kb -- --from-file scripts/db/fixtures/kb-sources-sample.json
+```
+
+Alternative explicit source flags:
+```bash
+npm run db:hybrid:ingest:kb -- \
+  --file docs/reference/openclaw-docs-home.md \
+  --url https://example.com/
+```
+
+Optional flags:
+- `--from-file <path>`: source list input (`.json` with `{ files, urls }`, or newline text list)
+- `--file <path>`: local file source (repeatable)
+- `--url <https://...>`: URL source (repeatable)
+- `--max-chars <n>`: chunk size (default `1200`)
+- `--overlap-chars <n>`: overlap between adjacent chunks (default `120`)
+- `--embed`: generate chunk embeddings via OpenAI API (requires `OPENAI_API_KEY`)
+- `--embedding-model <name>`: embedding model when `--embed` is set (default `text-embedding-3-small`)
+
+Design notes:
+- Sources are mapped into `entities` with:
+  - `domain = kb`
+  - `type = kb_source`
+  - deterministic `id` from canonical source reference (`file:<abs-path>` / `url:<normalized-url>`)
+- Source metadata includes deterministic content hash (`content_sha256`) and traceability fields (`source_path` / `source_url`).
+- Re-runs are change-safe:
+  - unchanged content hash is skipped
+  - changed content re-upserts entity + deterministic chunk indexes
+  - stale trailing chunks are deleted when chunk count shrinks
+- The ingestion checkpoint is tracked in `ingestion_cursors` under source key `kb_ingest`.
