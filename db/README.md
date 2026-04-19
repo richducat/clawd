@@ -35,6 +35,7 @@ Current baseline schema includes:
 - `ingestion_cursors` for incremental source checkpointing
 - `ingestion_run_metrics` for per-source run counters and reconciliation checks
 - `ingestion_baseline_snapshots` for persisted baseline bands/anomaly snapshots used by long-range trend reporting
+- `meeting_prep_attendee_snapshots` for run-to-run attendee relationship risk/confidence deltas in meeting-prep output
 
 ## Roadmap item #3: Gmail + Calendar daily ingestion
 
@@ -127,10 +128,13 @@ Output behavior:
   - latest ingested Gmail touchpoint when available
   - relationship history snapshot (`touchpoints7d`, `touchpoints30d`, `touchpoints90d`, recent subjects)
   - attendee-level relationship risk assessment (`low`/`medium`/`high`) with deterministic risk signals
+  - attendee confidence scoring (`score`, `level`, rationale)
+  - relationship-risk deltas versus prior runs (`improved` / `declined` / `unchanged` / `new`)
   - deterministic recommended next actions inferred from touchpoint recency and response status
 - For each meeting, also includes:
-  - deterministic meeting-level recommendations derived from cross-attendee risk patterns
+  - deterministic meeting-level recommendations derived from cross-attendee risk patterns, each with confidence metadata
   - cross-attendee relationship risk signals (`code`, `severity`, `count`, `attendees`, `message`)
+  - meeting-level risk delta summary versus prior runs
 
 ## Follow-up: one-command daily hybrid pipeline
 

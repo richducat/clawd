@@ -159,8 +159,12 @@ Include:
 - Output now includes:
   - attendee relationship snapshots (`7d/30d/90d` touchpoint counts + recent subjects)
   - attendee-level deterministic risk assessments (`low`/`medium`/`high`) with risk signals
+  - attendee confidence scoring (`score`, `level`, rationale)
+  - attendee relationship-risk deltas vs prior runs
   - deterministic next-action recommendations derived from touchpoint recency and RSVP status
-  - meeting-level recommendations and cross-attendee relationship risk signals for escalation-aware prep
+  - meeting-level recommendations with confidence metadata
+  - cross-attendee relationship risk signals for escalation-aware prep
+  - meeting-level risk-delta summary vs prior runs
 
 ## 14) One-command daily hybrid pipeline
 - Run schema init + CRM ingest + optional KB ingest + meeting prep in one command:
