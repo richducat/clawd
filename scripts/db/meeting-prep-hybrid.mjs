@@ -83,6 +83,10 @@ async function main() {
       const attendeeBriefs = externalAttendees.map((attendee) => {
         const touchRows = recentTouchesStmt.all(attendee.entityId).map(normalizeTouchRow);
         const relationshipSnapshot = buildRelationshipSnapshot(touchRows);
+        const relationshipRisk = buildRelationshipRisk({
+          attendee,
+          snapshot: relationshipSnapshot,
+        });
         const recommendedNextActions = buildRecommendedNextActions({
           attendee,
           snapshot: relationshipSnapshot,
@@ -95,8 +99,15 @@ async function main() {
           responseStatus: attendee.responseStatus,
           lastTouch: relationshipSnapshot.lastTouch,
           relationshipSnapshot,
+          relationshipRisk,
           recommendedNextActions,
         };
+      });
+
+      const relationshipRiskSignals = buildMeetingRiskSignals(attendeeBriefs);
+      const meetingRecommendations = buildMeetingRecommendations({
+        attendees: attendeeBriefs,
+        relationshipRiskSignals,
       });
 
       briefs.push({
@@ -105,6 +116,8 @@ async function main() {
         start: start.toISOString(),
         end: toIsoOrNull(metadata?.end),
         attendees: attendeeBriefs,
+        relationshipRiskSignals,
+        meetingRecommendations,
       });
     }
 
@@ -147,6 +160,18 @@ function printMarkdownBrief({ account, date, timezone, internalDomains, meetings
 
   for (const meeting of meetings) {
     console.log(`## ${toLocalHm(meeting.start)} - ${meeting.title}`);
+    if (Array.isArray(meeting.meetingRecommendations) && meeting.meetingRecommendations.length) {
+      console.log('- Meeting recommendations:');
+      for (const rec of meeting.meetingRecommendations) {
+        console.log(`  - ${rec}`);
+      }
+    }
+    if (Array.isArray(meeting.relationshipRiskSignals) && meeting.relationshipRiskSignals.length) {
+      console.log('- Relationship risk signals:');
+      for (const signal of meeting.relationshipRiskSignals) {
+        console.log(`  - [${signal.severity}] ${signal.message}`);
+      }
+    }
     for (const attendee of meeting.attendees) {
       const who = attendee.name ? `${attendee.name} <${attendee.email}>` : attendee.email;
       if (attendee.lastTouch) {
@@ -160,6 +185,10 @@ function printMarkdownBrief({ account, date, timezone, internalDomains, meetings
       );
       if (Array.isArray(snapshot.recentSubjects) && snapshot.recentSubjects.length) {
         console.log(`  - Recent subjects: ${snapshot.recentSubjects.join(' | ')}`);
+      }
+      const risk = attendee.relationshipRisk || {};
+      if (risk.level && risk.level !== 'low') {
+        console.log(`  - Relationship risk: ${risk.level} (${(risk.signals || []).join('; ')})`);
       }
       if (Array.isArray(attendee.recommendedNextActions) && attendee.recommendedNextActions.length) {
         for (const action of attendee.recommendedNextActions) {
@@ -206,6 +235,136 @@ function buildRelationshipSnapshot(touches) {
       subject: withTime[0].subject,
     } : null,
   };
+}
+
+function buildRelationshipRisk({ attendee, snapshot }) {
+  const now = Date.now();
+  const signals = [];
+  let level = 'low';
+  const response = (attendee?.responseStatus || '').toLowerCase();
+  const lastTouchTs = snapshot?.lastTouch?.timestamp;
+  const touchpoints90d = Number(snapshot?.touchpoints90d || 0);
+
+  if (!lastTouchTs) {
+    signals.push('No prior touchpoint found in CRM history.');
+    level = raiseRisk(level, 'high');
+  } else {
+    const lastTouchMs = Date.parse(lastTouchTs);
+    if (Number.isFinite(lastTouchMs)) {
+      const ageDays = Math.floor((now - lastTouchMs) / (24 * 60 * 60 * 1000));
+      if (ageDays > 45) {
+        signals.push(`Last touchpoint is stale (${ageDays}d old).`);
+        level = raiseRisk(level, 'high');
+      } else if (ageDays > 21) {
+        signals.push(`Last touchpoint is aging (${ageDays}d old).`);
+        level = raiseRisk(level, 'medium');
+      }
+    }
+  }
+
+  if (touchpoints90d <= 1) {
+    signals.push(`Sparse relationship history in last 90d (${touchpoints90d} touchpoint${touchpoints90d === 1 ? '' : 's'}).`);
+    level = raiseRisk(level, 'medium');
+  }
+
+  if (response === 'declined') {
+    signals.push('Attendee has declined this event.');
+    level = raiseRisk(level, 'high');
+  } else if (response === 'tentative' || response === 'needsaction') {
+    signals.push('Attendee RSVP is not fully confirmed.');
+    level = raiseRisk(level, 'medium');
+  }
+
+  return {
+    level,
+    signals: dedupeArray(signals).slice(0, 3),
+  };
+}
+
+function buildMeetingRiskSignals(attendees) {
+  const byCode = new Map();
+  const push = (code, severity, message, attendeeEmail) => {
+    if (!byCode.has(code)) byCode.set(code, { code, severity, message, count: 0, attendees: [] });
+    const bucket = byCode.get(code);
+    bucket.count += 1;
+    bucket.attendees.push(attendeeEmail);
+  };
+
+  for (const attendee of attendees) {
+    const email = attendee.email;
+    const risk = attendee.relationshipRisk || {};
+    const response = (attendee.responseStatus || '').toLowerCase();
+    const touchpoints90d = Number(attendee.relationshipSnapshot?.touchpoints90d || 0);
+    const lastTouchTs = attendee.relationshipSnapshot?.lastTouch?.timestamp;
+
+    if (!lastTouchTs) push('no_prior_touchpoint', 'high', 'Attendees with no prior CRM touchpoint history.', email);
+    if (touchpoints90d <= 1) push('sparse_90d_history', 'medium', 'Attendees with sparse relationship history over 90 days.', email);
+    if (response === 'needsaction' || response === 'tentative') {
+      push('rsvp_unconfirmed', 'medium', 'Attendees with unconfirmed RSVP status.', email);
+    }
+    if (response === 'declined') push('rsvp_declined', 'high', 'Attendees marked as declined.', email);
+    if (risk.level === 'high') push('high_individual_risk', 'high', 'Attendees with high individual relationship risk.', email);
+  }
+
+  const orderedCodes = [
+    'high_individual_risk',
+    'rsvp_declined',
+    'no_prior_touchpoint',
+    'rsvp_unconfirmed',
+    'sparse_90d_history',
+  ];
+  const out = [];
+  for (const code of orderedCodes) {
+    const bucket = byCode.get(code);
+    if (!bucket) continue;
+    const attendeesUnique = dedupeArray(bucket.attendees);
+    out.push({
+      code: bucket.code,
+      severity: bucket.severity,
+      count: attendeesUnique.length,
+      attendees: attendeesUnique.sort(),
+      message: `${bucket.message} (${attendeesUnique.length} attendee${attendeesUnique.length === 1 ? '' : 's'})`,
+    });
+  }
+  return out;
+}
+
+function buildMeetingRecommendations({ attendees, relationshipRiskSignals }) {
+  const actions = [];
+  const total = attendees.length || 1;
+
+  const signalByCode = new Map((relationshipRiskSignals || []).map((s) => [s.code, s]));
+
+  const noTouch = signalByCode.get('no_prior_touchpoint');
+  if (noTouch) {
+    actions.push(`Send a short first-touch pre-read to ${noTouch.count} attendee${noTouch.count === 1 ? '' : 's'} before the meeting.`);
+  }
+
+  const unconfirmed = signalByCode.get('rsvp_unconfirmed');
+  if (unconfirmed) {
+    actions.push(`Confirm RSVP status for ${unconfirmed.count} attendee${unconfirmed.count === 1 ? '' : 's'} before start time.`);
+  }
+
+  const declined = signalByCode.get('rsvp_declined');
+  if (declined) {
+    actions.push('Decide go/no-go scope now for declined attendees and identify alternates if needed.');
+  }
+
+  const sparse = signalByCode.get('sparse_90d_history');
+  if (sparse && sparse.count / total >= 0.5) {
+    actions.push('Start with a concise context reset because at least half of external attendees have sparse recent history.');
+  }
+
+  const high = signalByCode.get('high_individual_risk');
+  if (high) {
+    actions.push('Allocate extra time for relationship repair: lead with objective clarity and one explicit commitment per high-risk attendee.');
+  }
+
+  if (!actions.length) {
+    actions.push('Proceed with standard agenda; no elevated cross-attendee relationship risk detected.');
+  }
+
+  return dedupeArray(actions).slice(0, 5);
 }
 
 function buildRecommendedNextActions({ attendee, snapshot, meetingStartIso }) {
@@ -399,4 +558,9 @@ function cleanLine(value, maxLen = 240) {
 
 function dedupeArray(values) {
   return [...new Set(values)];
+}
+
+function raiseRisk(current, next) {
+  const rank = { low: 0, medium: 1, high: 2 };
+  return rank[next] > rank[current] ? next : current;
 }

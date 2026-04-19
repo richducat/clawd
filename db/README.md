@@ -125,7 +125,11 @@ Output behavior:
 - For each external attendee, includes:
   - latest ingested Gmail touchpoint when available
   - relationship history snapshot (`touchpoints7d`, `touchpoints30d`, `touchpoints90d`, recent subjects)
+  - attendee-level relationship risk assessment (`low`/`medium`/`high`) with deterministic risk signals
   - deterministic recommended next actions inferred from touchpoint recency and response status
+- For each meeting, also includes:
+  - deterministic meeting-level recommendations derived from cross-attendee risk patterns
+  - cross-attendee relationship risk signals (`code`, `severity`, `count`, `attendees`, `message`)
 
 ## Follow-up: one-command daily hybrid pipeline
 
