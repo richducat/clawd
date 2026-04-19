@@ -85,6 +85,20 @@ async function main() {
         LIMIT 1
       `)
       : null;
+    const attendeeTrendStmt = snapshotTableReady
+      ? db.prepare(`
+        SELECT
+          run_at,
+          confidence_score,
+          risk_rank
+        FROM meeting_prep_attendee_snapshots
+        WHERE account_email = ?
+          AND attendee_email = ?
+          AND run_at >= ?
+        ORDER BY run_at DESC, id DESC
+        LIMIT 24
+      `)
+      : null;
 
     const insertSnapshotStmt = snapshotTableReady
       ? db.prepare(`
@@ -152,6 +166,17 @@ async function main() {
             touchpoints90d: Number(relationshipSnapshot.touchpoints90d || 0),
           },
         });
+        const confidenceCalibration = buildAttendeeConfidenceCalibration({
+          rows: attendeeTrendStmt
+            ? attendeeTrendStmt.all(
+              account,
+              attendee.email,
+              new Date(Date.now() - (30 * 24 * 60 * 60 * 1000)).toISOString(),
+            )
+            : [],
+          currentConfidenceScore: attendeeConfidence.score,
+          currentRiskRank: riskLevelRank(relationshipRisk.level),
+        });
         const recommendedNextActions = buildRecommendedNextActions({
           attendee,
           snapshot: relationshipSnapshot,
@@ -179,6 +204,7 @@ async function main() {
           relationshipSnapshot,
           relationshipRisk,
           relationshipRiskDelta,
+          confidenceCalibration,
           attendeeConfidence,
           roleProfile,
           stakeholderIntentSummary,
@@ -188,6 +214,7 @@ async function main() {
 
       const relationshipRiskSignals = buildMeetingRiskSignals(attendeeBriefs);
       const meetingRiskDelta = buildMeetingRiskDeltaSummary(attendeeBriefs);
+      const confidenceCalibrationTrend = buildMeetingConfidenceCalibrationTrend(attendeeBriefs);
       const roleAwarePrepBrief = buildRoleAwarePrepBrief({
         title: event.title || '',
         attendees: attendeeBriefs,
@@ -307,6 +334,11 @@ async function main() {
         failureModeRehearsals,
         stakeholderCloseScripts,
       });
+      const actionOwnerLoadBalancing = buildActionOwnerLoadBalancing({
+        attendees: attendeeBriefs,
+        meetingRecommendations,
+        commitmentCloseChecklist,
+      });
       const prepQuality = buildMeetingPrepQuality({
         attendees: attendeeBriefs,
         relationshipRiskSignals,
@@ -364,6 +396,7 @@ async function main() {
         attendees: attendeeBriefs,
         relationshipRiskSignals,
         meetingRiskDelta,
+        confidenceCalibrationTrend,
         roleAwarePrepBrief,
         agendaGapSignals,
         talkingPointSequence,
@@ -381,6 +414,7 @@ async function main() {
         stakeholderCloseScripts,
         failureModeRehearsals,
         stakeholderProofRequests,
+        actionOwnerLoadBalancing,
         prepQuality,
       });
     }
@@ -661,6 +695,37 @@ function printMarkdownBrief({ account, date, timezone, internalDomains, meetings
         }
       }
     }
+    if (meeting.confidenceCalibrationTrend) {
+      const trend = meeting.confidenceCalibrationTrend;
+      console.log(
+        `- Confidence calibration trend: current_avg=${trend.currentAverageConfidence}, trailing_avg=${trend.trailingAverageConfidence}, delta=${trend.averageDelta}, improving=${trend.improving}, declining=${trend.declining}`
+      );
+      if (Array.isArray(trend.signals) && trend.signals.length) {
+        for (const signal of trend.signals) {
+          console.log(`  - [${signal.severity}] ${signal.message}`);
+        }
+      }
+    }
+    if (meeting.actionOwnerLoadBalancing) {
+      const balancing = meeting.actionOwnerLoadBalancing;
+      if (balancing.summary) {
+        console.log(`- Action-owner load balancing: ${balancing.summary}`);
+      }
+      if (Array.isArray(balancing.ownerCapacity) && balancing.ownerCapacity.length) {
+        for (const row of balancing.ownerCapacity) {
+          const who = row.attendeeName ? `${row.attendeeName} <${row.attendeeEmail}>` : row.attendeeEmail;
+          console.log(`  - Capacity: ${who} load=${row.currentLoad} target_new=${row.suggestedNewActions}`);
+        }
+      }
+      if (Array.isArray(balancing.suggestedAssignments) && balancing.suggestedAssignments.length) {
+        for (const assignment of balancing.suggestedAssignments) {
+          const who = assignment.ownerName
+            ? `${assignment.ownerName} <${assignment.ownerEmail}>`
+            : assignment.ownerEmail;
+          console.log(`  - Assignment: [${assignment.priority}] ${assignment.action} -> ${who}`);
+        }
+      }
+    }
     if (meeting.meetingRiskDelta) {
       const delta = meeting.meetingRiskDelta;
       console.log(
@@ -701,6 +766,12 @@ function printMarkdownBrief({ account, date, timezone, internalDomains, meetings
       if (delta && delta.hasPreviousSnapshot) {
         console.log(
           `  - Risk delta vs prior: ${delta.direction} (risk ${delta.previousRiskLevel} -> ${delta.currentRiskLevel}; confidence ${delta.previousConfidenceScore} -> ${delta.currentConfidenceScore})`
+        );
+      }
+      const calibration = attendee.confidenceCalibration || null;
+      if (calibration) {
+        console.log(
+          `  - Confidence trend: current=${calibration.currentConfidenceScore}, trailing=${calibration.trailingAverageConfidence}, delta=${calibration.confidenceDelta}`
         );
       }
       if (Array.isArray(attendee.recommendedNextActions) && attendee.recommendedNextActions.length) {
@@ -1037,6 +1108,151 @@ function buildMeetingRiskDeltaSummary(attendees) {
 
   summary.noPriorComparison += summary.newAttendees;
   return summary;
+}
+
+function buildAttendeeConfidenceCalibration({ rows, currentConfidenceScore, currentRiskRank }) {
+  const trendRows = Array.isArray(rows) ? rows : [];
+  const historical = trendRows.map((row) => ({
+    confidenceScore: Number(row?.confidence_score || 0),
+    riskRank: Number(row?.risk_rank || 0),
+  })).filter((row) => Number.isFinite(row.confidenceScore));
+
+  if (!historical.length) {
+    return {
+      hasHistory: false,
+      currentConfidenceScore: Number(currentConfidenceScore || 0),
+      trailingAverageConfidence: null,
+      confidenceDelta: null,
+      currentRiskRank: Number(currentRiskRank || 0),
+      trailingAverageRiskRank: null,
+      riskDelta: null,
+    };
+  }
+
+  const avgConfidence = historical.reduce((sum, row) => sum + row.confidenceScore, 0) / historical.length;
+  const avgRiskRank = historical.reduce((sum, row) => sum + row.riskRank, 0) / historical.length;
+  const confidenceDelta = Number(currentConfidenceScore || 0) - avgConfidence;
+  const riskDelta = Number(currentRiskRank || 0) - avgRiskRank;
+
+  return {
+    hasHistory: true,
+    currentConfidenceScore: Number(currentConfidenceScore || 0),
+    trailingAverageConfidence: Number(avgConfidence.toFixed(1)),
+    confidenceDelta: Number(confidenceDelta.toFixed(1)),
+    currentRiskRank: Number(currentRiskRank || 0),
+    trailingAverageRiskRank: Number(avgRiskRank.toFixed(2)),
+    riskDelta: Number(riskDelta.toFixed(2)),
+  };
+}
+
+function buildMeetingConfidenceCalibrationTrend(attendees) {
+  const rows = (attendees || [])
+    .map((attendee) => attendee?.confidenceCalibration)
+    .filter(Boolean);
+  const withHistory = rows.filter((row) => row.hasHistory);
+  const signals = [];
+  if (!rows.length) {
+    return {
+      currentAverageConfidence: 0,
+      trailingAverageConfidence: null,
+      averageDelta: null,
+      improving: 0,
+      declining: 0,
+      noHistory: 0,
+      signals,
+    };
+  }
+
+  const currentAvg = rows.reduce((sum, row) => sum + Number(row.currentConfidenceScore || 0), 0) / rows.length;
+  const trailingAvg = withHistory.length
+    ? withHistory.reduce((sum, row) => sum + Number(row.trailingAverageConfidence || 0), 0) / withHistory.length
+    : null;
+  const improving = withHistory.filter((row) => Number(row.confidenceDelta || 0) >= 5).length;
+  const declining = withHistory.filter((row) => Number(row.confidenceDelta || 0) <= -5).length;
+
+  if (declining > 0) {
+    signals.push({
+      severity: 'medium',
+      message: `${declining} attendee confidence trend${declining === 1 ? ' is' : 's are'} declining against trailing baseline.`,
+    });
+  }
+  if (withHistory.length === 0) {
+    signals.push({
+      severity: 'low',
+      message: 'No historical confidence baseline yet; run repeat prep snapshots to calibrate trend signals.',
+    });
+  }
+
+  return {
+    currentAverageConfidence: Number(currentAvg.toFixed(1)),
+    trailingAverageConfidence: trailingAvg === null ? null : Number(trailingAvg.toFixed(1)),
+    averageDelta: trailingAvg === null ? null : Number((currentAvg - trailingAvg).toFixed(1)),
+    improving,
+    declining,
+    noHistory: rows.length - withHistory.length,
+    signals,
+  };
+}
+
+function buildActionOwnerLoadBalancing({ attendees, meetingRecommendations, commitmentCloseChecklist }) {
+  const candidates = (attendees || [])
+    .filter((attendee) => String(attendee?.responseStatus || '').toLowerCase() !== 'declined')
+    .map((attendee) => {
+      const risk = String(attendee?.relationshipRisk?.level || 'low');
+      const confidence = Number(attendee?.attendeeConfidence?.score || 0);
+      const actionCount = Array.isArray(attendee?.recommendedNextActions) ? attendee.recommendedNextActions.length : 0;
+      let currentLoad = actionCount;
+      if (risk === 'high') currentLoad += 2;
+      else if (risk === 'medium') currentLoad += 1;
+      if (confidence < 45) currentLoad += 1;
+      return {
+        attendeeEmail: attendee.email,
+        attendeeName: attendee.name || null,
+        currentLoad,
+        suggestedNewActions: Math.max(1, 4 - Math.min(currentLoad, 3)),
+      };
+    })
+    .sort((a, b) => (a.currentLoad - b.currentLoad) || a.attendeeEmail.localeCompare(b.attendeeEmail));
+
+  if (!candidates.length) {
+    return {
+      summary: 'No non-declined external attendees available for action-owner balancing.',
+      ownerCapacity: [],
+      suggestedAssignments: [],
+    };
+  }
+
+  const assignmentInputs = [];
+  for (const rec of meetingRecommendations || []) {
+    if (!rec?.text) continue;
+    assignmentInputs.push({ action: rec.text, priority: rec?.confidence?.level || 'medium' });
+  }
+  for (const item of commitmentCloseChecklist || []) {
+    if (!item?.check) continue;
+    assignmentInputs.push({ action: item.check, priority: item.priority || 'medium' });
+  }
+
+  const ranked = candidates.map((candidate) => ({ ...candidate, dynamicLoad: candidate.currentLoad }));
+  const suggestedAssignments = [];
+  for (const input of assignmentInputs.slice(0, 6)) {
+    ranked.sort((a, b) => (a.dynamicLoad - b.dynamicLoad) || a.attendeeEmail.localeCompare(b.attendeeEmail));
+    const target = ranked[0];
+    suggestedAssignments.push({
+      action: input.action,
+      priority: input.priority,
+      ownerEmail: target.attendeeEmail,
+      ownerName: target.attendeeName,
+      reason: `Selected lowest deterministic load (${target.dynamicLoad}).`,
+    });
+    target.dynamicLoad += 1;
+  }
+
+  const summary = `balanced ${suggestedAssignments.length} action${suggestedAssignments.length === 1 ? '' : 's'} across ${candidates.length} attendee owner lane${candidates.length === 1 ? '' : 's'}`;
+  return {
+    summary,
+    ownerCapacity: candidates,
+    suggestedAssignments,
+  };
 }
 
 function buildRecommendedNextActions({ attendee, snapshot, meetingStartIso }) {
