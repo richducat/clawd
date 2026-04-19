@@ -130,6 +130,7 @@ Output behavior:
   - attendee-level relationship risk assessment (`low`/`medium`/`high`) with deterministic risk signals
   - attendee confidence scoring (`score`, `level`, rationale)
   - attendee role profile inference (`decision partner`, `active collaborator`, `new stakeholder`, `at-risk stakeholder`, `blocked stakeholder`, `observer`) with deterministic evidence signals
+  - attendee-level stakeholder intent summary (`intent`, `approach`, `priority`, `confidence`, `signals`)
   - relationship-risk deltas versus prior runs (`improved` / `declined` / `unchanged` / `new`)
   - deterministic recommended next actions inferred from touchpoint recency and response status
 - For each meeting, also includes:
@@ -137,6 +138,8 @@ Output behavior:
   - agenda-gap detection signals (`code`, `severity`, `message`, `recommendation`) derived from attendee role mix + risk signals
   - deterministic talking-point sequence (`order`, `priority`, `objective`, `prompt`, `drivers`)
   - objection-rebuttal packs for medium/high-risk or unstable attendees (`objection`, `rebuttal`, `evidence`, `nextAsk`)
+  - stakeholder intent rollup for all attendees (`attendee`, `intent`, `approach`, `priority`, `confidence`)
+  - negotiation fallback prompt packs (`trigger`, `prompt`, `desiredOutcome`, `priority`, `drivers`) for deterministic resistance handling
   - deterministic meeting-level recommendations derived from cross-attendee risk patterns, each with confidence metadata
   - cross-attendee relationship risk signals (`code`, `severity`, `count`, `attendees`, `message`)
   - meeting-level risk delta summary versus prior runs

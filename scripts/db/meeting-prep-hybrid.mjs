@@ -163,6 +163,13 @@ async function main() {
           relationshipRisk,
           attendeeConfidence,
         });
+        const stakeholderIntentSummary = buildStakeholderIntentSummary({
+          attendee,
+          snapshot: relationshipSnapshot,
+          relationshipRisk,
+          roleProfile,
+          attendeeConfidence,
+        });
 
         return {
           email: attendee.email,
@@ -174,6 +181,7 @@ async function main() {
           relationshipRiskDelta,
           attendeeConfidence,
           roleProfile,
+          stakeholderIntentSummary,
           recommendedNextActions,
         };
       });
@@ -199,6 +207,16 @@ async function main() {
       });
       const objectionRebuttalPacks = buildObjectionRebuttalPacks({
         attendees: attendeeBriefs,
+      });
+      const stakeholderIntentSummaries = buildStakeholderIntentSummaries({
+        attendees: attendeeBriefs,
+      });
+      const negotiationFallbackPrompts = buildNegotiationFallbackPrompts({
+        title: event.title || '',
+        attendees: attendeeBriefs,
+        relationshipRiskSignals,
+        agendaGapSignals,
+        stakeholderIntentSummaries,
       });
       const meetingRecommendations = buildMeetingRecommendations({
         title: event.title || '',
@@ -248,6 +266,8 @@ async function main() {
         agendaGapSignals,
         talkingPointSequence,
         objectionRebuttalPacks,
+        stakeholderIntentSummaries,
+        negotiationFallbackPrompts,
         meetingRecommendations,
       });
     }
@@ -335,6 +355,22 @@ function printMarkdownBrief({ account, date, timezone, internalDomains, meetings
         }
       }
     }
+    if (Array.isArray(meeting.stakeholderIntentSummaries) && meeting.stakeholderIntentSummaries.length) {
+      console.log('- Stakeholder intent summaries:');
+      for (const intent of meeting.stakeholderIntentSummaries) {
+        const who = intent.attendeeName ? `${intent.attendeeName} <${intent.attendeeEmail}>` : intent.attendeeEmail;
+        console.log(`  - [${intent.priority}] ${who}: ${intent.intent} -> ${intent.approach}`);
+      }
+    }
+    if (Array.isArray(meeting.negotiationFallbackPrompts) && meeting.negotiationFallbackPrompts.length) {
+      console.log('- Negotiation fallback prompts:');
+      for (const prompt of meeting.negotiationFallbackPrompts) {
+        const drivers = Array.isArray(prompt.drivers) && prompt.drivers.length
+          ? ` [drivers=${prompt.drivers.join(', ')}]`
+          : '';
+        console.log(`  - [${prompt.priority}] ${prompt.trigger} -> ${prompt.prompt}${drivers}`);
+      }
+    }
     if (meeting.meetingRiskDelta) {
       const delta = meeting.meetingRiskDelta;
       console.log(
@@ -366,6 +402,10 @@ function printMarkdownBrief({ account, date, timezone, internalDomains, meetings
       const role = attendee.roleProfile || null;
       if (role) {
         console.log(`  - Role profile: ${role.role} (${(role.signals || []).join('; ')})`);
+      }
+      const intent = attendee.stakeholderIntentSummary || null;
+      if (intent) {
+        console.log(`  - Stakeholder intent: ${intent.intent} (${intent.confidence}, ${intent.approach})`);
       }
       const delta = attendee.relationshipRiskDelta || null;
       if (delta && delta.hasPreviousSnapshot) {
@@ -792,6 +832,67 @@ function inferAttendeeRole({ attendee, snapshot, relationshipRisk, attendeeConfi
   };
 }
 
+function buildStakeholderIntentSummary({ attendee, snapshot, relationshipRisk, roleProfile, attendeeConfidence }) {
+  const response = String(attendee?.responseStatus || '').toLowerCase();
+  const role = String(roleProfile?.role || 'observer');
+  const riskLevel = String(relationshipRisk?.level || 'low');
+  const confidenceScore = Number(attendeeConfidence?.score || 0);
+  const touch30 = Number(snapshot?.touchpoints30d || 0);
+  const touch90 = Number(snapshot?.touchpoints90d || 0);
+  const lastTouchTs = snapshot?.lastTouch?.timestamp || null;
+  const signals = [];
+  let intent = 'context validation';
+  let approach = 'start with objective + context summary, then confirm understanding';
+  let priority = 'low';
+
+  if (response === 'declined' || role === 'blocked stakeholder') {
+    intent = 'participation flexibility';
+    approach = 'offer delegate + async decision path with explicit checkpoint';
+    priority = 'high';
+    signals.push('RSVP declined or blocked role profile.');
+  } else if (riskLevel === 'high' || role === 'at-risk stakeholder') {
+    intent = 'constraint mitigation';
+    approach = 'surface blockers early and secure one named mitigation commitment';
+    priority = 'high';
+    signals.push('High relationship-risk alignment signal.');
+  } else if (role === 'decision partner') {
+    intent = 'decision closure';
+    approach = 'present options with tradeoffs and request final owner/date';
+    priority = 'high';
+    signals.push('Decision partner role profile.');
+  } else if (role === 'new stakeholder') {
+    intent = 'scope clarity';
+    approach = 'give concise context reset and verify success criteria before details';
+    priority = 'medium';
+    signals.push('New stakeholder profile with limited history.');
+  } else if (confidenceScore < 45 || touch90 <= 1) {
+    intent = 'evidence confidence';
+    approach = 'narrow to minimum decision and define required evidence checkpoint';
+    priority = 'medium';
+    signals.push('Low confidence / sparse relationship history.');
+  } else if (touch30 >= 3 && response === 'accepted') {
+    intent = 'execution acceleration';
+    approach = 'skip baseline context and convert directly to owner-assigned next steps';
+    priority = 'medium';
+    signals.push('Recent high-touch accepted attendee.');
+  }
+
+  if (!lastTouchTs) {
+    signals.push('No prior touchpoint available.');
+  } else {
+    const ageDays = Math.max(0, Math.floor((Date.now() - Date.parse(lastTouchTs)) / (24 * 60 * 60 * 1000)));
+    if (ageDays > 30) signals.push(`Last touchpoint is stale (${ageDays}d).`);
+  }
+
+  return {
+    intent,
+    approach,
+    priority,
+    confidence: confidenceLevelFor(confidenceScore),
+    signals: dedupeArray(signals).slice(0, 3),
+  };
+}
+
 function buildRoleAwarePrepBrief({ title, attendees, relationshipRiskSignals }) {
   const roleCounts = new Map();
   for (const attendee of attendees || []) {
@@ -1048,6 +1149,139 @@ function buildObjectionRebuttalPacks({ attendees }) {
     if (pa !== pb) return pa - pb;
     return String(a.attendeeEmail).localeCompare(String(b.attendeeEmail));
   });
+}
+
+function buildStakeholderIntentSummaries({ attendees }) {
+  const summaries = [];
+  for (const attendee of attendees || []) {
+    const intent = attendee?.stakeholderIntentSummary;
+    if (!intent) continue;
+    summaries.push({
+      attendeeEmail: attendee.email,
+      attendeeName: attendee.name,
+      intent: intent.intent,
+      approach: intent.approach,
+      priority: intent.priority || 'low',
+      confidence: intent.confidence || 'low',
+      signals: Array.isArray(intent.signals) ? intent.signals.slice(0, 3) : [],
+    });
+  }
+
+  return summaries.sort((a, b) => {
+    const rank = { high: 0, medium: 1, low: 2 };
+    const pa = rank[a.priority] ?? 3;
+    const pb = rank[b.priority] ?? 3;
+    if (pa !== pb) return pa - pb;
+    return String(a.attendeeEmail).localeCompare(String(b.attendeeEmail));
+  });
+}
+
+function buildNegotiationFallbackPrompts({
+  title,
+  attendees,
+  relationshipRiskSignals,
+  agendaGapSignals,
+  stakeholderIntentSummaries,
+}) {
+  const prompts = [];
+  const signalByCode = new Map((relationshipRiskSignals || []).map((s) => [s.code, s]));
+  const gapByCode = new Map((agendaGapSignals || []).map((g) => [g.code, g]));
+  const intentCounts = new Map();
+  for (const item of stakeholderIntentSummaries || []) {
+    const key = item.intent || 'context validation';
+    intentCounts.set(key, (intentCounts.get(key) || 0) + 1);
+  }
+
+  const push = (code, priority, trigger, prompt, desiredOutcome, drivers = []) => {
+    if (prompts.some((item) => item.code === code)) return;
+    prompts.push({
+      code,
+      priority,
+      trigger,
+      prompt,
+      desiredOutcome,
+      drivers: dedupeArray(drivers).slice(0, 4),
+    });
+  };
+
+  if (signalByCode.has('rsvp_declined') || intentCounts.get('participation flexibility')) {
+    push(
+      'fallback_delegate_async',
+      'high',
+      'Attendee cannot commit to live participation.',
+      'If real-time participation is blocked, can we name a delegate now and lock an async response deadline today?',
+      'Preserve decision velocity despite attendance constraints.',
+      ['rsvp_declined', 'participation_flexibility']
+    );
+  }
+
+  if (signalByCode.has('high_individual_risk') || intentCounts.get('constraint mitigation')) {
+    push(
+      'fallback_objection_first',
+      'high',
+      'Stakeholder raises blockers or trust concerns.',
+      'What is the single highest-risk constraint we must resolve in this meeting to proceed confidently?',
+      'Convert objections into one mitigation owner/date.',
+      ['high_individual_risk', 'constraint_mitigation']
+    );
+  }
+
+  if (gapByCode.has('missing_decision_block') || intentCounts.get('decision closure')) {
+    push(
+      'fallback_decision_boundary',
+      'high',
+      'Discussion circles without a decision.',
+      'If full approval is not possible now, what minimum decision boundary can we close before ending?',
+      'Secure partial decision closure with explicit owner.',
+      ['missing_decision_block', 'decision_closure']
+    );
+  }
+
+  if (gapByCode.has('missing_context_reset') || intentCounts.get('scope clarity') || intentCounts.get('context validation')) {
+    push(
+      'fallback_scope_reset',
+      'medium',
+      'Stakeholder indicates unclear context or scope.',
+      'Let us pause for a 60-second reset: current state, target outcome, and what is out of scope. Does that align?',
+      'Restore shared context before negotiating commitments.',
+      ['missing_context_reset', 'scope_clarity']
+    );
+  }
+
+  if (intentCounts.get('evidence confidence')) {
+    push(
+      'fallback_evidence_checkpoint',
+      'medium',
+      'Stakeholder requests more proof before committing.',
+      'What exact evidence would make this a yes, and by when can we provide it?',
+      'Define objective proof requirements and deadline.',
+      ['evidence_confidence']
+    );
+  }
+
+  if (hasKeyword(title, ['kickoff', 'review', 'sync']) || (attendees || []).length >= 2) {
+    push(
+      'fallback_closeout',
+      'medium',
+      'Meeting is close to ending without clear ownership.',
+      'Before we close, can we confirm one owner, one due date, and one follow-up checkpoint per open item?',
+      'Prevent unresolved closeout drift.',
+      ['meeting_closeout']
+    );
+  }
+
+  if (!prompts.length) {
+    push(
+      'fallback_default',
+      'low',
+      'General resistance to plan progression.',
+      'What would make this plan actionable enough to commit to one next step today?',
+      'Capture one concrete next-step commitment.',
+      ['default']
+    );
+  }
+
+  return prompts.slice(0, 6);
 }
 
 function buildAttendeeObjections(attendee) {

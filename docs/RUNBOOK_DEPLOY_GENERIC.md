@@ -161,12 +161,14 @@ Include:
   - attendee-level deterministic risk assessments (`low`/`medium`/`high`) with risk signals
   - attendee confidence scoring (`score`, `level`, rationale)
   - attendee role-profile inference with deterministic role evidence signals
+  - attendee-level stakeholder intent summary (`intent`, `approach`, `priority`, `confidence`, `signals`)
   - attendee relationship-risk deltas vs prior runs
   - deterministic next-action recommendations derived from touchpoint recency and RSVP status
   - role-aware prep brief items (priority-tagged) at meeting level
   - agenda-gap detection signals with deterministic recommendations
   - deterministic talking-point sequence for in-meeting flow control (`order`, `priority`, `objective`, `prompt`, `drivers`)
   - objection-rebuttal packs for medium/high-risk or unstable attendees (`objection`, `rebuttal`, `evidence`, `nextAsk`)
+  - stakeholder intent rollup and negotiation fallback prompt packs for resistance handling (`trigger`, `prompt`, `desiredOutcome`, `priority`, `drivers`)
   - meeting-level recommendations with confidence metadata
   - cross-attendee relationship risk signals for escalation-aware prep
   - meeting-level risk-delta summary vs prior runs
