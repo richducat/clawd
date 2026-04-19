@@ -8,6 +8,7 @@ const account = normalizeEmail(getArg(args, '--account') || process.env.GOG_ACCO
 const dateArg = getArg(args, '--date');
 const limit = toSafeInt(getArg(args, '--limit'), 50, 1, 500);
 const jsonMode = hasFlag(args, '--json');
+const runStartedAt = new Date().toISOString();
 const internalDomainArgs = getArgValues(args, '--internal-domain')
   .map((d) => normalizeDomain(d))
   .filter(Boolean);
@@ -30,9 +31,10 @@ async function main() {
     ...internalDomainArgs,
   ].filter(Boolean));
 
-  const db = openSqlite(dbPath('hybrid-core.sqlite'), { readonly: true });
+  const db = openSqlite(dbPath('hybrid-core.sqlite'));
   try {
     assertHybridSchemaReady(db);
+    const snapshotTableReady = hasTable(db, 'meeting_prep_attendee_snapshots');
 
     const events = db.prepare(`
       SELECT id, title, metadata_json
@@ -62,6 +64,50 @@ async function main() {
       LIMIT 25
     `);
 
+    const priorSnapshotStmt = snapshotTableReady
+      ? db.prepare(`
+        SELECT
+          meeting_date,
+          run_at,
+          risk_level,
+          risk_rank,
+          confidence_score,
+          touchpoints7d,
+          touchpoints30d,
+          touchpoints90d,
+          response_status,
+          last_touch_at
+        FROM meeting_prep_attendee_snapshots
+        WHERE account_email = ?
+          AND event_id = ?
+          AND attendee_email = ?
+        ORDER BY run_at DESC, id DESC
+        LIMIT 1
+      `)
+      : null;
+
+    const insertSnapshotStmt = snapshotTableReady
+      ? db.prepare(`
+        INSERT INTO meeting_prep_attendee_snapshots (
+          account_email,
+          meeting_date,
+          event_id,
+          attendee_email,
+          attendee_name,
+          risk_level,
+          risk_rank,
+          confidence_score,
+          touchpoints7d,
+          touchpoints30d,
+          touchpoints90d,
+          response_status,
+          last_touch_at,
+          snapshot_json,
+          run_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      : null;
+
     const briefs = [];
     for (const event of events) {
       if (briefs.length >= limit) break;
@@ -87,6 +133,25 @@ async function main() {
           attendee,
           snapshot: relationshipSnapshot,
         });
+        const attendeeConfidence = buildAttendeeConfidence({
+          attendee,
+          snapshot: relationshipSnapshot,
+          relationshipRisk,
+        });
+        const priorSnapshot = priorSnapshotStmt
+          ? priorSnapshotStmt.get(account, event.id, attendee.email)
+          : null;
+        const relationshipRiskDelta = buildRelationshipRiskDelta({
+          previous: priorSnapshot,
+          current: {
+            riskLevel: relationshipRisk.level,
+            riskRank: riskLevelRank(relationshipRisk.level),
+            confidenceScore: attendeeConfidence.score,
+            touchpoints7d: Number(relationshipSnapshot.touchpoints7d || 0),
+            touchpoints30d: Number(relationshipSnapshot.touchpoints30d || 0),
+            touchpoints90d: Number(relationshipSnapshot.touchpoints90d || 0),
+          },
+        });
         const recommendedNextActions = buildRecommendedNextActions({
           attendee,
           snapshot: relationshipSnapshot,
@@ -100,15 +165,47 @@ async function main() {
           lastTouch: relationshipSnapshot.lastTouch,
           relationshipSnapshot,
           relationshipRisk,
+          relationshipRiskDelta,
+          attendeeConfidence,
           recommendedNextActions,
         };
       });
 
       const relationshipRiskSignals = buildMeetingRiskSignals(attendeeBriefs);
+      const meetingRiskDelta = buildMeetingRiskDeltaSummary(attendeeBriefs);
       const meetingRecommendations = buildMeetingRecommendations({
         attendees: attendeeBriefs,
         relationshipRiskSignals,
+        meetingRiskDelta,
       });
+
+      if (insertSnapshotStmt) {
+        const tx = db.transaction((rows) => {
+          for (const row of rows) {
+            insertSnapshotStmt.run(
+              account,
+              toYmd(dayStart),
+              event.id,
+              row.email,
+              row.name,
+              row.relationshipRisk.level,
+              riskLevelRank(row.relationshipRisk.level),
+              row.attendeeConfidence.score,
+              Number(row.relationshipSnapshot.touchpoints7d || 0),
+              Number(row.relationshipSnapshot.touchpoints30d || 0),
+              Number(row.relationshipSnapshot.touchpoints90d || 0),
+              row.responseStatus || null,
+              row.relationshipSnapshot?.lastTouch?.timestamp || null,
+              JSON.stringify({
+                relationshipRiskSignals: row.relationshipRisk.signals || [],
+                confidenceLevel: row.attendeeConfidence.level,
+              }),
+              runStartedAt,
+            );
+          }
+        });
+        tx(attendeeBriefs);
+      }
 
       briefs.push({
         eventId: event.id,
@@ -117,6 +214,7 @@ async function main() {
         end: toIsoOrNull(metadata?.end),
         attendees: attendeeBriefs,
         relationshipRiskSignals,
+        meetingRiskDelta,
         meetingRecommendations,
       });
     }
@@ -163,7 +261,7 @@ function printMarkdownBrief({ account, date, timezone, internalDomains, meetings
     if (Array.isArray(meeting.meetingRecommendations) && meeting.meetingRecommendations.length) {
       console.log('- Meeting recommendations:');
       for (const rec of meeting.meetingRecommendations) {
-        console.log(`  - ${rec}`);
+        console.log(`  - ${rec.text} [confidence=${rec.confidence.score} (${rec.confidence.level})]`);
       }
     }
     if (Array.isArray(meeting.relationshipRiskSignals) && meeting.relationshipRiskSignals.length) {
@@ -171,6 +269,12 @@ function printMarkdownBrief({ account, date, timezone, internalDomains, meetings
       for (const signal of meeting.relationshipRiskSignals) {
         console.log(`  - [${signal.severity}] ${signal.message}`);
       }
+    }
+    if (meeting.meetingRiskDelta) {
+      const delta = meeting.meetingRiskDelta;
+      console.log(
+        `- Risk delta vs prior run: improved=${delta.improved}, declined=${delta.declined}, unchanged=${delta.unchanged}, new=${delta.newAttendees}, no_prior=${delta.noPriorComparison}, net_shift=${delta.netRiskShift}`
+      );
     }
     for (const attendee of meeting.attendees) {
       const who = attendee.name ? `${attendee.name} <${attendee.email}>` : attendee.email;
@@ -189,6 +293,16 @@ function printMarkdownBrief({ account, date, timezone, internalDomains, meetings
       const risk = attendee.relationshipRisk || {};
       if (risk.level && risk.level !== 'low') {
         console.log(`  - Relationship risk: ${risk.level} (${(risk.signals || []).join('; ')})`);
+      }
+      const confidence = attendee.attendeeConfidence || null;
+      if (confidence) {
+        console.log(`  - Confidence: ${confidence.score} (${confidence.level})`);
+      }
+      const delta = attendee.relationshipRiskDelta || null;
+      if (delta && delta.hasPreviousSnapshot) {
+        console.log(
+          `  - Risk delta vs prior: ${delta.direction} (risk ${delta.previousRiskLevel} -> ${delta.currentRiskLevel}; confidence ${delta.previousConfidenceScore} -> ${delta.currentConfidenceScore})`
+        );
       }
       if (Array.isArray(attendee.recommendedNextActions) && attendee.recommendedNextActions.length) {
         for (const action of attendee.recommendedNextActions) {
@@ -364,7 +478,159 @@ function buildMeetingRecommendations({ attendees, relationshipRiskSignals }) {
     actions.push('Proceed with standard agenda; no elevated cross-attendee relationship risk detected.');
   }
 
-  return dedupeArray(actions).slice(0, 5);
+  const uniqueActions = dedupeArray(actions).slice(0, 5);
+  return uniqueActions.map((text) => buildMeetingRecommendationScore({
+    text,
+    attendees,
+    relationshipRiskSignals,
+    totalAttendees: total,
+  }));
+}
+
+function buildMeetingRecommendationScore({ text, attendees, relationshipRiskSignals, totalAttendees }) {
+  const safeTotal = Number(totalAttendees || attendees.length || 1);
+  const avgAttendeeConfidence = attendees.length
+    ? attendees.reduce((sum, a) => sum + Number(a?.attendeeConfidence?.score || 0), 0) / attendees.length
+    : 40;
+  const highSignals = (relationshipRiskSignals || []).filter((s) => s.severity === 'high')
+    .reduce((sum, s) => sum + Number(s.count || 0), 0);
+  const mediumSignals = (relationshipRiskSignals || []).filter((s) => s.severity === 'medium')
+    .reduce((sum, s) => sum + Number(s.count || 0), 0);
+
+  let score = Math.round(avgAttendeeConfidence * 0.65 + 28);
+  score -= Math.round((highSignals / safeTotal) * 18);
+  score -= Math.round((mediumSignals / safeTotal) * 8);
+
+  const rationale = [
+    `Avg attendee confidence ${Math.round(avgAttendeeConfidence)}.`,
+    `High-risk signal load ${highSignals}/${safeTotal}.`,
+    `Medium-risk signal load ${mediumSignals}/${safeTotal}.`,
+  ];
+
+  score = clampInt(score, 10, 95);
+  return {
+    text,
+    confidence: {
+      score,
+      level: confidenceLevelFor(score),
+      rationale,
+    },
+  };
+}
+
+function buildAttendeeConfidence({ attendee, snapshot, relationshipRisk }) {
+  const touchpoints90d = Number(snapshot?.touchpoints90d || 0);
+  const lastTouchTs = snapshot?.lastTouch?.timestamp || null;
+  const response = (attendee?.responseStatus || '').toLowerCase();
+  const rationale = [];
+
+  const volumeScore = clampInt(Math.round((Math.min(touchpoints90d, 6) / 6) * 40), 0, 40);
+  rationale.push(`Touchpoint volume score ${volumeScore}/40 (90d=${touchpoints90d}).`);
+
+  let recencyScore = 0;
+  if (lastTouchTs) {
+    const ageDays = Math.max(0, Math.floor((Date.now() - Date.parse(lastTouchTs)) / (24 * 60 * 60 * 1000)));
+    if (ageDays <= 7) recencyScore = 30;
+    else if (ageDays <= 21) recencyScore = 20;
+    else if (ageDays <= 45) recencyScore = 10;
+    rationale.push(`Recency score ${recencyScore}/30 (${ageDays}d since last touch).`);
+  } else {
+    rationale.push('Recency score 0/30 (no prior touchpoint).');
+  }
+
+  let rsvpScore = 8;
+  if (response === 'accepted') rsvpScore = 20;
+  else if (response === 'tentative' || response === 'needsaction') rsvpScore = 10;
+  else if (response === 'declined') rsvpScore = 12;
+  rationale.push(`RSVP clarity score ${rsvpScore}/20 (status=${response || 'unknown'}).`);
+
+  const identityScore = attendee?.name ? 10 : 5;
+  rationale.push(`Identity score ${identityScore}/10 (${attendee?.name ? 'named contact' : 'email-only contact'}).`);
+
+  let riskPenalty = 0;
+  if (relationshipRisk?.level === 'high') riskPenalty = 12;
+  else if (relationshipRisk?.level === 'medium') riskPenalty = 6;
+  rationale.push(`Risk penalty ${riskPenalty} (risk=${relationshipRisk?.level || 'low'}).`);
+
+  const score = clampInt(volumeScore + recencyScore + rsvpScore + identityScore - riskPenalty, 0, 100);
+  return {
+    score,
+    level: confidenceLevelFor(score),
+    rationale,
+  };
+}
+
+function buildRelationshipRiskDelta({ previous, current }) {
+  if (!previous) {
+    return {
+      hasPreviousSnapshot: false,
+      direction: 'new',
+      previousRiskLevel: null,
+      currentRiskLevel: current.riskLevel,
+      previousConfidenceScore: null,
+      currentConfidenceScore: current.confidenceScore,
+      riskLevelDelta: null,
+      confidenceScoreDelta: null,
+      touchpoints7dDelta: null,
+      touchpoints30dDelta: null,
+      touchpoints90dDelta: null,
+      previousRunAt: null,
+    };
+  }
+
+  const previousRiskRank = Number(previous.risk_rank || 0);
+  const currentRiskRank = Number(current.riskRank || 0);
+  const riskLevelDelta = currentRiskRank - previousRiskRank;
+
+  let direction = 'unchanged';
+  if (riskLevelDelta > 0) direction = 'declined';
+  else if (riskLevelDelta < 0) direction = 'improved';
+
+  return {
+    hasPreviousSnapshot: true,
+    direction,
+    previousRiskLevel: previous.risk_level || null,
+    currentRiskLevel: current.riskLevel || null,
+    previousConfidenceScore: Number(previous.confidence_score || 0),
+    currentConfidenceScore: Number(current.confidenceScore || 0),
+    riskLevelDelta,
+    confidenceScoreDelta: Number(current.confidenceScore || 0) - Number(previous.confidence_score || 0),
+    touchpoints7dDelta: Number(current.touchpoints7d || 0) - Number(previous.touchpoints7d || 0),
+    touchpoints30dDelta: Number(current.touchpoints30d || 0) - Number(previous.touchpoints30d || 0),
+    touchpoints90dDelta: Number(current.touchpoints90d || 0) - Number(previous.touchpoints90d || 0),
+    previousRunAt: previous.run_at || null,
+  };
+}
+
+function buildMeetingRiskDeltaSummary(attendees) {
+  const summary = {
+    improved: 0,
+    declined: 0,
+    unchanged: 0,
+    newAttendees: 0,
+    noPriorComparison: 0,
+    netRiskShift: 0,
+  };
+
+  for (const attendee of attendees) {
+    const delta = attendee?.relationshipRiskDelta;
+    if (!delta) {
+      summary.noPriorComparison += 1;
+      continue;
+    }
+    if (!delta.hasPreviousSnapshot) {
+      summary.newAttendees += 1;
+      continue;
+    }
+    if (delta.direction === 'improved') summary.improved += 1;
+    else if (delta.direction === 'declined') summary.declined += 1;
+    else summary.unchanged += 1;
+
+    summary.netRiskShift += Number(delta.riskLevelDelta || 0);
+  }
+
+  summary.noPriorComparison += summary.newAttendees;
+  return summary;
 }
 
 function buildRecommendedNextActions({ attendee, snapshot, meetingStartIso }) {
@@ -471,6 +737,15 @@ function assertHybridSchemaReady(db) {
   }
 }
 
+function hasTable(db, name) {
+  const row = db.prepare(`
+    SELECT name
+    FROM sqlite_master
+    WHERE type = 'table' AND name = ?
+  `).get(name);
+  return Boolean(row);
+}
+
 function getArg(argv, name) {
   const i = argv.indexOf(name);
   if (i === -1) return null;
@@ -563,4 +838,21 @@ function dedupeArray(values) {
 function raiseRisk(current, next) {
   const rank = { low: 0, medium: 1, high: 2 };
   return rank[next] > rank[current] ? next : current;
+}
+
+function riskLevelRank(level) {
+  const rank = { low: 0, medium: 1, high: 2 };
+  return rank[level] ?? 0;
+}
+
+function clampInt(value, min, max) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+function confidenceLevelFor(score) {
+  if (score >= 75) return 'high';
+  if (score >= 45) return 'medium';
+  return 'low';
 }
