@@ -197,6 +197,14 @@ Include:
   - **Live lane** (manual with `live_mode=true`) runs on `self-hosted`.
 - Default scheduled behavior remains fixture-backed deterministic canary.
 - For live-source execution, use manual dispatch with `live_mode=true` (fixtures are not used in live lane).
+- Live governance policy (enforced before preflight/pipeline):
+  - Live job binds to protected GitHub Environment `hybrid-live`.
+  - Live dispatch is restricted to `main` branch.
+  - Live dispatch rejects `use_fixtures=true`.
+  - Triggering actor must be listed in repo variable `HYBRID_LIVE_ALLOWED_ACTORS` (comma-separated usernames; defaults to `richducat` when unset).
+- Recommended environment setup:
+  - Configure required reviewers for Environment `hybrid-live` so every live run requires explicit approval.
+  - Keep `HYBRID_LIVE_ALLOWED_ACTORS` aligned with approved live operators.
 - Live lane preflight checks before running pipeline:
   - `gog` binary must exist on runner PATH
   - Gmail connectivity probe succeeds for selected `account`

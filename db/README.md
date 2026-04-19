@@ -202,6 +202,14 @@ Runtime notes:
 - Canary lane (`schedule`, or manual with `live_mode=false`) runs on `ubuntu-latest`.
 - Live lane (manual with `live_mode=true`) runs on `self-hosted`.
 - Default scheduled behavior uses repository fixtures for deterministic checks.
+- Live governance policy (enforced before preflight/pipeline):
+  - live job binds to protected GitHub Environment `hybrid-live`
+  - live dispatch is restricted to `main` branch
+  - live dispatch rejects `use_fixtures=true`
+  - triggering actor must be present in repo variable `HYBRID_LIVE_ALLOWED_ACTORS` (comma-separated usernames; defaults to `richducat` when unset)
+- Recommended setup:
+  - configure required reviewers for Environment `hybrid-live`
+  - maintain `HYBRID_LIVE_ALLOWED_ACTORS` for approved live operators
 - Live lane enforces preflight checks before the pipeline starts:
   - `gog` is installed on the runner
   - Gmail probe succeeds for the selected account
