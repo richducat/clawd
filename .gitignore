@@ -48,5 +48,7 @@ tmp/backups/
 db/*.sqlite
 db/*.db
 
-# Local clones of separate repos
+# Local clones of separate repos / big local sandboxes
 kickcraft/
+labstudio-app-sandbox/
+labstudio-app.local/
