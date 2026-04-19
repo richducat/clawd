@@ -11,6 +11,11 @@ const asOfArg = getArg(args, '--as-of');
 const artifactDirArg = getArg(args, '--artifact-dir') || 'artifacts';
 const artifactsMax = toSafeInt(getArg(args, '--artifacts-max'), 8, 1, 100);
 const jsonMode = hasFlag(args, '--json');
+const baselineConfig = {
+  window_runs: toSafeInt(getArg(args, '--baseline-window-runs'), 14, 3, 180),
+  min_samples: toSafeInt(getArg(args, '--baseline-min-samples'), 5, 2, 50),
+  sigma_multiplier: toSafeFloat(getArg(args, '--baseline-sigma-multiplier'), 3, 0.5, 10),
+};
 const thresholds = {
   max_lag_hours: readOptionalNumberArg(args, '--max-lag-hours'),
   max_seen_drift_hours: readOptionalNumberArg(args, '--max-seen-drift-hours'),
@@ -18,6 +23,7 @@ const thresholds = {
   max_entity_delta_pct: readOptionalNumberArg(args, '--max-entity-delta-pct'),
   max_chunk_ratio_delta: readOptionalNumberArg(args, '--max-chunk-ratio-delta'),
   max_link_delta_pct: readOptionalNumberArg(args, '--max-link-delta-pct'),
+  max_baseline_anomalies: readOptionalNumberArg(args, '--max-baseline-anomalies'),
 };
 const hasThresholds = Object.values(thresholds).some((value) => value !== null);
 
@@ -46,10 +52,12 @@ async function main() {
     const recentEntityUpdates = readRecentEntityUpdates(db);
     const failureSummary = readFailureSummary(artifactDirArg, artifactsMax);
     const reconciliation = readSourceReconciliation(db);
+    const baselines = readSourceBaselines(db, baselineConfig);
     const breaches = evaluateThresholdBreaches({
       sources: sourceHealth,
       failures: failureSummary,
       reconciliation,
+      baselines,
       thresholds,
     });
 
@@ -63,6 +71,8 @@ async function main() {
       recent_updates: recentEntityUpdates,
       failures: failureSummary,
       reconciliation,
+      baselines,
+      baseline_config: baselineConfig,
       thresholds: {
         configured: hasThresholds,
         ...thresholds,
@@ -318,6 +328,21 @@ function printMarkdown(result, artifactDirInput) {
   }
   console.log('');
 
+  console.log('## Rolling Baselines');
+  if (!result.baselines?.available) {
+    console.log(`- ${result.baselines?.note || 'baseline model unavailable'}`);
+  } else {
+    console.log(`- baseline window runs=${result.baseline_config?.window_runs}, min samples=${result.baseline_config?.min_samples}, sigma multiplier=${formatNumber(result.baseline_config?.sigma_multiplier)}`);
+    console.log(`- total anomalies=${result.baselines?.totals?.anomalies || 0}`);
+    for (const source of result.baselines.sources || []) {
+      console.log(`- ${source.source}: status=${source.status}, current_run_at=${source.current?.run_completed_at || 'n/a'}, anomalies=${source.anomalies.length}`);
+      for (const anomaly of source.anomalies) {
+        console.log(`  - [anomaly] ${anomaly.metric}: actual=${formatNumber(anomaly.actual)}, floor=${formatNumber(anomaly.floor)}, ceiling=${formatNumber(anomaly.ceiling)}, direction=${anomaly.direction}`);
+      }
+    }
+  }
+  console.log('');
+
   console.log('## Threshold Evaluation');
   if (!result.thresholds?.configured) {
     console.log('- no thresholds configured (report-only mode)');
@@ -330,6 +355,7 @@ function printMarkdown(result, artifactDirInput) {
   console.log(`- max_entity_delta_pct=${formatNumber(result.thresholds.max_entity_delta_pct)}`);
   console.log(`- max_chunk_ratio_delta=${formatNumber(result.thresholds.max_chunk_ratio_delta)}`);
   console.log(`- max_link_delta_pct=${formatNumber(result.thresholds.max_link_delta_pct)}`);
+  console.log(`- max_baseline_anomalies=${formatNumber(result.thresholds.max_baseline_anomalies)}`);
   console.log(`- breaches=${result.breaches.length}`);
 
   if (!result.breaches.length) {
@@ -344,6 +370,10 @@ function printMarkdown(result, artifactDirInput) {
     }
     if (breach.kind === 'reconciliation_unavailable') {
       console.log(`- [breach] reconciliation unavailable: ${breach.message}`);
+      continue;
+    }
+    if (breach.kind === 'baseline_anomalies_count') {
+      console.log(`- [breach] baseline anomalies: actual=${breach.actual} > limit=${breach.limit}`);
       continue;
     }
     console.log(`- [breach] ${breach.source} ${breach.kind}: actual=${breach.actual} > limit=${breach.limit}`);
@@ -443,6 +473,164 @@ function readSourceReconciliation(db) {
   };
 }
 
+function readSourceBaselines(db, config) {
+  if (!tableExists(db, 'ingestion_run_metrics')) {
+    return {
+      available: false,
+      note: 'ingestion_run_metrics table missing (run npm run db:hybrid:init)',
+      totals: { anomalies: 0 },
+      sources: [],
+    };
+  }
+
+  const rows = db.prepare(`
+    SELECT
+      source,
+      run_id,
+      status,
+      run_completed_at,
+      records_scanned,
+      entities_upserted,
+      links_upserted
+    FROM ingestion_run_metrics
+    WHERE source IN (${DEFAULT_SOURCES.map(() => '?').join(',')})
+    ORDER BY source ASC, run_completed_at DESC, run_id DESC
+  `).all(...DEFAULT_SOURCES);
+
+  if (!rows.length) {
+    return {
+      available: true,
+      note: 'no ingestion run history found yet',
+      totals: { anomalies: 0 },
+      sources: DEFAULT_SOURCES.map((source) => ({
+        source,
+        status: 'insufficient_history',
+        current: null,
+        sample_runs: 0,
+        baselines: {},
+        anomalies: [],
+      })),
+    };
+  }
+
+  const grouped = new Map();
+  for (const row of rows) {
+    const source = String(row.source);
+    if (!grouped.has(source)) grouped.set(source, []);
+    grouped.get(source).push({
+      run_id: row.run_id,
+      status: row.status,
+      run_completed_at: toIsoOrNull(row.run_completed_at),
+      records_scanned: Number(row.records_scanned || 0),
+      entities_upserted: Number(row.entities_upserted || 0),
+      links_upserted: Number(row.links_upserted || 0),
+    });
+  }
+
+  const metricDefs = [
+    { key: 'records_scanned', label: 'records_scanned' },
+    { key: 'entities_upserted', label: 'entities_upserted' },
+    { key: 'links_upserted', label: 'links_upserted' },
+  ];
+
+  const sources = DEFAULT_SOURCES.map((source) => {
+    const history = grouped.get(source) || [];
+    const current = history[0] || null;
+    const window = history.slice(1).filter((row) => row.status !== 'failed').slice(0, config.window_runs);
+
+    const baselines = {};
+    const anomalies = [];
+    for (const metric of metricDefs) {
+      const values = window.map((row) => Number(row[metric.key] || 0));
+      const baseline = computeBaselineBand(values, config.sigma_multiplier);
+      baselines[metric.label] = baseline;
+
+      if (!current || values.length < config.min_samples) continue;
+
+      const actual = Number(current[metric.key] || 0);
+      if (actual < baseline.floor || actual > baseline.ceiling) {
+        anomalies.push({
+          metric: metric.label,
+          actual,
+          floor: baseline.floor,
+          ceiling: baseline.ceiling,
+          direction: actual < baseline.floor ? 'below_floor' : 'above_ceiling',
+        });
+      }
+    }
+
+    return {
+      source,
+      status: current && window.length >= config.min_samples ? 'ok' : 'insufficient_history',
+      current,
+      sample_runs: window.length,
+      baselines,
+      anomalies,
+    };
+  });
+
+  return {
+    available: true,
+    note: null,
+    totals: {
+      anomalies: sources.reduce((sum, source) => sum + source.anomalies.length, 0),
+    },
+    sources,
+  };
+}
+
+function computeBaselineBand(values, sigmaMultiplier) {
+  if (!values.length) {
+    return {
+      samples: 0,
+      min: null,
+      max: null,
+      mean: null,
+      median: null,
+      mad: null,
+      floor: 0,
+      ceiling: 0,
+    };
+  }
+
+  const sorted = [...values].sort((a, b) => a - b);
+  const median = percentile(sorted, 50);
+  const madRaw = percentile(sorted.map((v) => Math.abs(v - median)).sort((a, b) => a - b), 50);
+  const madScaled = Number((madRaw * 1.4826).toFixed(3));
+
+  let band = madScaled * sigmaMultiplier;
+  if (band <= 0) {
+    const fallback = Math.max(1, median * 0.25);
+    band = Number(fallback.toFixed(3));
+  }
+
+  const floor = Number(Math.max(0, median - band).toFixed(3));
+  const ceiling = Number((median + band).toFixed(3));
+  const mean = Number((sorted.reduce((sum, v) => sum + v, 0) / sorted.length).toFixed(3));
+
+  return {
+    samples: sorted.length,
+    min: sorted[0],
+    max: sorted[sorted.length - 1],
+    mean,
+    median: Number(median.toFixed(3)),
+    mad: madScaled,
+    floor,
+    ceiling,
+  };
+}
+
+function percentile(sortedValues, p) {
+  if (!sortedValues.length) return 0;
+  const n = sortedValues.length;
+  const rank = (p / 100) * (n - 1);
+  const lower = Math.floor(rank);
+  const upper = Math.ceil(rank);
+  if (lower === upper) return sortedValues[lower];
+  const weight = rank - lower;
+  return sortedValues[lower] * (1 - weight) + sortedValues[upper] * weight;
+}
+
 function assertSchemaReady(db) {
   const required = ['entities', 'entity_chunks', 'ingestion_cursors'];
   const rows = db.prepare(`
@@ -516,12 +704,22 @@ function hasFlag(argv, name) {
 }
 
 function toSafeInt(value, fallback, min, max) {
+  if (value === null || value === undefined || value === '') return fallback;
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
   const rounded = Math.floor(n);
   if (rounded < min) return min;
   if (rounded > max) return max;
   return rounded;
+}
+
+function toSafeFloat(value, fallback, min, max) {
+  if (value === null || value === undefined || value === '') return fallback;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  if (n < min) return min;
+  if (n > max) return max;
+  return Number(n.toFixed(3));
 }
 
 function safeJson(raw) {
@@ -557,7 +755,7 @@ function formatNumber(value) {
   return String(value);
 }
 
-function evaluateThresholdBreaches({ sources, failures, reconciliation, thresholds }) {
+function evaluateThresholdBreaches({ sources, failures, reconciliation, baselines, thresholds }) {
   const breaches = [];
 
   if (thresholds.max_lag_hours !== null) {
@@ -610,6 +808,17 @@ function evaluateThresholdBreaches({ sources, failures, reconciliation, threshol
       });
     }
     return breaches;
+  }
+
+  if (thresholds.max_baseline_anomalies !== null) {
+    const anomalyCount = Number(baselines?.totals?.anomalies || 0);
+    if (anomalyCount > thresholds.max_baseline_anomalies) {
+      breaches.push({
+        kind: 'baseline_anomalies_count',
+        actual: anomalyCount,
+        limit: thresholds.max_baseline_anomalies,
+      });
+    }
   }
 
   for (const source of reconciliation.sources || []) {

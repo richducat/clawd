@@ -261,6 +261,10 @@ Include:
   - `--as-of <iso>` evaluates lag against a fixed timestamp
   - `--artifact-dir <path>` scans `pipeline-summary-*.json` artifacts for recent failure signals
   - `--artifacts-max <n>` controls how many recent artifact files to inspect
+  - rolling baseline model controls:
+    - `--baseline-window-runs <n>` prior runs per source for baseline bands (default `14`)
+    - `--baseline-min-samples <n>` minimum prior runs before anomaly checks activate (default `5`)
+    - `--baseline-sigma-multiplier <n>` MAD-based floor/ceiling band width multiplier (default `3`)
   - threshold guards (non-zero exit on breach):
     - `--max-lag-hours <n>`
     - `--max-seen-drift-hours <n>`
@@ -268,6 +272,7 @@ Include:
     - `--max-entity-delta-pct <n>`
     - `--max-chunk-ratio-delta <n>`
     - `--max-link-delta-pct <n>`
+    - `--max-baseline-anomalies <n>`
 - Report fields include:
   - source cursor lag/drift for `gmail`, `google_calendar`, and `kb_ingest`
   - entity/chunk coverage totals and grouped `domain/type` counts
@@ -277,6 +282,10 @@ Include:
     - entity delta + entity delta %
     - chunk-per-entity ratio drift
     - link delta + link delta %
+  - source-specific rolling baseline floor/ceiling bands and anomaly flags for:
+    - `records_scanned`
+    - `entities_upserted`
+    - `links_upserted`
   - threshold metadata + explicit breach records in JSON mode
 
 CI/alerting example:

@@ -277,6 +277,10 @@ Optional flags:
 - `--as-of <iso>`: evaluate lag/drift against a fixed timestamp (default `now`)
 - `--artifact-dir <path>`: scan pipeline summary artifacts for failure signals (default `artifacts`)
 - `--artifacts-max <n>`: max recent `pipeline-summary-*.json` files to inspect (default `8`)
+- rolling baseline model controls:
+  - `--baseline-window-runs <n>`: number of prior runs per source for baseline bands (default `14`)
+  - `--baseline-min-samples <n>`: minimum prior runs required before anomaly checks are active (default `5`)
+  - `--baseline-sigma-multiplier <n>`: MAD-based band width multiplier for floor/ceiling detection (default `3`)
 - threshold guards (optional, non-zero exit when breached):
   - `--max-lag-hours <n>`
   - `--max-seen-drift-hours <n>`
@@ -284,6 +288,7 @@ Optional flags:
   - `--max-entity-delta-pct <n>`
   - `--max-chunk-ratio-delta <n>`
   - `--max-link-delta-pct <n>`
+  - `--max-baseline-anomalies <n>`
 
 Threshold-gated example (CI/alerts):
 ```bash
@@ -311,4 +316,7 @@ Output includes:
   - entity delta + entity delta %
   - chunk-per-entity ratio drift
   - link delta + link delta %
+- source-specific rolling baseline model from `ingestion_run_metrics`:
+  - per-source floor/ceiling bands for `records_scanned`, `entities_upserted`, `links_upserted`
+  - anomaly flags when current run is below floor or above ceiling
 - threshold metadata (`thresholds`) and explicit breach records (`breaches`)
