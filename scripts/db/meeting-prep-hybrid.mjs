@@ -256,6 +256,22 @@ async function main() {
         commitmentRiskAging,
         commitmentCloseChecklist,
       });
+      const stakeholderNarrativePack = buildStakeholderNarrativePack({
+        title: event.title || '',
+        attendees: attendeeBriefs,
+        relationshipRiskSignals,
+        stakeholderIntentSummaries,
+        talkingPointSequence,
+      });
+      const dependencyFollowThroughPrompts = buildDependencyFollowThroughPrompts({
+        title: event.title || '',
+        attendees: attendeeBriefs,
+        relationshipRiskSignals,
+        stakeholderIntentSummaries,
+        commitmentCloseChecklist,
+        commitmentRiskAging,
+        ownerEscalationPrompts,
+      });
       const prepQuality = buildMeetingPrepQuality({
         attendees: attendeeBriefs,
         relationshipRiskSignals,
@@ -269,6 +285,8 @@ async function main() {
         followUpDraftPack,
         commitmentRiskAging,
         ownerEscalationPrompts,
+        stakeholderNarrativePack,
+        dependencyFollowThroughPrompts,
       });
 
       if (insertSnapshotStmt) {
@@ -318,6 +336,8 @@ async function main() {
         followUpDraftPack,
         commitmentRiskAging,
         ownerEscalationPrompts,
+        stakeholderNarrativePack,
+        dependencyFollowThroughPrompts,
         prepQuality,
       });
     }
@@ -491,6 +511,47 @@ function printMarkdownBrief({ account, date, timezone, internalDomains, meetings
         }
         if (prompt.desiredOutcome) {
           console.log(`    - Desired outcome: ${prompt.desiredOutcome}`);
+        }
+      }
+    }
+    if (meeting.stakeholderNarrativePack) {
+      console.log('- Stakeholder-ready narrative pack:');
+      const narrative = meeting.stakeholderNarrativePack;
+      if (narrative.headline) {
+        console.log(`  - Headline: ${narrative.headline}`);
+      }
+      if (narrative.opening) {
+        console.log(`  - Opening: ${narrative.opening}`);
+      }
+      if (narrative.middle) {
+        console.log(`  - Middle: ${narrative.middle}`);
+      }
+      if (narrative.close) {
+        console.log(`  - Close: ${narrative.close}`);
+      }
+      if (Array.isArray(narrative.proofPoints) && narrative.proofPoints.length) {
+        for (const point of narrative.proofPoints) {
+          console.log(`  - Proof point: ${point}`);
+        }
+      }
+      if (Array.isArray(narrative.topDependencies) && narrative.topDependencies.length) {
+        for (const dep of narrative.topDependencies) {
+          console.log(`  - Dependency: [${dep.priority}] ${dep.dependency} -> ${dep.ownerHint}`);
+        }
+      }
+    }
+    if (Array.isArray(meeting.dependencyFollowThroughPrompts) && meeting.dependencyFollowThroughPrompts.length) {
+      console.log('- Dependency-aware follow-through prompts:');
+      for (const prompt of meeting.dependencyFollowThroughPrompts) {
+        const dependsOn = Array.isArray(prompt.dependsOn) && prompt.dependsOn.length
+          ? ` [depends_on=${prompt.dependsOn.join(', ')}]`
+          : '';
+        console.log(`  - [${prompt.priority}] ${prompt.trigger} -> ${prompt.prompt}${dependsOn}`);
+        if (prompt.desiredOutcome) {
+          console.log(`    - Desired outcome: ${prompt.desiredOutcome}`);
+        }
+        if (prompt.ownerHint) {
+          console.log(`    - Owner hint: ${prompt.ownerHint}`);
         }
       }
     }
@@ -1749,6 +1810,239 @@ function buildOwnerEscalationPrompts({
   return prompts.slice(0, 6);
 }
 
+function buildStakeholderNarrativePack({
+  title,
+  attendees,
+  relationshipRiskSignals,
+  stakeholderIntentSummaries,
+  talkingPointSequence,
+}) {
+  const attendeeCount = Number(attendees?.length || 0);
+  const highRiskCount = (relationshipRiskSignals || [])
+    .filter((signal) => signal.severity === 'high')
+    .reduce((sum, signal) => sum + Number(signal.count || 0), 0);
+  const mediumRiskCount = (relationshipRiskSignals || [])
+    .filter((signal) => signal.severity === 'medium')
+    .reduce((sum, signal) => sum + Number(signal.count || 0), 0);
+  const topIntents = dedupeArray((stakeholderIntentSummaries || [])
+    .map((summary) => summary?.intent)
+    .filter(Boolean))
+    .slice(0, 3);
+  const topTalkingObjectives = dedupeArray((talkingPointSequence || [])
+    .map((point) => cleanLine(point?.objective || '', 140))
+    .filter(Boolean))
+    .slice(0, 3);
+
+  const headline = cleanLine(
+    `${title || 'Meeting'}: align ${attendeeCount} external stakeholder${attendeeCount === 1 ? '' : 's'} on decisions, owners, and timing.`,
+    180
+  );
+
+  let opening = 'Open with target outcome, current state, and one decision boundary.';
+  if (topIntents.includes('decision closure')) {
+    opening = 'Open with the decision boundary and required owner/date commitments.';
+  } else if (topIntents.includes('constraint mitigation')) {
+    opening = 'Open by surfacing top blocker and defining mitigation success criteria.';
+  } else if (topIntents.includes('scope clarity')) {
+    opening = 'Open with a concise scope/context reset and explicit success criteria.';
+  }
+
+  let middle = 'Use talking points to convert discussion into owner-assigned actions.';
+  if (highRiskCount > 0) {
+    middle = 'Prioritize objection/risk handling mid-meeting, then lock mitigation owners before moving to execution.';
+  } else if (mediumRiskCount > 0) {
+    middle = 'Run a short alignment pass mid-meeting and confirm assumptions before assigning actions.';
+  }
+
+  const close = highRiskCount > 0
+    ? 'Close by confirming mitigation owners, due dates, and the next checkpoint channel.'
+    : 'Close by confirming decisions, owners, due dates, and follow-up checkpoint time.';
+
+  const proofPoints = [];
+  proofPoints.push(`Stakeholder intents represented: ${topIntents.length ? topIntents.join(', ') : 'context validation'}.`);
+  proofPoints.push(`Risk profile: high=${highRiskCount}, medium=${mediumRiskCount}, attendees=${attendeeCount}.`);
+  if (topTalkingObjectives.length) {
+    proofPoints.push(`Primary talking objectives: ${topTalkingObjectives.join(' | ')}.`);
+  }
+
+  const topDependencies = buildNarrativeDependencies({
+    relationshipRiskSignals,
+    stakeholderIntentSummaries,
+  });
+
+  return {
+    headline,
+    opening: cleanLine(opening, 220),
+    middle: cleanLine(middle, 220),
+    close: cleanLine(close, 220),
+    proofPoints: proofPoints.slice(0, 4),
+    topDependencies,
+  };
+}
+
+function buildNarrativeDependencies({ relationshipRiskSignals, stakeholderIntentSummaries }) {
+  const deps = [];
+  const signalByCode = new Map((relationshipRiskSignals || []).map((signal) => [signal.code, signal]));
+  const intentCounts = new Map();
+  for (const summary of stakeholderIntentSummaries || []) {
+    const intent = summary?.intent || 'context validation';
+    intentCounts.set(intent, (intentCounts.get(intent) || 0) + 1);
+  }
+
+  const push = (code, priority, dependency, ownerHint) => {
+    if (deps.some((item) => item.code === code)) return;
+    deps.push({ code, priority, dependency, ownerHint });
+  };
+
+  if (signalByCode.has('rsvp_declined') || signalByCode.has('rsvp_unconfirmed')) {
+    push(
+      'dependency_participation_path',
+      'high',
+      'Participation certainty (live attendee or delegate/async path) must be confirmed before decision closeout.',
+      'Attendee manager'
+    );
+  }
+  if (signalByCode.has('high_individual_risk') || intentCounts.get('constraint mitigation')) {
+    push(
+      'dependency_mitigation_owner',
+      'high',
+      'Mitigation owner/date must be explicit before execution commitments are considered valid.',
+      'Risk owner'
+    );
+  }
+  if (intentCounts.get('decision closure')) {
+    push(
+      'dependency_decision_boundary',
+      'high',
+      'Decision boundary (what is approved now vs deferred) must be explicit.',
+      'Decision partner'
+    );
+  }
+  if (intentCounts.get('scope clarity') || intentCounts.get('context validation')) {
+    push(
+      'dependency_scope_alignment',
+      'medium',
+      'Scope and success criteria alignment is required before assigning delivery ownership.',
+      'Facilitator'
+    );
+  }
+  if (!deps.length) {
+    push(
+      'dependency_default_owner_date',
+      'low',
+      'Owner + due date confirmation is required before closeout.',
+      'Meeting owner'
+    );
+  }
+
+  return deps.slice(0, 4);
+}
+
+function buildDependencyFollowThroughPrompts({
+  title,
+  attendees,
+  relationshipRiskSignals,
+  stakeholderIntentSummaries,
+  commitmentCloseChecklist,
+  commitmentRiskAging,
+  ownerEscalationPrompts,
+}) {
+  const prompts = [];
+  const signalByCode = new Map((relationshipRiskSignals || []).map((signal) => [signal.code, signal]));
+  const intentCounts = new Map();
+  for (const summary of stakeholderIntentSummaries || []) {
+    const key = summary?.intent || 'context validation';
+    intentCounts.set(key, (intentCounts.get(key) || 0) + 1);
+  }
+  const hasHighAging = (commitmentRiskAging?.windows || []).some((window) => window.priority === 'high');
+  const hasOwnerCloseout = (commitmentCloseChecklist || []).some((item) => item.code === 'closeout_owner_date');
+  const hasRiskCloseout = (commitmentCloseChecklist || []).some((item) => item.code === 'risk_mitigation_commitment');
+  const attendeeCount = Number(attendees?.length || 0);
+
+  const push = (code, priority, trigger, prompt, desiredOutcome, ownerHint, dependsOn = []) => {
+    if (prompts.some((item) => item.code === code)) return;
+    prompts.push({
+      code,
+      priority,
+      trigger,
+      prompt,
+      desiredOutcome,
+      ownerHint,
+      dependsOn: dedupeArray(dependsOn).slice(0, 4),
+    });
+  };
+
+  if (hasOwnerCloseout || hasHighAging) {
+    push(
+      'followthrough_owner_dependency',
+      'high',
+      'Owner/date dependency is unresolved in the closeout thread.',
+      'Which open item still lacks owner + due date, and what is the hard commitment timestamp to close it?',
+      'Resolve owner/date dependency for all open commitments.',
+      'Meeting owner',
+      ['closeout_owner_date', 'aging_24h_owner_confirmation']
+    );
+  }
+  if (signalByCode.has('high_individual_risk') || hasRiskCloseout || intentCounts.get('constraint mitigation')) {
+    push(
+      'followthrough_mitigation_dependency',
+      'high',
+      'Risk mitigation dependency is blocking execution.',
+      'What mitigation path are we committing to now, who owns it, and what proof-of-completion check will we use?',
+      'Convert risk dependency into executable owner/date/proof plan.',
+      'Risk owner',
+      ['risk_mitigation_commitment', 'aging_72h_risk_mitigation']
+    );
+  }
+  if (signalByCode.has('rsvp_declined') || signalByCode.has('rsvp_unconfirmed') || intentCounts.get('participation flexibility')) {
+    push(
+      'followthrough_participation_dependency',
+      'medium',
+      'Attendance/delegate dependency remains open.',
+      'Who is the delegate or async decision owner, and by what timestamp will input land?',
+      'Stabilize participation dependency without delaying decisions.',
+      'Attendee manager',
+      ['attendance_fallback', 'aging_72h_rsvp_backfill']
+    );
+  }
+  if (intentCounts.get('decision closure') || hasKeyword(title, ['decision', 'approval', 'review'])) {
+    push(
+      'followthrough_decision_dependency',
+      'medium',
+      'Decision boundary is still ambiguous after meeting close.',
+      'What exactly is approved now vs deferred, and who owns each deferred decision checkpoint?',
+      'Prevent follow-through drift from ambiguous decision state.',
+      'Decision partner',
+      ['decision_lock']
+    );
+  }
+  if (attendeeCount >= 3 || (Array.isArray(ownerEscalationPrompts) && ownerEscalationPrompts.length > 0)) {
+    push(
+      'followthrough_cross_function_dependency',
+      'medium',
+      'Cross-functional handoff dependency is at risk of slipping into next cycle.',
+      'Which dependency must close this week to unblock downstream owners, and who will publish status?',
+      'Preserve cross-functional execution cadence.',
+      'Program owner',
+      ['owner_checkpoint_escalation']
+    );
+  }
+
+  if (!prompts.length) {
+    push(
+      'followthrough_default',
+      'low',
+      'General follow-through dependency risk.',
+      'What single dependency, if unresolved by tomorrow, would block execution most?',
+      'Surface and close the highest-impact dependency first.',
+      'Meeting owner',
+      ['default']
+    );
+  }
+
+  return prompts.slice(0, 6);
+}
+
 function buildMeetingPrepQuality({
   attendees,
   relationshipRiskSignals,
@@ -1762,6 +2056,8 @@ function buildMeetingPrepQuality({
   followUpDraftPack,
   commitmentRiskAging,
   ownerEscalationPrompts,
+  stakeholderNarrativePack,
+  dependencyFollowThroughPrompts,
 }) {
   const checks = [];
   const push = (code, severity, status, message) => {
@@ -1823,6 +2119,27 @@ function buildMeetingPrepQuality({
     push('owner_escalation_coverage', 'low', 'pass', `Owner escalation prompts present (${ownerEscalationPrompts.length}).`);
   } else {
     push('owner_escalation_coverage', 'high', 'fail', 'Missing owner escalation prompts.');
+  }
+
+  const narrativeHasProof = has(stakeholderNarrativePack?.proofPoints);
+  const narrativeHasDependencies = has(stakeholderNarrativePack?.topDependencies);
+  if (stakeholderNarrativePack && narrativeHasProof && narrativeHasDependencies) {
+    push('stakeholder_narrative_pack_coverage', 'low', 'pass', 'Stakeholder-ready narrative pack includes proof points and top dependencies.');
+  } else if (stakeholderNarrativePack) {
+    push('stakeholder_narrative_pack_coverage', 'medium', 'warn', 'Stakeholder-ready narrative pack is present but missing proof points or dependencies.');
+  } else {
+    push('stakeholder_narrative_pack_coverage', 'high', 'fail', 'Missing stakeholder-ready narrative pack.');
+  }
+
+  if (has(dependencyFollowThroughPrompts)) {
+    push(
+      'dependency_followthrough_coverage',
+      'low',
+      'pass',
+      `Dependency-aware follow-through prompts present (${dependencyFollowThroughPrompts.length}).`
+    );
+  } else {
+    push('dependency_followthrough_coverage', 'high', 'fail', 'Missing dependency-aware follow-through prompts.');
   }
 
   if (highRiskSignals.length > 0 && !has(objectionRebuttalPacks)) {
