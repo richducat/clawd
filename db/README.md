@@ -180,3 +180,26 @@ Runtime notes:
 - CI sets `OPENCLAW_DB_ROOT` to a workspace-local temp directory so no DB files are committed.
 - Default mode uses repository fixtures for deterministic scheduled checks.
 - To run against live connector data, use a self-hosted runner environment where the live source prerequisites are available and set `use_fixtures=false` on manual dispatch.
+
+## Retrieval/query layer (roadmap tranche option #2)
+
+Query command:
+```bash
+npm run db:hybrid:query -- --query "appointment scheduling"
+```
+
+Optional flags:
+- `--query <text>`: required plain-text query
+- `--limit <n>`: max ranked matches (default `10`, max `100`)
+- `--domain <crm|kb|ops|mixed>`: filter by domain (repeatable)
+- `--type <entity_type>`: filter by entity type (repeatable)
+- `--json`: emit machine-readable JSON output
+
+Ranking + output notes:
+- Deterministic lexical ranking is used so results are stable even when embedding vectors are absent.
+- Scores weight title hits, chunk hits, and query token coverage.
+- Results include traceability fields:
+  - `entity_id`
+  - `external_ref`
+  - `chunk_index`
+  - `snippet`
