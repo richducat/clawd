@@ -263,6 +263,9 @@ Runtime notes:
     - `--max-seen-drift-hours 48`
     - `--max-artifact-issues 0`
     - `--max-slo-budget-burn-pct 100`
+    - optional quality-drift guards:
+      - `--max-quality-drift-signals <n>`
+      - `--max-quality-severity-score <n>`
 - Threshold breaches return exit code `2`, causing the workflow job to fail while still uploading artifacts via `if: always()`.
 - Live lane also runs canary-vs-live drift comparison after health report generation:
   - resolves latest same-date canary artifact (`hybrid-daily-canary-YYYY-MM-DD`) via GitHub Actions artifact API
@@ -424,6 +427,8 @@ Optional flags:
   - `--max-link-delta-pct <n>`
   - `--max-baseline-anomalies <n>`
   - `--max-slo-budget-burn-pct <n>`
+  - `--max-quality-drift-signals <n>`
+  - `--max-quality-severity-score <n>`
 
 Threshold-gated example (CI/alerts):
 ```bash
@@ -448,7 +453,9 @@ npm run db:hybrid:health -- \
   --max-lag-hours 24 \
   --max-seen-drift-hours 48 \
   --max-artifact-issues 0 \
-  --max-slo-budget-burn-pct 100
+  --max-slo-budget-burn-pct 100 \
+  --max-quality-drift-signals 999 \
+  --max-quality-severity-score 999
 ```
 
 Exit behavior:
@@ -488,5 +495,9 @@ Output includes:
   - scans `ingestion-trends-*.json` and `ingestion-health-*.json`
   - aggregates breach events by severity and source/top breach kinds
 - threshold metadata (`thresholds`) and explicit breach records (`breaches`)
+- meeting-prep quality trendline drift analysis from `artifacts/meeting-prep-quality-*.json` and `artifacts/meeting-prep-phase*.json`:
+  - trendline snapshots (`avg_score`, `avg_gap_count`, failing-check severity score)
+  - deterministic drift signals (`quality_score_drop`, `quality_gap_growth`, `gap_severity_growth`, `high_severity_gap_growth`)
+  - deterministic escalation lanes by latest gap severity (`immediate_owner_escalation`, `same_day_quality_remediation`, `next_cycle_hardening`, `monitor_only`)
 - trend artifact export metadata (`trend_artifacts`) with written/pruned file paths when enabled
 - weekly SLO digest artifact export metadata (`slo_digest_artifacts`) with written/pruned file paths when enabled
