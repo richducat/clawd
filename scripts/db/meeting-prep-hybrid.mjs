@@ -349,6 +349,24 @@ async function main() {
         stakeholderCloseScripts,
         counterfactualDecisionDrillPrompts,
       });
+      const riskWeightedClosePlanSequencing = buildRiskWeightedClosePlanSequencing({
+        title: event.title || '',
+        attendees: attendeeBriefs,
+        relationshipRiskSignals,
+        commitmentCloseChecklist,
+        commitmentRiskAging,
+        ownerEscalationPrompts,
+        dependencyFollowThroughPrompts,
+        decisionCommitmentSequencing,
+        stakeholderObjectionResponseHandoffMap,
+      });
+      const crossOwnerDependencySignoffPack = buildCrossOwnerDependencySignoffPack({
+        attendees: attendeeBriefs,
+        dependencyFollowThroughPrompts,
+        decisionCommitmentSequencing,
+        riskWeightedClosePlanSequencing,
+        stakeholderObjectionResponseHandoffMap,
+      });
       const actionOwnerLoadBalancing = buildActionOwnerLoadBalancing({
         attendees: attendeeBriefs,
         meetingRecommendations,
@@ -375,6 +393,8 @@ async function main() {
         stakeholderProofRequests,
         counterfactualDecisionDrillPrompts,
         stakeholderObjectionResponseHandoffMap,
+        riskWeightedClosePlanSequencing,
+        crossOwnerDependencySignoffPack,
       });
 
       if (insertSnapshotStmt) {
@@ -433,6 +453,8 @@ async function main() {
         stakeholderProofRequests,
         counterfactualDecisionDrillPrompts,
         stakeholderObjectionResponseHandoffMap,
+        riskWeightedClosePlanSequencing,
+        crossOwnerDependencySignoffPack,
         actionOwnerLoadBalancing,
         prepQuality,
       });
@@ -745,6 +767,48 @@ function printMarkdownBrief({ account, date, timezone, internalDomains, meetings
         }
         if (item.proofRequest) {
           console.log(`    - Proof request: ${item.proofRequest}`);
+        }
+      }
+    }
+    if (meeting.riskWeightedClosePlanSequencing) {
+      console.log('- Risk-weighted close-plan sequencing:');
+      const sequencing = meeting.riskWeightedClosePlanSequencing;
+      if (sequencing.summary) {
+        console.log(`  - Summary: ${sequencing.summary}`);
+      }
+      if (Array.isArray(sequencing.steps) && sequencing.steps.length) {
+        for (const step of sequencing.steps) {
+          const dependsOn = Array.isArray(step.dependsOn) && step.dependsOn.length
+            ? ` [depends_on=${step.dependsOn.join(', ')}]`
+            : '';
+          console.log(`  - (${step.order}) [${step.priority}] weight=${step.riskWeight}: ${step.step}${dependsOn}`);
+          if (step.trigger) {
+            console.log(`    - Trigger: ${step.trigger}`);
+          }
+          if (step.ownerHint) {
+            console.log(`    - Owner hint: ${step.ownerHint}`);
+          }
+        }
+      }
+    }
+    if (Array.isArray(meeting.crossOwnerDependencySignoffPack) && meeting.crossOwnerDependencySignoffPack.length) {
+      console.log('- Cross-owner dependency signoff pack:');
+      for (const item of meeting.crossOwnerDependencySignoffPack) {
+        const dependsOn = Array.isArray(item.dependsOn) && item.dependsOn.length
+          ? ` [depends_on=${item.dependsOn.join(', ')}]`
+          : '';
+        console.log(`  - [${item.priority}] ${item.dependency}${dependsOn}`);
+        if (item.primaryOwner) {
+          console.log(`    - Primary owner: ${item.primaryOwner}`);
+        }
+        if (item.backupOwner) {
+          console.log(`    - Backup owner: ${item.backupOwner}`);
+        }
+        if (item.signoffQuestion) {
+          console.log(`    - Signoff question: ${item.signoffQuestion}`);
+        }
+        if (item.dueWindow) {
+          console.log(`    - Due window: ${item.dueWindow}`);
         }
       }
     }
@@ -2983,6 +3047,250 @@ function buildStakeholderObjectionResponseHandoffMap({
   return handoff.slice(0, maxRows);
 }
 
+function buildRiskWeightedClosePlanSequencing({
+  title,
+  attendees,
+  relationshipRiskSignals,
+  commitmentCloseChecklist,
+  commitmentRiskAging,
+  ownerEscalationPrompts,
+  dependencyFollowThroughPrompts,
+  decisionCommitmentSequencing,
+  stakeholderObjectionResponseHandoffMap,
+}) {
+  const steps = [];
+  const signalByCode = new Map((relationshipRiskSignals || []).map((signal) => [signal.code, signal]));
+  const highRiskAttendees = (attendees || []).filter((attendee) => attendee?.relationshipRisk?.level === 'high').length;
+  const highPriorityChecklist = (commitmentCloseChecklist || []).filter((item) => item.priority === 'high');
+  const topDependencyPrompt = (dependencyFollowThroughPrompts || [])[0] || null;
+  const topEscalationPrompt = (ownerEscalationPrompts || [])[0] || null;
+  const topAgingWindow = (commitmentRiskAging?.windows || [])[0] || null;
+  const topDecisionStep = (decisionCommitmentSequencing?.steps || [])[0] || null;
+  const topObjectionLane = (stakeholderObjectionResponseHandoffMap || [])[0] || null;
+
+  const push = (code, priority, riskWeight, step, trigger, ownerHint, dependsOn = []) => {
+    if (steps.some((item) => item.code === code)) return;
+    steps.push({
+      code,
+      priority,
+      riskWeight,
+      step: cleanLine(step, 220),
+      trigger: cleanLine(trigger, 220),
+      ownerHint: cleanLine(ownerHint, 120),
+      dependsOn: dedupeArray(dependsOn).slice(0, 4),
+    });
+  };
+
+  if (topDecisionStep) {
+    push(
+      'closeplan_decision_lock',
+      'high',
+      100,
+      `Lock decision boundary before any downstream handoff: "${topDecisionStep.step}".`,
+      'Downstream actions are blocked until the approved-now vs deferred-now line is explicit.',
+      topDecisionStep.ownerHint || 'Decision owner',
+      [topDecisionStep.code]
+    );
+  }
+
+  if (topDependencyPrompt) {
+    push(
+      'closeplan_dependency_signoff',
+      'high',
+      signalByCode.has('high_individual_risk') || highRiskAttendees > 0 ? 95 : 85,
+      'Confirm cross-owner dependency signoff and checkpoint timestamp before closeout.',
+      topDependencyPrompt.trigger || 'Cross-functional handoff risk signal is present.',
+      topDependencyPrompt.ownerHint || 'Program owner',
+      [topDependencyPrompt.code]
+    );
+  }
+
+  if (topObjectionLane) {
+    push(
+      'closeplan_objection_handoff',
+      topObjectionLane.priority === 'high' ? 'high' : 'medium',
+      topObjectionLane.priority === 'high' ? 90 : 75,
+      `Route objection lane "${topObjectionLane.objectionTheme}" with explicit owner/script.`,
+      'Objection-response ownership needs explicit closeout routing to avoid post-meeting drift.',
+      topObjectionLane.responseOwner || 'Meeting owner',
+      ['stakeholder_objection_handoff']
+    );
+  }
+
+  if (topEscalationPrompt) {
+    push(
+      'closeplan_escalation_trigger',
+      topEscalationPrompt.priority || 'medium',
+      topEscalationPrompt.priority === 'high' ? 88 : 72,
+      'Pre-authorize escalation trigger with owner/date before leaving the meeting.',
+      topEscalationPrompt.trigger || 'Escalation signal requires deterministic owner routing.',
+      topEscalationPrompt.ownerHint || 'Escalation owner',
+      ['owner_escalation']
+    );
+  }
+
+  if (topAgingWindow) {
+    push(
+      'closeplan_aging_checkpoint',
+      topAgingWindow.priority || 'medium',
+      topAgingWindow.priority === 'high' ? 86 : 70,
+      `Bind follow-through checkpoint to aging window "${topAgingWindow.window}".`,
+      topAgingWindow.trigger || 'Aging model indicates unresolved commitment risk.',
+      topAgingWindow.ownerHint || 'Execution owner',
+      ['commitment_risk_aging']
+    );
+  }
+
+  if (highPriorityChecklist.length > 0) {
+    push(
+      'closeplan_high_priority_checks',
+      'medium',
+      68,
+      `Resolve ${highPriorityChecklist.length} high-priority closeout checklist item(s) before exit.`,
+      'High-priority closeout checks exist and should be cleared in risk order.',
+      'Meeting owner',
+      ['closeout_checklist']
+    );
+  }
+
+  if (hasKeyword(title, ['review', 'roadmap', 'planning', 'decision'])) {
+    push(
+      'closeplan_scope_recap',
+      'low',
+      55,
+      'End with a one-line scope recap and explicit owner/date signoff broadcast.',
+      'Roadmap/review contexts are prone to downstream interpretation drift without recap lock.',
+      'Meeting owner',
+      ['scope_recap']
+    );
+  }
+
+  if (!steps.length) {
+    push(
+      'closeplan_default',
+      'low',
+      50,
+      'Publish owner/date close plan and one dependency checkpoint in the follow-up draft.',
+      'Fallback deterministic close lane when meeting risk signals are sparse.',
+      'Meeting owner',
+      ['default']
+    );
+  }
+
+  const ranked = steps
+    .slice(0, 6)
+    .sort((a, b) => Number(b.riskWeight || 0) - Number(a.riskWeight || 0))
+    .map((step, index) => ({
+      ...step,
+      order: index + 1,
+    }));
+
+  const summary = `Prioritized ${ranked.length} close-plan step(s) by risk weight to lock decisions, owners, and dependency signoff before exit.`;
+
+  return {
+    summary: cleanLine(summary, 240),
+    steps: ranked,
+  };
+}
+
+function buildCrossOwnerDependencySignoffPack({
+  attendees,
+  dependencyFollowThroughPrompts,
+  decisionCommitmentSequencing,
+  riskWeightedClosePlanSequencing,
+  stakeholderObjectionResponseHandoffMap,
+}) {
+  const pack = [];
+  const attendeeOwners = (attendees || [])
+    .filter((attendee) => attendee?.email)
+    .map((attendee) => ({
+      email: attendee.email,
+      name: attendee.name || null,
+      riskLevel: attendee?.relationshipRisk?.level || 'low',
+    }));
+  const topOwners = attendeeOwners.slice(0, 4);
+  const primaryOwnerLabel = (index = 0) => {
+    const owner = topOwners[index] || null;
+    if (!owner) return index === 0 ? 'Meeting owner' : 'Delegate owner';
+    return owner.name ? `${owner.name} <${owner.email}>` : owner.email;
+  };
+  const topRiskStep = (riskWeightedClosePlanSequencing?.steps || [])[0] || null;
+  const topDependencyPrompt = (dependencyFollowThroughPrompts || [])[0] || null;
+  const topDecisionStep = (decisionCommitmentSequencing?.steps || [])[0] || null;
+  const topObjectionLane = (stakeholderObjectionResponseHandoffMap || [])[0] || null;
+
+  const push = (code, priority, dependency, signoffQuestion, dueWindow, dependsOn = []) => {
+    if (pack.some((row) => row.code === code)) return;
+    pack.push({
+      code,
+      priority,
+      dependency: cleanLine(dependency, 220),
+      primaryOwner: cleanLine(primaryOwnerLabel(0), 120),
+      backupOwner: cleanLine(primaryOwnerLabel(1), 120),
+      signoffQuestion: cleanLine(signoffQuestion, 240),
+      dueWindow: cleanLine(dueWindow, 120),
+      dependsOn: dedupeArray(dependsOn).slice(0, 4),
+    });
+  };
+
+  if (topDecisionStep) {
+    push(
+      'signoff_decision_boundary',
+      'high',
+      'Decision boundary lock before downstream execution.',
+      'Do all owners confirm the approved-now vs deferred-now boundary, owner/date, and blocker path?',
+      'before meeting close',
+      [topDecisionStep.code]
+    );
+  }
+
+  if (topDependencyPrompt) {
+    push(
+      'signoff_dependency_handoff',
+      topDependencyPrompt.priority || 'high',
+      topDependencyPrompt.trigger || 'Cross-functional dependency handoff.',
+      'Has each owner accepted handoff criteria and timestamped their next checkpoint?',
+      'within 2 hours',
+      [topDependencyPrompt.code]
+    );
+  }
+
+  if (topObjectionLane) {
+    push(
+      'signoff_objection_lane',
+      topObjectionLane.priority === 'high' ? 'high' : 'medium',
+      topObjectionLane.objectionTheme || 'Stakeholder objection-response lane.',
+      'Is response ownership and script agreed for the top objection before follow-up send?',
+      'same business day',
+      ['stakeholder_objection_handoff']
+    );
+  }
+
+  if (topRiskStep) {
+    push(
+      'signoff_top_risk_step',
+      topRiskStep.priority || 'medium',
+      topRiskStep.step || 'Top risk-weighted close-plan lane.',
+      'Is the highest risk-weighted close-plan step signed off with a primary and backup owner?',
+      'same business day',
+      [topRiskStep.code]
+    );
+  }
+
+  if (!pack.length) {
+    push(
+      'signoff_default',
+      'low',
+      'Fallback dependency signoff lane.',
+      'Do we have one primary owner, one backup owner, and a checkpoint timestamp?',
+      'within 1 business day',
+      ['default']
+    );
+  }
+
+  return pack.slice(0, 6);
+}
+
 function buildMeetingPrepQuality({
   attendees,
   relationshipRiskSignals,
@@ -3004,6 +3312,8 @@ function buildMeetingPrepQuality({
   stakeholderProofRequests,
   counterfactualDecisionDrillPrompts,
   stakeholderObjectionResponseHandoffMap,
+  riskWeightedClosePlanSequencing,
+  crossOwnerDependencySignoffPack,
 }) {
   const checks = [];
   const push = (code, severity, status, message) => {
@@ -3155,6 +3465,31 @@ function buildMeetingPrepQuality({
     );
   } else {
     push('stakeholder_objection_handoff_coverage', 'high', 'fail', 'Missing stakeholder objection-response handoff map section.');
+  }
+
+  const riskWeightedHasSteps = has(riskWeightedClosePlanSequencing?.steps);
+  if (riskWeightedClosePlanSequencing && riskWeightedHasSteps) {
+    push(
+      'risk_weighted_close_plan_sequencing_coverage',
+      'low',
+      'pass',
+      `Risk-weighted close-plan sequencing present (${riskWeightedClosePlanSequencing.steps.length} steps).`
+    );
+  } else if (riskWeightedClosePlanSequencing) {
+    push('risk_weighted_close_plan_sequencing_coverage', 'medium', 'warn', 'Risk-weighted close-plan sequencing is present but has no steps.');
+  } else {
+    push('risk_weighted_close_plan_sequencing_coverage', 'high', 'fail', 'Missing risk-weighted close-plan sequencing section.');
+  }
+
+  if (has(crossOwnerDependencySignoffPack)) {
+    push(
+      'cross_owner_dependency_signoff_coverage',
+      'low',
+      'pass',
+      `Cross-owner dependency signoff pack present (${crossOwnerDependencySignoffPack.length}).`
+    );
+  } else {
+    push('cross_owner_dependency_signoff_coverage', 'high', 'fail', 'Missing cross-owner dependency signoff pack section.');
   }
 
   if (highRiskSignals.length > 0 && !has(objectionRebuttalPacks)) {
