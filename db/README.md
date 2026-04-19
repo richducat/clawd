@@ -320,7 +320,7 @@ Runtime notes:
       - `default`
       - `run_mode.<canary|live>`
       - `incident_severity.<medium|high>`
-      - `incident_type.<health_gate_breach|drift_signal_detected|drift_gate_breach|quality_drift_signal_detected|quality_drift_gate_breach>`
+      - `incident_type.<health_gate_breach|drift_signal_detected|drift_gate_breach|quality_drift_signal_detected|quality_drift_gate_breach|quality_phase12_signal_detected|quality_phase12_gate_breach>`
       - `incident_age_band.<new|fresh|aging|critical>`
     - each node supports:
       - `ack_sla_minutes`
@@ -393,6 +393,10 @@ Runtime notes:
       - `quality_drift_signal_count`
       - `quality_severity_score`
       - `quality_gate_breached`
+      - `quality_phase12_gate_breached`
+      - `quality_failure_mode_rehearsal_breach_count`
+      - `quality_stakeholder_proof_request_breach_count`
+      - `quality_phase12_top_breach_kind`
       - `quality_top_lane`
       - `quality_top_lane_severity`
   - dispatcher persists ACK state to `ALERT_ACK_STATE_PATH` and reconciles acknowledged incidents via marker/key evidence on subsequent runs
