@@ -135,6 +135,8 @@ Output behavior:
 - For each meeting, also includes:
   - role-aware prep brief items with explicit priority (`high`/`medium`/`low`)
   - agenda-gap detection signals (`code`, `severity`, `message`, `recommendation`) derived from attendee role mix + risk signals
+  - deterministic talking-point sequence (`order`, `priority`, `objective`, `prompt`, `drivers`)
+  - objection-rebuttal packs for medium/high-risk or unstable attendees (`objection`, `rebuttal`, `evidence`, `nextAsk`)
   - deterministic meeting-level recommendations derived from cross-attendee risk patterns, each with confidence metadata
   - cross-attendee relationship risk signals (`code`, `severity`, `count`, `attendees`, `message`)
   - meeting-level risk delta summary versus prior runs
