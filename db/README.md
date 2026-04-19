@@ -33,6 +33,7 @@ Current baseline schema includes:
 - `entity_chunks` for chunked text and embedding vectors (stored as JSON arrays)
 - `entity_links` for typed relations between entities
 - `ingestion_cursors` for incremental source checkpointing
+- `ingestion_run_metrics` for per-source run counters and reconciliation checks
 
 ## Roadmap item #3: Gmail + Calendar daily ingestion
 
@@ -260,6 +261,9 @@ Optional flags:
   - `--max-lag-hours <n>`
   - `--max-seen-drift-hours <n>`
   - `--max-artifact-issues <n>`
+  - `--max-entity-delta-pct <n>`
+  - `--max-chunk-ratio-delta <n>`
+  - `--max-link-delta-pct <n>`
 
 Threshold-gated example (CI/alerts):
 ```bash
@@ -282,4 +286,9 @@ Output includes:
 - entity/chunk coverage totals and counts grouped by `domain/type`
 - recent entity update snapshots
 - recent failure/error signals inferred from pipeline summary artifacts when present
+- source-level reconciliation from `ingestion_run_metrics`:
+  - latest vs previous run counters per source
+  - entity delta + entity delta %
+  - chunk-per-entity ratio drift
+  - link delta + link delta %
 - threshold metadata (`thresholds`) and explicit breach records (`breaches`)

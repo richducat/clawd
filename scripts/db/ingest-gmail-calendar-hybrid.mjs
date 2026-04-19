@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -29,6 +30,7 @@ main().catch((err) => {
 async function main() {
   loadEnvLocal();
   await ensureDbDir();
+  const runStartedAt = new Date().toISOString();
 
   const targetPath = dbPath('hybrid-core.sqlite');
   const db = openSqlite(targetPath);
@@ -155,6 +157,31 @@ async function main() {
         });
         state.calendar.cursorUpdated = true;
       }
+
+      const runCompletedAt = new Date().toISOString();
+      const runId = crypto.randomUUID();
+      writeIngestionRunMetric(db, buildSourceMetric({
+        runId,
+        source: 'gmail',
+        sourceSummary: state.gmail,
+        runStartedAt,
+        runCompletedAt,
+        extraMetrics: {
+          cursor_updated: state.gmail.cursorUpdated,
+          mode: gmailJsonPath ? 'fixture' : 'live',
+        },
+      }));
+      writeIngestionRunMetric(db, buildSourceMetric({
+        runId,
+        source: 'google_calendar',
+        sourceSummary: state.calendar,
+        runStartedAt,
+        runCompletedAt,
+        extraMetrics: {
+          cursor_updated: state.calendar.cursorUpdated,
+          mode: calendarJsonPath ? 'fixture' : 'live',
+        },
+      }));
     });
 
     tx();
@@ -420,6 +447,53 @@ function writeCursor(db, source, payload) {
   `).run({ source, cursor_json: JSON.stringify(payload) });
 }
 
+function buildSourceMetric({
+  runId,
+  source,
+  sourceSummary,
+  runStartedAt,
+  runCompletedAt,
+  extraMetrics,
+}) {
+  const summary = sourceSummary || {};
+  const entitiesUpserted = Number(summary.upsertedMessages || summary.upsertedEvents || 0)
+    + Number(summary.upsertedContacts || 0);
+  const linksUpserted = Number(summary.upsertedLinks || 0);
+  const chunksUpserted = entitiesUpserted;
+  const sourceError = cleanLine(summary.error || '');
+
+  return {
+    run_id: runId,
+    source,
+    status: sourceError ? 'failed' : 'ok',
+    run_started_at: runStartedAt,
+    run_completed_at: runCompletedAt,
+    records_scanned: Number(summary.scanned || 0),
+    entities_upserted: entitiesUpserted,
+    chunks_upserted: chunksUpserted,
+    links_upserted: linksUpserted,
+    error_message: sourceError || null,
+    metrics_json: JSON.stringify({
+      latest_seen_at: summary.latestSeenAt || null,
+      ...extraMetrics,
+    }),
+  };
+}
+
+function writeIngestionRunMetric(db, metric) {
+  db.prepare(`
+    INSERT INTO ingestion_run_metrics (
+      run_id, source, status, run_started_at, run_completed_at,
+      records_scanned, entities_upserted, chunks_upserted, links_upserted,
+      error_message, metrics_json
+    ) VALUES (
+      @run_id, @source, @status, @run_started_at, @run_completed_at,
+      @records_scanned, @entities_upserted, @chunks_upserted, @links_upserted,
+      @error_message, @metrics_json
+    )
+  `).run(metric);
+}
+
 async function fetchGmailMessages({ account, max, sinceIso, retryConfig }) {
   const afterEpoch = Math.floor(new Date(sinceIso).getTime() / 1000);
   const query = `after:${afterEpoch} -category:promotions -category:social`;
@@ -600,7 +674,13 @@ function loadJsonFile(file) {
 }
 
 function assertHybridSchemaReady(db) {
-  const requiredTables = ['entities', 'entity_chunks', 'entity_links', 'ingestion_cursors'];
+  const requiredTables = [
+    'entities',
+    'entity_chunks',
+    'entity_links',
+    'ingestion_cursors',
+    'ingestion_run_metrics',
+  ];
   const rows = db
     .prepare(`
       SELECT name FROM sqlite_master

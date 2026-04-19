@@ -15,6 +15,9 @@ const thresholds = {
   max_lag_hours: readOptionalNumberArg(args, '--max-lag-hours'),
   max_seen_drift_hours: readOptionalNumberArg(args, '--max-seen-drift-hours'),
   max_artifact_issues: readOptionalNumberArg(args, '--max-artifact-issues'),
+  max_entity_delta_pct: readOptionalNumberArg(args, '--max-entity-delta-pct'),
+  max_chunk_ratio_delta: readOptionalNumberArg(args, '--max-chunk-ratio-delta'),
+  max_link_delta_pct: readOptionalNumberArg(args, '--max-link-delta-pct'),
 };
 const hasThresholds = Object.values(thresholds).some((value) => value !== null);
 
@@ -42,9 +45,11 @@ async function main() {
     const entityByDomainType = readEntityByDomainType(db);
     const recentEntityUpdates = readRecentEntityUpdates(db);
     const failureSummary = readFailureSummary(artifactDirArg, artifactsMax);
+    const reconciliation = readSourceReconciliation(db);
     const breaches = evaluateThresholdBreaches({
       sources: sourceHealth,
       failures: failureSummary,
+      reconciliation,
       thresholds,
     });
 
@@ -57,6 +62,7 @@ async function main() {
       by_domain_type: entityByDomainType,
       recent_updates: recentEntityUpdates,
       failures: failureSummary,
+      reconciliation,
       thresholds: {
         configured: hasThresholds,
         ...thresholds,
@@ -301,6 +307,17 @@ function printMarkdown(result, artifactDirInput) {
   }
   console.log('');
 
+  console.log('## Reconciliation');
+  if (!result.reconciliation?.available) {
+    console.log(`- ${result.reconciliation?.note || 'reconciliation unavailable'}`);
+  } else {
+    console.log(`- compared sources: ${result.reconciliation.sources.length}`);
+    for (const source of result.reconciliation.sources) {
+      console.log(`- ${source.source}: status=${source.status}, current_run_at=${source.current?.run_completed_at || 'n/a'}, previous_run_at=${source.previous?.run_completed_at || 'n/a'}, entity_delta=${formatNumber(source.deltas.entity_delta)}, entity_delta_pct=${formatNumber(source.deltas.entity_delta_pct)}, chunk_ratio_delta=${formatNumber(source.deltas.chunk_ratio_delta)}, link_delta=${formatNumber(source.deltas.link_delta)}, link_delta_pct=${formatNumber(source.deltas.link_delta_pct)}`);
+    }
+  }
+  console.log('');
+
   console.log('## Threshold Evaluation');
   if (!result.thresholds?.configured) {
     console.log('- no thresholds configured (report-only mode)');
@@ -310,6 +327,9 @@ function printMarkdown(result, artifactDirInput) {
   console.log(`- max_lag_hours=${formatNumber(result.thresholds.max_lag_hours)}`);
   console.log(`- max_seen_drift_hours=${formatNumber(result.thresholds.max_seen_drift_hours)}`);
   console.log(`- max_artifact_issues=${formatNumber(result.thresholds.max_artifact_issues)}`);
+  console.log(`- max_entity_delta_pct=${formatNumber(result.thresholds.max_entity_delta_pct)}`);
+  console.log(`- max_chunk_ratio_delta=${formatNumber(result.thresholds.max_chunk_ratio_delta)}`);
+  console.log(`- max_link_delta_pct=${formatNumber(result.thresholds.max_link_delta_pct)}`);
   console.log(`- breaches=${result.breaches.length}`);
 
   if (!result.breaches.length) {
@@ -322,8 +342,105 @@ function printMarkdown(result, artifactDirInput) {
       console.log(`- [breach] artifact issues: actual=${breach.actual} > limit=${breach.limit}`);
       continue;
     }
+    if (breach.kind === 'reconciliation_unavailable') {
+      console.log(`- [breach] reconciliation unavailable: ${breach.message}`);
+      continue;
+    }
     console.log(`- [breach] ${breach.source} ${breach.kind}: actual=${breach.actual} > limit=${breach.limit}`);
   }
+}
+
+function readSourceReconciliation(db) {
+  if (!tableExists(db, 'ingestion_run_metrics')) {
+    return {
+      available: false,
+      note: 'ingestion_run_metrics table missing (run npm run db:hybrid:init)',
+      sources: [],
+    };
+  }
+
+  const rows = db.prepare(`
+    SELECT
+      source,
+      run_id,
+      status,
+      run_completed_at,
+      records_scanned,
+      entities_upserted,
+      chunks_upserted,
+      links_upserted,
+      error_message
+    FROM ingestion_run_metrics
+    WHERE source IN (${DEFAULT_SOURCES.map(() => '?').join(',')})
+    ORDER BY source ASC, run_completed_at DESC, run_id DESC
+  `).all(...DEFAULT_SOURCES);
+
+  const grouped = new Map();
+  for (const row of rows) {
+    const source = String(row.source);
+    if (!grouped.has(source)) grouped.set(source, []);
+    const list = grouped.get(source);
+    if (list.length < 2) {
+      list.push({
+        run_id: row.run_id,
+        status: row.status,
+        run_completed_at: toIsoOrNull(row.run_completed_at),
+        records_scanned: Number(row.records_scanned || 0),
+        entities_upserted: Number(row.entities_upserted || 0),
+        chunks_upserted: Number(row.chunks_upserted || 0),
+        links_upserted: Number(row.links_upserted || 0),
+        error_message: row.error_message || null,
+      });
+    }
+  }
+
+  const sources = DEFAULT_SOURCES.map((source) => {
+    const pair = grouped.get(source) || [];
+    const current = pair[0] || null;
+    const previous = pair[1] || null;
+
+    if (!current || !previous) {
+      return {
+        source,
+        status: 'insufficient_history',
+        current,
+        previous,
+        deltas: {
+          entity_delta: null,
+          entity_delta_pct: null,
+          chunk_ratio_delta: null,
+          link_delta: null,
+          link_delta_pct: null,
+        },
+      };
+    }
+
+    const currentRatio = ratio(current.chunks_upserted, current.entities_upserted);
+    const previousRatio = ratio(previous.chunks_upserted, previous.entities_upserted);
+
+    const entityDelta = current.entities_upserted - previous.entities_upserted;
+    const linkDelta = current.links_upserted - previous.links_upserted;
+
+    return {
+      source,
+      status: 'ok',
+      current,
+      previous,
+      deltas: {
+        entity_delta: entityDelta,
+        entity_delta_pct: percentDelta(current.entities_upserted, previous.entities_upserted),
+        chunk_ratio_delta: absoluteDelta(currentRatio, previousRatio),
+        link_delta: linkDelta,
+        link_delta_pct: percentDelta(current.links_upserted, previous.links_upserted),
+      },
+    };
+  });
+
+  return {
+    available: true,
+    note: rows.length ? null : 'no ingestion run history found yet',
+    sources,
+  };
 }
 
 function assertSchemaReady(db) {
@@ -339,6 +456,15 @@ function assertSchemaReady(db) {
   if (missing.length) {
     throw new Error(`Missing required tables: ${missing.join(', ')}. Run npm run db:hybrid:init first.`);
   }
+}
+
+function tableExists(db, tableName) {
+  const row = db.prepare(`
+    SELECT name
+    FROM sqlite_master
+    WHERE type = 'table' AND name = ?
+  `).get(tableName);
+  return Boolean(row?.name);
 }
 
 function classifyLag(lagHours, lastIngestedAt) {
@@ -431,7 +557,7 @@ function formatNumber(value) {
   return String(value);
 }
 
-function evaluateThresholdBreaches({ sources, failures, thresholds }) {
+function evaluateThresholdBreaches({ sources, failures, reconciliation, thresholds }) {
   const breaches = [];
 
   if (thresholds.max_lag_hours !== null) {
@@ -473,5 +599,77 @@ function evaluateThresholdBreaches({ sources, failures, thresholds }) {
     }
   }
 
+  if (!reconciliation?.available) {
+    const hasReconciliationThresholds = thresholds.max_entity_delta_pct !== null
+      || thresholds.max_chunk_ratio_delta !== null
+      || thresholds.max_link_delta_pct !== null;
+    if (hasReconciliationThresholds) {
+      breaches.push({
+        kind: 'reconciliation_unavailable',
+        message: reconciliation?.note || 'missing reconciliation data',
+      });
+    }
+    return breaches;
+  }
+
+  for (const source of reconciliation.sources || []) {
+    if (source.status !== 'ok') continue;
+
+    if (
+      thresholds.max_entity_delta_pct !== null
+      && source.deltas.entity_delta_pct !== null
+      && source.deltas.entity_delta_pct > thresholds.max_entity_delta_pct
+    ) {
+      breaches.push({
+        kind: 'entity_delta_pct',
+        source: source.source,
+        actual: source.deltas.entity_delta_pct,
+        limit: thresholds.max_entity_delta_pct,
+      });
+    }
+
+    if (
+      thresholds.max_chunk_ratio_delta !== null
+      && source.deltas.chunk_ratio_delta !== null
+      && source.deltas.chunk_ratio_delta > thresholds.max_chunk_ratio_delta
+    ) {
+      breaches.push({
+        kind: 'chunk_ratio_delta',
+        source: source.source,
+        actual: source.deltas.chunk_ratio_delta,
+        limit: thresholds.max_chunk_ratio_delta,
+      });
+    }
+
+    if (
+      thresholds.max_link_delta_pct !== null
+      && source.deltas.link_delta_pct !== null
+      && source.deltas.link_delta_pct > thresholds.max_link_delta_pct
+    ) {
+      breaches.push({
+        kind: 'link_delta_pct',
+        source: source.source,
+        actual: source.deltas.link_delta_pct,
+        limit: thresholds.max_link_delta_pct,
+      });
+    }
+  }
+
   return breaches;
+}
+
+function ratio(numerator, denominator) {
+  if (!denominator) return 0;
+  return Number((numerator / denominator).toFixed(6));
+}
+
+function percentDelta(current, previous) {
+  if (previous === null || previous === undefined) return null;
+  if (previous === 0) return current === 0 ? 0 : 100;
+  return Number(((Math.abs(current - previous) / previous) * 100).toFixed(3));
+}
+
+function absoluteDelta(current, previous) {
+  if (current === null || previous === null || current === undefined || previous === undefined) return null;
+  return Number(Math.abs(current - previous).toFixed(6));
 }
