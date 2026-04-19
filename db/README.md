@@ -129,9 +129,12 @@ Output behavior:
   - relationship history snapshot (`touchpoints7d`, `touchpoints30d`, `touchpoints90d`, recent subjects)
   - attendee-level relationship risk assessment (`low`/`medium`/`high`) with deterministic risk signals
   - attendee confidence scoring (`score`, `level`, rationale)
+  - attendee role profile inference (`decision partner`, `active collaborator`, `new stakeholder`, `at-risk stakeholder`, `blocked stakeholder`, `observer`) with deterministic evidence signals
   - relationship-risk deltas versus prior runs (`improved` / `declined` / `unchanged` / `new`)
   - deterministic recommended next actions inferred from touchpoint recency and response status
 - For each meeting, also includes:
+  - role-aware prep brief items with explicit priority (`high`/`medium`/`low`)
+  - agenda-gap detection signals (`code`, `severity`, `message`, `recommendation`) derived from attendee role mix + risk signals
   - deterministic meeting-level recommendations derived from cross-attendee risk patterns, each with confidence metadata
   - cross-attendee relationship risk signals (`code`, `severity`, `count`, `attendees`, `message`)
   - meeting-level risk delta summary versus prior runs
