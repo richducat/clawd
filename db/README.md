@@ -150,6 +150,8 @@ Output behavior:
   - stakeholder-specific close scripts (`attendee`, `trigger`, `script`, `desiredOutcome`, `priority`) for deterministic stakeholder closeout messaging
   - failure-mode rehearsals (`trigger`, `rehearsalQuestion`, `mitigationPath`, `ownerHint`, `evidenceToCapture`, `priority`, `dependsOn`) for deterministic contingency handling when commitments slip
   - stakeholder proof-request pack (`attendee`, `request`, `rationale`, `dueWindow`, `priority`, `dependsOn`) for explicit post-meeting proof capture
+  - counterfactual decision-drill prompts (`scenario`, `prompt`, `decisionFallback`, `ownerHint`, `priority`, `dependsOn`) for deterministic what-if decision resilience
+  - stakeholder objection-response handoff map (`attendee`, `objectionTheme`, `responseOwner`, `responseScript`, `proofRequest`, `priority`, `dependsOn`) for explicit objection ownership and closeout response routing
   - meeting-prep quality scoring (`score`, `level`, `gapCount`, `summary`, `coverageChecks`) for deterministic output-completeness assessment
   - attendee confidence calibration telemetry (`currentConfidenceScore`, trailing confidence/risk baselines, deltas) derived from prior 30-day snapshot history
   - meeting-level confidence calibration trend summary (`currentAverageConfidence`, `trailingAverageConfidence`, `averageDelta`, signal flags)
