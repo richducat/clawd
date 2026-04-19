@@ -97,6 +97,7 @@ jobs:
           npm run db:hybrid:daily -- "$@" | tee "artifacts/pipeline-summary-${{ steps.args.outputs.run_date }}.json"
 
       - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: hybrid-daily-${{ steps.args.outputs.run_date }}

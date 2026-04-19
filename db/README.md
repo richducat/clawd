@@ -48,6 +48,10 @@ Optional flags:
 - `--calendarId <id>`: calendar source id (default `primary`)
 - `--gmail-json <path>`: ingest from JSON fixture/file instead of live `gog`
 - `--calendar-json <path>`: ingest from JSON fixture/file instead of live `gog`
+- `--allow-partial-sources`: continue ingest when exactly one live source fails (records partial failure details in JSON output)
+- `--connector-retries <n>`: retry attempts for each live `gog` call (default `2`)
+- `--connector-backoff-ms <n>`: initial retry backoff in ms for live `gog` calls (default `800`)
+- `--connector-backoff-factor <n>`: retry backoff multiplier (default `2`)
 
 Fixture validation example:
 ```bash
@@ -62,6 +66,7 @@ Design notes:
 - Retrieval text is stored in `entity_chunks` (chunk `0` for each entity).
 - Contact relations are stored in `entity_links` (`gmail_counterparty`, `calendar_attendee`).
 - `ingestion_cursors` tracks latest ingestion timestamp per source for incremental reruns.
+- Cursor updates are source-scoped: failed sources do not advance their cursor checkpoint.
 
 ## Roadmap item #4: Knowledge base ingestion (URLs + files)
 
@@ -141,6 +146,8 @@ Optional flags:
 - CRM ingest passthrough:
   - `--account`, `--days`, `--max`, `--calendarId`
   - `--gmail-json`, `--calendar-json`
+  - `--allow-partial-sources`
+  - `--connector-retries`, `--connector-backoff-ms`, `--connector-backoff-factor`
 - KB ingest passthrough:
   - `--kb-from-file`
   - `--kb-file` (repeatable)
@@ -155,8 +162,12 @@ Optional flags:
   - `--brief-out <path>` to write meeting prep output to file
 
 Output behavior:
-- The orchestrator exits non-zero if any step fails.
-- It emits a JSON summary including each step name/args and a short output preview.
+- The orchestrator always emits a JSON summary with per-step status:
+  - `ok`
+  - `partial_failure`
+  - `failed`
+- Pipeline exits non-zero only when a step is `failed`.
+- Partial source outages in CRM ingest are surfaced in summary details when `--allow-partial-sources` is enabled.
 
 ## Scheduled daily run + artifacts (GitHub Actions)
 
