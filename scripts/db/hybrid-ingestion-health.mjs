@@ -51,6 +51,8 @@ const thresholds = {
   max_link_delta_pct: readOptionalNumberArg(args, '--max-link-delta-pct'),
   max_baseline_anomalies: readOptionalNumberArg(args, '--max-baseline-anomalies'),
   max_slo_budget_burn_pct: readOptionalNumberArg(args, '--max-slo-budget-burn-pct'),
+  max_quality_drift_signals: readOptionalNumberArg(args, '--max-quality-drift-signals'),
+  max_quality_severity_score: readOptionalNumberArg(args, '--max-quality-severity-score'),
 };
 const hasThresholds = Object.values(thresholds).some((value) => value !== null);
 
@@ -96,12 +98,16 @@ async function main() {
       windowDays: sloWindowDays,
       artifactDirInput: artifactDirArg,
     });
+    const meetingPrepQuality = readMeetingPrepQualityTrends({
+      artifactDirInput: artifactDirArg,
+    });
     const breaches = evaluateThresholdBreaches({
       sources: sourceHealth,
       failures: failureSummary,
       reconciliation,
       baselines,
       sloBudgets,
+      meetingPrepQuality,
       thresholds,
     });
 
@@ -119,6 +125,7 @@ async function main() {
       baselines,
       baseline_snapshots: baselineSnapshots,
       trends,
+      meeting_prep_quality: meetingPrepQuality,
       trend_config: {
         window_snapshots: trendWindowSnapshots,
       },
@@ -451,6 +458,34 @@ function printMarkdown(result, artifactDirInput) {
   }
   console.log('');
 
+  console.log('## Meeting Prep Quality Trends');
+  if (!result.meeting_prep_quality?.available) {
+    console.log(`- ${result.meeting_prep_quality?.note || 'meeting prep quality trend data unavailable'}`);
+  } else {
+    console.log(`- scanned_artifacts=${result.meeting_prep_quality.scanned_artifacts}, snapshots=${result.meeting_prep_quality.snapshots}, meetings_scored=${result.meeting_prep_quality.meetings_scored}`);
+    console.log(`- latest_avg_score=${formatNumber(result.meeting_prep_quality.latest?.avg_score)}, latest_avg_gap_count=${formatNumber(result.meeting_prep_quality.latest?.avg_gap_count)}, latest_severity_score=${formatNumber(result.meeting_prep_quality.latest?.severity_score)}`);
+    console.log(`- oldest_avg_score=${formatNumber(result.meeting_prep_quality.oldest?.avg_score)}, oldest_avg_gap_count=${formatNumber(result.meeting_prep_quality.oldest?.avg_gap_count)}, oldest_severity_score=${formatNumber(result.meeting_prep_quality.oldest?.severity_score)}`);
+
+    const driftSignals = Array.isArray(result.meeting_prep_quality.drift_signals) ? result.meeting_prep_quality.drift_signals : [];
+    if (!driftSignals.length) {
+      console.log('- drift_signals: none');
+    } else {
+      for (const signal of driftSignals) {
+        console.log(`- [drift:${signal.severity}] ${signal.code}: ${signal.message}`);
+      }
+    }
+
+    const lanes = Array.isArray(result.meeting_prep_quality.escalation_lanes) ? result.meeting_prep_quality.escalation_lanes : [];
+    if (!lanes.length) {
+      console.log('- escalation_lanes: none');
+    } else {
+      for (const lane of lanes) {
+        console.log(`- [lane:${lane.severity}] ${lane.lane}: trigger=${lane.trigger_count}, message=${lane.message}`);
+      }
+    }
+  }
+  console.log('');
+
   console.log('## Weekly SLO Digest');
   if (!result.slo_digest?.available) {
     console.log(`- ${result.slo_digest?.note || 'weekly SLO digest unavailable'}`);
@@ -542,6 +577,8 @@ function printMarkdown(result, artifactDirInput) {
   console.log(`- max_link_delta_pct=${formatNumber(result.thresholds.max_link_delta_pct)}`);
   console.log(`- max_baseline_anomalies=${formatNumber(result.thresholds.max_baseline_anomalies)}`);
   console.log(`- max_slo_budget_burn_pct=${formatNumber(result.thresholds.max_slo_budget_burn_pct)}`);
+  console.log(`- max_quality_drift_signals=${formatNumber(result.thresholds.max_quality_drift_signals)}`);
+  console.log(`- max_quality_severity_score=${formatNumber(result.thresholds.max_quality_severity_score)}`);
   console.log(`- breaches=${result.breaches.length}`);
 
   if (!result.breaches.length) {
@@ -568,6 +605,18 @@ function printMarkdown(result, artifactDirInput) {
     }
     if (breach.kind === 'slo_budget_burn_pct') {
       console.log(`- [breach] ${breach.source} SLO budget burn: actual=${breach.actual} > limit=${breach.limit}`);
+      continue;
+    }
+    if (breach.kind === 'meeting_prep_quality_unavailable') {
+      console.log(`- [breach] meeting prep quality unavailable: ${breach.message}`);
+      continue;
+    }
+    if (breach.kind === 'quality_drift_signals_count') {
+      console.log(`- [breach] quality drift signals: actual=${breach.actual} > limit=${breach.limit}`);
+      continue;
+    }
+    if (breach.kind === 'quality_severity_score') {
+      console.log(`- [breach] quality severity score: actual=${breach.actual} > limit=${breach.limit}`);
       continue;
     }
     console.log(`- [breach] ${breach.source} ${breach.kind}: actual=${breach.actual} > limit=${breach.limit}`);
@@ -1240,6 +1289,202 @@ function summarizeTrend(history, key) {
   };
 }
 
+function readMeetingPrepQualityTrends({ artifactDirInput }) {
+  const artifactDir = path.resolve(artifactDirInput || 'artifacts');
+  if (!fs.existsSync(artifactDir)) {
+    return {
+      available: false,
+      note: 'artifact directory not found',
+    };
+  }
+
+  const candidates = fs.readdirSync(artifactDir)
+    .filter((name) => /^(meeting-prep-quality-.*|meeting-prep-phase\d+-.*)\.json$/i.test(name))
+    .map((name) => {
+      const fullPath = path.join(artifactDir, name);
+      const stat = fs.statSync(fullPath);
+      return {
+        name,
+        path: fullPath,
+        mtimeMs: Number(stat.mtimeMs || 0),
+      };
+    })
+    .sort((a, b) => a.mtimeMs - b.mtimeMs || a.name.localeCompare(b.name));
+
+  if (!candidates.length) {
+    return {
+      available: true,
+      note: 'no meeting-prep quality artifacts found',
+      scanned_artifacts: 0,
+      snapshots: 0,
+      meetings_scored: 0,
+      latest: null,
+      oldest: null,
+      drift_signals: [],
+      escalation_lanes: [],
+    };
+  }
+
+  const snapshots = [];
+  let meetingsScored = 0;
+  for (const candidate of candidates) {
+    const parsed = parseJsonDocument(readTextFile(candidate.path));
+    if (!parsed || typeof parsed !== 'object') continue;
+    const meetings = Array.isArray(parsed.meetings) ? parsed.meetings : [];
+    const scored = meetings
+      .map((meeting) => meeting?.prepQuality || null)
+      .filter((quality) => quality && Number.isFinite(Number(quality.score)));
+    if (!scored.length) continue;
+
+    meetingsScored += scored.length;
+    const avgScore = Number((scored.reduce((sum, row) => sum + Number(row.score || 0), 0) / scored.length).toFixed(3));
+    const avgGapCount = Number((scored.reduce((sum, row) => sum + Number(row.gapCount || 0), 0) / scored.length).toFixed(3));
+    const levelCounts = countByKey(scored.map((row) => String(row.level || 'unknown').toLowerCase()));
+    const failingChecks = scored
+      .flatMap((row) => Array.isArray(row.coverageChecks) ? row.coverageChecks : [])
+      .filter((check) => String(check?.status || '').toLowerCase() !== 'pass');
+    const severityCounts = countByKey(failingChecks.map((check) => String(check?.severity || 'medium').toLowerCase()));
+    const severityScore = Number(
+      ((Number(severityCounts.high || 0) * 3) + (Number(severityCounts.medium || 0) * 2) + Number(severityCounts.low || 0)).toFixed(3)
+    );
+
+    snapshots.push({
+      artifact: candidate.name,
+      generated_at: new Date(candidate.mtimeMs).toISOString(),
+      scored_meetings: scored.length,
+      avg_score: avgScore,
+      avg_gap_count: avgGapCount,
+      severity_score: severityScore,
+      levels: levelCounts,
+      failing_check_severity: severityCounts,
+    });
+  }
+
+  if (!snapshots.length) {
+    return {
+      available: true,
+      note: 'meeting-prep quality artifacts found but no prepQuality payloads detected',
+      scanned_artifacts: candidates.length,
+      snapshots: 0,
+      meetings_scored: 0,
+      latest: null,
+      oldest: null,
+      drift_signals: [],
+      escalation_lanes: [],
+    };
+  }
+
+  const oldest = snapshots[0];
+  const latest = snapshots[snapshots.length - 1];
+  const driftSignals = buildMeetingPrepQualityDriftSignals({ oldest, latest });
+  const escalationLanes = buildMeetingPrepQualityEscalationLanes(latest);
+
+  return {
+    available: true,
+    note: null,
+    scanned_artifacts: candidates.length,
+    snapshots: snapshots.length,
+    meetings_scored: meetingsScored,
+    latest,
+    oldest,
+    drift_signals: driftSignals,
+    escalation_lanes: escalationLanes,
+  };
+}
+
+function buildMeetingPrepQualityDriftSignals({ oldest, latest }) {
+  if (!oldest || !latest) return [];
+
+  const signals = [];
+  const scoreDelta = Number((Number(latest.avg_score || 0) - Number(oldest.avg_score || 0)).toFixed(3));
+  const gapDelta = Number((Number(latest.avg_gap_count || 0) - Number(oldest.avg_gap_count || 0)).toFixed(3));
+  const severityDelta = Number((Number(latest.severity_score || 0) - Number(oldest.severity_score || 0)).toFixed(3));
+  const highDelta = Number((Number(latest.failing_check_severity?.high || 0) - Number(oldest.failing_check_severity?.high || 0)).toFixed(3));
+
+  if (scoreDelta <= -5) {
+    const severity = scoreDelta <= -20 ? 'high' : scoreDelta <= -10 ? 'medium' : 'low';
+    signals.push({
+      code: 'quality_score_drop',
+      severity,
+      delta: scoreDelta,
+      message: `Average prep-quality score dropped by ${Math.abs(scoreDelta)} points vs oldest snapshot.`,
+    });
+  }
+
+  if (gapDelta >= 1) {
+    signals.push({
+      code: 'quality_gap_growth',
+      severity: gapDelta >= 3 ? 'high' : gapDelta >= 2 ? 'medium' : 'low',
+      delta: gapDelta,
+      message: `Average prep-quality gap count increased by ${gapDelta} vs oldest snapshot.`,
+    });
+  }
+
+  if (severityDelta >= 2) {
+    signals.push({
+      code: 'gap_severity_growth',
+      severity: severityDelta >= 6 ? 'high' : severityDelta >= 4 ? 'medium' : 'low',
+      delta: severityDelta,
+      message: `Failing-check severity score increased by ${severityDelta} vs oldest snapshot.`,
+    });
+  }
+
+  if (highDelta >= 1) {
+    signals.push({
+      code: 'high_severity_gap_growth',
+      severity: highDelta >= 2 ? 'high' : 'medium',
+      delta: highDelta,
+      message: `High-severity coverage check gaps increased by ${highDelta} vs oldest snapshot.`,
+    });
+  }
+
+  return signals;
+}
+
+function buildMeetingPrepQualityEscalationLanes(latestSnapshot) {
+  if (!latestSnapshot) return [];
+
+  const highCount = Number(latestSnapshot.failing_check_severity?.high || 0);
+  const mediumCount = Number(latestSnapshot.failing_check_severity?.medium || 0);
+  const lowCount = Number(latestSnapshot.failing_check_severity?.low || 0);
+  const lanes = [];
+
+  if (highCount > 0) {
+    lanes.push({
+      lane: 'immediate_owner_escalation',
+      severity: 'high',
+      trigger_count: highCount,
+      message: 'Escalate to meeting owner immediately and require same-day remediation plan for high-severity prep gaps.',
+    });
+  }
+  if (mediumCount > 0) {
+    lanes.push({
+      lane: 'same_day_quality_remediation',
+      severity: 'medium',
+      trigger_count: mediumCount,
+      message: 'Route medium-severity prep gaps into same-day remediation checklist before outbound follow-up.',
+    });
+  }
+  if (lowCount > 0) {
+    lanes.push({
+      lane: 'next_cycle_hardening',
+      severity: 'low',
+      trigger_count: lowCount,
+      message: 'Track low-severity prep gaps in next-cycle hardening queue for deterministic cleanup.',
+    });
+  }
+  if (!lanes.length) {
+    lanes.push({
+      lane: 'monitor_only',
+      severity: 'low',
+      trigger_count: 0,
+      message: 'No prep-quality escalation needed; keep monitoring trendline drift.',
+    });
+  }
+
+  return lanes;
+}
+
 function computeBaselineBand(values, sigmaMultiplier) {
   if (!values.length) {
     return {
@@ -1279,6 +1524,16 @@ function computeBaselineBand(values, sigmaMultiplier) {
     floor,
     ceiling,
   };
+}
+
+function countByKey(values) {
+  const out = { high: 0, medium: 0, low: 0 };
+  for (const value of values || []) {
+    const key = String(value || '').toLowerCase();
+    if (!key) continue;
+    out[key] = Number(out[key] || 0) + 1;
+  }
+  return out;
 }
 
 function percentile(sortedValues, p) {
@@ -1418,6 +1673,20 @@ function safeJson(raw) {
   }
 }
 
+function parseJsonDocument(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return null;
+
+  if (text.startsWith('{')) {
+    return safeJson(text);
+  }
+
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start === -1 || end <= start) return null;
+  return safeJson(text.slice(start, end + 1));
+}
+
 function readTextFile(filePath) {
   try {
     return fs.readFileSync(filePath, 'utf8');
@@ -1442,7 +1711,7 @@ function formatNumber(value) {
   return String(value);
 }
 
-function evaluateThresholdBreaches({ sources, failures, reconciliation, baselines, sloBudgets, thresholds }) {
+function evaluateThresholdBreaches({ sources, failures, reconciliation, baselines, sloBudgets, meetingPrepQuality, thresholds }) {
   const breaches = [];
 
   if (thresholds.max_lag_hours !== null) {
@@ -1500,6 +1769,37 @@ function evaluateThresholdBreaches({ sources, failures, reconciliation, baseline
             source: source.source,
             actual: effectiveBurnPct,
             limit: thresholds.max_slo_budget_burn_pct,
+          });
+        }
+      }
+    }
+  }
+
+  if (thresholds.max_quality_drift_signals !== null || thresholds.max_quality_severity_score !== null) {
+    if (!meetingPrepQuality?.available) {
+      breaches.push({
+        kind: 'meeting_prep_quality_unavailable',
+        message: meetingPrepQuality?.note || 'missing meeting prep quality trend data',
+      });
+    } else {
+      if (thresholds.max_quality_drift_signals !== null) {
+        const driftSignals = Array.isArray(meetingPrepQuality.drift_signals) ? meetingPrepQuality.drift_signals.length : 0;
+        if (driftSignals > thresholds.max_quality_drift_signals) {
+          breaches.push({
+            kind: 'quality_drift_signals_count',
+            actual: driftSignals,
+            limit: thresholds.max_quality_drift_signals,
+          });
+        }
+      }
+
+      if (thresholds.max_quality_severity_score !== null) {
+        const severityScore = Number(meetingPrepQuality?.latest?.severity_score || 0);
+        if (severityScore > thresholds.max_quality_severity_score) {
+          breaches.push({
+            kind: 'quality_severity_score',
+            actual: severityScore,
+            limit: thresholds.max_quality_severity_score,
           });
         }
       }
@@ -1784,10 +2084,10 @@ function readBreachRollupFeed({ artifactDirInput, windowStart, windowEnd }) {
 
 function severityForBreachKind(kind) {
   const k = String(kind || '').toLowerCase();
-  if (['lag_hours', 'seen_drift_hours', 'baseline_anomalies_count', 'reconciliation_unavailable', 'slo_budget_unavailable', 'slo_budget_burn_pct'].includes(k)) {
+  if (['lag_hours', 'seen_drift_hours', 'baseline_anomalies_count', 'reconciliation_unavailable', 'slo_budget_unavailable', 'slo_budget_burn_pct', 'meeting_prep_quality_unavailable', 'quality_severity_score'].includes(k)) {
     return 'high';
   }
-  if (['entity_delta_pct', 'chunk_ratio_delta', 'link_delta_pct', 'artifact_issues_count'].includes(k)) {
+  if (['entity_delta_pct', 'chunk_ratio_delta', 'link_delta_pct', 'artifact_issues_count', 'quality_drift_signals_count'].includes(k)) {
     return 'medium';
   }
   return 'low';
@@ -1814,6 +2114,7 @@ function buildTrendArtifactPayload(result) {
     reconciliation: result.reconciliation || null,
     slo_budgets: result.slo_budgets || null,
     baselines: result.baselines || null,
+    meeting_prep_quality: result.meeting_prep_quality || null,
     trends: result.trends || null,
     thresholds: result.thresholds || null,
     breaches: result.breaches || [],
@@ -1952,6 +2253,24 @@ function buildTrendArtifactMarkdown(payload) {
       lines.push(`  - records_latest=${formatNumber(source.metrics?.records_scanned?.latest)}, records_direction=${source.metrics?.records_scanned?.direction || 'flat'}, records_delta_vs_oldest=${formatNumber(source.metrics?.records_scanned?.delta_vs_oldest)}`);
       lines.push(`  - entities_latest=${formatNumber(source.metrics?.entities_upserted?.latest)}, entities_direction=${source.metrics?.entities_upserted?.direction || 'flat'}, entities_delta_vs_oldest=${formatNumber(source.metrics?.entities_upserted?.delta_vs_oldest)}`);
       lines.push(`  - links_latest=${formatNumber(source.metrics?.links_upserted?.latest)}, links_direction=${source.metrics?.links_upserted?.direction || 'flat'}, links_delta_vs_oldest=${formatNumber(source.metrics?.links_upserted?.delta_vs_oldest)}`);
+    }
+  }
+  lines.push('');
+
+  lines.push('## Meeting Prep Quality');
+  const prep = payload.meeting_prep_quality || {};
+  if (!prep.available) {
+    lines.push(`- ${prep.note || 'meeting prep quality trend data unavailable'}`);
+  } else {
+    lines.push(`- scanned_artifacts=${prep.scanned_artifacts ?? 0}, snapshots=${prep.snapshots ?? 0}, meetings_scored=${prep.meetings_scored ?? 0}`);
+    lines.push(`- latest_avg_score=${formatNumber(prep.latest?.avg_score)}, latest_avg_gap_count=${formatNumber(prep.latest?.avg_gap_count)}, latest_severity_score=${formatNumber(prep.latest?.severity_score)}`);
+    const driftSignals = Array.isArray(prep.drift_signals) ? prep.drift_signals : [];
+    if (!driftSignals.length) {
+      lines.push('- drift_signals=none');
+    } else {
+      for (const signal of driftSignals) {
+        lines.push(`- drift ${signal.code}: severity=${signal.severity}, delta=${formatNumber(signal.delta)}`);
+      }
     }
   }
   lines.push('');

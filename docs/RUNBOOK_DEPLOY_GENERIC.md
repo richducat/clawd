@@ -253,6 +253,9 @@ Include:
     - `max_seen_drift_hours=48`
     - `max_artifact_issues=0`
     - `max_slo_budget_burn_pct=100`
+  - optional quality-drift thresholds:
+    - `max_quality_drift_signals`
+    - `max_quality_severity_score`
   - threshold breach exits `2` and fails the run (artifacts still upload because upload step uses `if: always()`)
 - Live drift detector (live lane):
   - resolves latest same-date canary artifact (`hybrid-daily-canary-YYYY-MM-DD`) from GitHub Actions artifacts
@@ -397,6 +400,8 @@ Include:
     - `--max-link-delta-pct <n>`
     - `--max-baseline-anomalies <n>`
     - `--max-slo-budget-burn-pct <n>`
+    - `--max-quality-drift-signals <n>`
+    - `--max-quality-severity-score <n>`
 - Report fields include:
   - source cursor lag/drift for `gmail`, `google_calendar`, and `kb_ingest`
   - entity/chunk coverage totals and grouped `domain/type` counts
@@ -427,6 +432,9 @@ Include:
     - scans `ingestion-trends-*.json` and `ingestion-health-*.json`
     - aggregates breach events by severity and source/top breach kinds
   - threshold metadata + explicit breach records in JSON mode
+  - meeting-prep quality trendline drift analysis:
+    - scans `meeting-prep-quality-*.json` + `meeting-prep-phase*.json`
+    - emits deterministic drift signals and severity-based escalation lanes
   - trend artifact export metadata (`trend_artifacts`) with written/pruned files when export is enabled
   - weekly SLO digest artifact export metadata (`slo_digest_artifacts`) with written/pruned files when export is enabled
 
@@ -453,7 +461,9 @@ npm run db:hybrid:health -- \
   --max-lag-hours 24 \
   --max-seen-drift-hours 48 \
   --max-artifact-issues 0 \
-  --max-slo-budget-burn-pct 100
+  --max-slo-budget-burn-pct 100 \
+  --max-quality-drift-signals 999 \
+  --max-quality-severity-score 999
 ```
 
 Exit behavior:
