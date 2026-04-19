@@ -180,6 +180,9 @@ Include:
   - failure-mode rehearsals for deterministic contingency handling when commitments slip (`trigger`, `rehearsalQuestion`, `mitigationPath`, `ownerHint`, `evidenceToCapture`, `priority`, `dependsOn`)
   - stakeholder proof-request pack for explicit post-meeting proof capture (`attendee`, `request`, `rationale`, `dueWindow`, `priority`, `dependsOn`)
   - meeting-prep quality scoring + coverage checks for output completeness (`score`, `level`, `gapCount`, `summary`, `coverageChecks`)
+  - attendee confidence calibration telemetry from trailing 30-day snapshot history (`currentConfidenceScore`, trailing baselines, deltas)
+  - meeting-level confidence calibration trend summary (`currentAverageConfidence`, `trailingAverageConfidence`, `averageDelta`, trend signals)
+  - deterministic action-owner load balancing suggestions (`ownerCapacity`, `suggestedAssignments`) to distribute recommendation/closeout actions
   - meeting-level recommendations with confidence metadata
   - cross-attendee relationship risk signals for escalation-aware prep
   - meeting-level risk-delta summary vs prior runs
