@@ -185,6 +185,8 @@ Triggers:
   - `date`
   - `use_fixtures`
   - `live_mode`
+  - `break_glass`
+  - `break_glass_reason`
   - `skip_kb`
   - `max_lag_hours`
   - `max_seen_drift_hours`
@@ -210,9 +212,12 @@ Runtime notes:
   - live dispatch is restricted to `main` branch
   - live dispatch rejects `use_fixtures=true`
   - triggering actor must be present in repo variable `HYBRID_LIVE_ALLOWED_ACTORS` (comma-separated usernames; defaults to `richducat` when unset)
+  - repo variable `HYBRID_LIVE_EMERGENCY_STOP=true` blocks live execution unless manual dispatch sets `break_glass=true`
+  - when `break_glass=true`, `break_glass_reason` must be non-empty; workflow logs actor + emergency-stop state + reason as a live audit line
 - Recommended setup:
   - configure required reviewers for Environment `hybrid-live`
   - maintain `HYBRID_LIVE_ALLOWED_ACTORS` for approved live operators
+  - use `HYBRID_LIVE_EMERGENCY_STOP=true` during incidents/maintenance windows to freeze live runs
 - Live lane enforces preflight checks before the pipeline starts:
   - `gog` is installed on the runner
   - Gmail probe succeeds for the selected account

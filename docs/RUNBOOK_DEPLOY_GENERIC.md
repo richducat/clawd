@@ -184,7 +184,7 @@ Include:
 - Workflow: `.github/workflows/hybrid-daily-pipeline.yml`
 - Runs:
   - daily at `13:20 UTC`
-  - manual dispatch with inputs (`account`, `date`, `use_fixtures`, `live_mode`, `skip_kb`, `max_lag_hours`, `max_seen_drift_hours`, `max_artifact_issues`)
+  - manual dispatch with inputs (`account`, `date`, `use_fixtures`, `live_mode`, `break_glass`, `break_glass_reason`, `skip_kb`, `max_lag_hours`, `max_seen_drift_hours`, `max_artifact_issues`)
 - Artifacts kept for 14 days:
   - `meeting-prep-YYYY-MM-DD.md`
   - `pipeline-summary-YYYY-MM-DD.json`
@@ -203,9 +203,13 @@ Include:
   - Live dispatch is restricted to `main` branch.
   - Live dispatch rejects `use_fixtures=true`.
   - Triggering actor must be listed in repo variable `HYBRID_LIVE_ALLOWED_ACTORS` (comma-separated usernames; defaults to `richducat` when unset).
+  - Repo variable `HYBRID_LIVE_EMERGENCY_STOP=true` blocks live execution unless manual dispatch explicitly sets `break_glass=true`.
+  - When `break_glass=true`, `break_glass_reason` must be non-empty or the run fails fast.
+  - Workflow emits a `LIVE_AUDIT` log line recording actor, emergency-stop state, break-glass flag, and reason when used.
 - Recommended environment setup:
   - Configure required reviewers for Environment `hybrid-live` so every live run requires explicit approval.
   - Keep `HYBRID_LIVE_ALLOWED_ACTORS` aligned with approved live operators.
+  - Toggle `HYBRID_LIVE_EMERGENCY_STOP=true` during incident response or maintenance freezes; only use break-glass for audited emergency overrides.
 - Live lane preflight checks before running pipeline:
   - `gog` binary must exist on runner PATH
   - Gmail connectivity probe succeeds for selected `account`

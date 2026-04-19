@@ -21,6 +21,15 @@ on:
         required: true
         type: boolean
         default: false
+      break_glass:
+        description: "Override live emergency stop (requires reason)"
+        required: true
+        type: boolean
+        default: false
+      break_glass_reason:
+        description: "Required when break_glass=true; appears in live run audit logs"
+        required: false
+        default: ""
       skip_kb:
         description: "Skip KB ingestion step"
         required: true
@@ -188,6 +197,9 @@ jobs:
       MAX_SEEN_DRIFT_HOURS_INPUT: ${{ inputs.max_seen_drift_hours || '48' }}
       MAX_ARTIFACT_ISSUES_INPUT: ${{ inputs.max_artifact_issues || '0' }}
       LIVE_ALLOWED_ACTORS_INPUT: ${{ vars.HYBRID_LIVE_ALLOWED_ACTORS || 'richducat' }}
+      LIVE_EMERGENCY_STOP_INPUT: ${{ vars.HYBRID_LIVE_EMERGENCY_STOP || 'false' }}
+      BREAK_GLASS_INPUT: ${{ inputs.break_glass }}
+      BREAK_GLASS_REASON_INPUT: ${{ inputs.break_glass_reason || '' }}
       TRIGGER_ACTOR: ${{ github.triggering_actor || github.actor }}
       BRANCH_NAME: ${{ github.ref_name }}
     steps:
@@ -230,6 +242,33 @@ jobs:
           if ! printf '%s\n' "$normalized" | grep -Fxq "$actor"; then
             echo "actor $actor is not authorized for live_mode. Allowed actors: $normalized"
             exit 1
+          fi
+
+          stop_flag="$(printf '%s' "${LIVE_EMERGENCY_STOP_INPUT:-false}" | tr '[:upper:]' '[:lower:]')"
+          break_glass_flag="$(printf '%s' "${BREAK_GLASS_INPUT:-false}" | tr '[:upper:]' '[:lower:]')"
+          reason="$(printf '%s' "${BREAK_GLASS_REASON_INPUT:-}" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+
+          if [[ "$break_glass_flag" == "true" && -z "$reason" ]]; then
+            echo "break_glass=true requires a non-empty break_glass_reason."
+            exit 1
+          fi
+
+          if [[ "$stop_flag" == "true" && "$break_glass_flag" != "true" ]]; then
+            echo "HYBRID_LIVE_EMERGENCY_STOP=true blocks live_mode runs unless break_glass=true with reason."
+            exit 1
+          fi
+
+      - name: Emit live audit context
+        shell: bash
+        run: |
+          set -euo pipefail
+          break_glass_flag="$(printf '%s' "${BREAK_GLASS_INPUT:-false}" | tr '[:upper:]' '[:lower:]')"
+          reason="$(printf '%s' "${BREAK_GLASS_REASON_INPUT:-}" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+
+          if [[ "$break_glass_flag" == "true" ]]; then
+            echo "LIVE_AUDIT actor=$TRIGGER_ACTOR emergency_stop=${LIVE_EMERGENCY_STOP_INPUT:-false} break_glass=true reason=\"$reason\""
+          else
+            echo "LIVE_AUDIT actor=$TRIGGER_ACTOR emergency_stop=${LIVE_EMERGENCY_STOP_INPUT:-false} break_glass=false"
           fi
 
       - name: Preflight live connector checks
