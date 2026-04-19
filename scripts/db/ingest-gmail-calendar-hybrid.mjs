@@ -16,6 +16,10 @@ const max = Number(getArg(args, '--max') || '200');
 const calendarId = getArg(args, '--calendarId') || 'primary';
 const gmailJsonPath = getArg(args, '--gmail-json');
 const calendarJsonPath = getArg(args, '--calendar-json');
+const allowPartialSources = hasFlag(args, '--allow-partial-sources');
+const connectorRetries = toSafeInt(getArg(args, '--connector-retries'), 2, 0, 10);
+const connectorBackoffMs = toSafeInt(getArg(args, '--connector-backoff-ms'), 800, 0, 60_000);
+const connectorBackoffFactor = toSafeFloat(getArg(args, '--connector-backoff-factor'), 2, 1, 10);
 
 main().catch((err) => {
   console.error(err?.stack || String(err));
@@ -38,16 +42,53 @@ async function main() {
     const gmailCursor = readCursorIso(db, 'gmail', defaultSince.toISOString());
     const calendarCursor = readCursorIso(db, 'google_calendar', defaultSince.toISOString());
 
-    const gmailMessages = gmailJsonPath
-      ? normalizeGmailMessages(loadJsonFile(gmailJsonPath))
-      : fetchGmailMessages({ account, max, sinceIso: gmailCursor });
+    const retryConfig = {
+      retries: connectorRetries,
+      backoffMs: connectorBackoffMs,
+      backoffFactor: connectorBackoffFactor,
+    };
 
-    const calendarEvents = calendarJsonPath
-      ? normalizeCalendarEvents(loadJsonFile(calendarJsonPath))
-      : fetchCalendarEvents({ account, calendarId, sinceIso: calendarCursor, untilIso: now.toISOString() });
+    let gmailMessages = [];
+    let calendarEvents = [];
+    let gmailError = null;
+    let calendarError = null;
+
+    if (gmailJsonPath) {
+      gmailMessages = normalizeGmailMessages(loadJsonFile(gmailJsonPath));
+    } else {
+      try {
+        gmailMessages = await fetchGmailMessages({ account, max, sinceIso: gmailCursor, retryConfig });
+      } catch (err) {
+        gmailError = formatSourceError('gmail', err);
+        if (!allowPartialSources) throw err;
+      }
+    }
+
+    if (calendarJsonPath) {
+      calendarEvents = normalizeCalendarEvents(loadJsonFile(calendarJsonPath));
+    } else {
+      try {
+        calendarEvents = await fetchCalendarEvents({
+          account,
+          calendarId,
+          sinceIso: calendarCursor,
+          untilIso: now.toISOString(),
+          retryConfig,
+        });
+      } catch (err) {
+        calendarError = formatSourceError('google_calendar', err);
+        if (!allowPartialSources) throw err;
+      }
+    }
 
     const state = {
+      ok: true,
+      status: 'ok',
       db: targetPath,
+      config: {
+        allow_partial_sources: allowPartialSources,
+        connector_retry: retryConfig,
+      },
       window: {
         gmail_since: gmailCursor,
         calendar_since: calendarCursor,
@@ -60,6 +101,8 @@ async function main() {
         upsertedContacts: 0,
         upsertedLinks: 0,
         latestSeenAt: null,
+        cursorUpdated: false,
+        error: gmailError,
       },
       calendar: {
         source: calendarJsonPath ? path.resolve(calendarJsonPath) : 'gog',
@@ -68,8 +111,22 @@ async function main() {
         upsertedContacts: 0,
         upsertedLinks: 0,
         latestSeenAt: null,
+        cursorUpdated: false,
+        error: calendarError,
       },
     };
+
+    const failedSources = [gmailError, calendarError].filter(Boolean);
+    if (failedSources.length) {
+      if (failedSources.length === 2) {
+        state.ok = false;
+        state.status = 'failed';
+      } else {
+        state.status = 'partial_failure';
+      }
+    }
+
+    state.failures = failedSources;
 
     const tx = db.transaction(() => {
       for (const message of gmailMessages) {
@@ -80,23 +137,33 @@ async function main() {
         ingestCalendarRecord(db, event, account, state.calendar);
       }
 
-      writeCursor(db, 'gmail', {
-        last_ingested_at: state.window.until,
-        latest_seen_at: state.gmail.latestSeenAt || gmailCursor,
-        account,
-      });
+      if (!state.gmail.error) {
+        writeCursor(db, 'gmail', {
+          last_ingested_at: state.window.until,
+          latest_seen_at: state.gmail.latestSeenAt || gmailCursor,
+          account,
+        });
+        state.gmail.cursorUpdated = true;
+      }
 
-      writeCursor(db, 'google_calendar', {
-        last_ingested_at: state.window.until,
-        latest_seen_at: state.calendar.latestSeenAt || calendarCursor,
-        account,
-        calendar_id: calendarId,
-      });
+      if (!state.calendar.error) {
+        writeCursor(db, 'google_calendar', {
+          last_ingested_at: state.window.until,
+          latest_seen_at: state.calendar.latestSeenAt || calendarCursor,
+          account,
+          calendar_id: calendarId,
+        });
+        state.calendar.cursorUpdated = true;
+      }
     });
 
     tx();
 
     console.log(JSON.stringify(state, null, 2));
+
+    if (!state.ok) {
+      process.exitCode = 1;
+    }
   } finally {
     db.close();
   }
@@ -353,15 +420,23 @@ function writeCursor(db, source, payload) {
   `).run({ source, cursor_json: JSON.stringify(payload) });
 }
 
-function fetchGmailMessages({ account, max, sinceIso }) {
+async function fetchGmailMessages({ account, max, sinceIso, retryConfig }) {
   const afterEpoch = Math.floor(new Date(sinceIso).getTime() / 1000);
   const query = `after:${afterEpoch} -category:promotions -category:social`;
-  const list = gogJson(['gmail', 'messages', 'search', query, '--max', String(max), '--account', account, '--json']);
+  const list = await gogJson(
+    ['gmail', 'messages', 'search', query, '--max', String(max), '--account', account, '--json'],
+    retryConfig,
+    'gmail.messages.search',
+  );
   const messages = list?.messages || [];
 
   const out = [];
   for (const message of messages) {
-    const full = gogJson(['gmail', 'get', message.id, '--account', account, '--json']);
+    const full = await gogJson(
+      ['gmail', 'get', message.id, '--account', account, '--json'],
+      retryConfig,
+      `gmail.get:${message.id}`,
+    );
     out.push({
       id: message.id,
       threadId: message.threadId || full?.threadId || null,
@@ -378,8 +453,9 @@ function fetchGmailMessages({ account, max, sinceIso }) {
   return out;
 }
 
-function fetchCalendarEvents({ account, calendarId, sinceIso, untilIso }) {
-  const raw = gogJson([
+async function fetchCalendarEvents({ account, calendarId, sinceIso, untilIso, retryConfig }) {
+  const raw = await gogJson(
+    [
     'calendar',
     'events',
     calendarId,
@@ -390,7 +466,10 @@ function fetchCalendarEvents({ account, calendarId, sinceIso, untilIso }) {
     '--account',
     account,
     '--json',
-  ]);
+    ],
+    retryConfig,
+    'calendar.events',
+  );
 
   return normalizeCalendarEvents(raw);
 }
@@ -539,21 +618,71 @@ function assertHybridSchemaReady(db) {
   }
 }
 
-function gogJson(cmd) {
-  try {
-    const out = execFileSync('gog', cmd, { encoding: 'utf8' });
-    return JSON.parse(out);
-  } catch (err) {
-    const detail = err?.stderr ? String(err.stderr) : err?.message || String(err);
-    throw new Error(
-      `Failed to execute gog (${['gog', ...cmd].join(' ')}). ` +
-        `Either configure gog credentials or run with --gmail-json/--calendar-json fixtures. ${detail}`,
-    );
+async function gogJson(cmd, retryConfig, label) {
+  const retries = toSafeInt(retryConfig?.retries, 2, 0, 10);
+  const backoffMs = toSafeInt(retryConfig?.backoffMs, 800, 0, 60_000);
+  const backoffFactor = toSafeFloat(retryConfig?.backoffFactor, 2, 1, 10);
+  let attempt = 0;
+  let delayMs = backoffMs;
+
+  while (attempt <= retries) {
+    attempt += 1;
+    try {
+      const out = execFileSync('gog', cmd, { encoding: 'utf8' });
+      return JSON.parse(out);
+    } catch (err) {
+      const detail = err?.stderr ? String(err.stderr) : err?.message || String(err);
+      if (attempt > retries) {
+        throw new Error(
+          `Failed to execute gog (${label || ['gog', ...cmd].join(' ')}) after ${attempt} attempt(s). ` +
+            `Either configure gog credentials or run with --gmail-json/--calendar-json fixtures. ${detail}`,
+        );
+      }
+
+      if (delayMs > 0) {
+        await sleep(delayMs);
+      }
+      delayMs = Math.round(delayMs * backoffFactor);
+    }
   }
+
+  throw new Error(`Unexpected retry state for ${label || ['gog', ...cmd].join(' ')}`);
 }
 
 function getArg(argv, name) {
   const index = argv.indexOf(name);
   if (index === -1) return null;
   return argv[index + 1] || null;
+}
+
+function hasFlag(argv, name) {
+  return argv.includes(name);
+}
+
+function toSafeInt(value, fallback, min, max) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  const rounded = Math.floor(parsed);
+  if (rounded < min) return min;
+  if (rounded > max) return max;
+  return rounded;
+}
+
+function toSafeFloat(value, fallback, min, max) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  if (parsed < min) return min;
+  if (parsed > max) return max;
+  return parsed;
+}
+
+function formatSourceError(source, err) {
+  return {
+    source,
+    message: err?.message || String(err),
+  };
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

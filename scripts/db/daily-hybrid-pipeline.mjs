@@ -18,6 +18,10 @@ async function main() {
   const calendarId = getArg(args, '--calendarId');
   const gmailJson = getArg(args, '--gmail-json');
   const calendarJson = getArg(args, '--calendar-json');
+  const allowPartialSources = hasFlag(args, '--allow-partial-sources');
+  const connectorRetries = getArg(args, '--connector-retries');
+  const connectorBackoffMs = getArg(args, '--connector-backoff-ms');
+  const connectorBackoffFactor = getArg(args, '--connector-backoff-factor');
 
   const skipKb = hasFlag(args, '--skip-kb');
   const kbFromFile = getArg(args, '--kb-from-file');
@@ -33,8 +37,15 @@ async function main() {
   const internalDomains = getArgValues(args, '--internal-domain');
 
   const steps = [];
+  let pipelineStatus = 'ok';
+  let fatalError = null;
 
-  steps.push(runStep('init', path.join('scripts', 'db', 'init-hybrid-db.mjs'), []));
+  const initStep = runStep('init', path.join('scripts', 'db', 'init-hybrid-db.mjs'), []);
+  steps.push(initStep);
+  if (initStep.status === 'failed') {
+    pipelineStatus = 'failed';
+    fatalError = initStep.error_message;
+  }
 
   const ingestArgs = [];
   pushArg(ingestArgs, '--account', account);
@@ -43,7 +54,25 @@ async function main() {
   pushArg(ingestArgs, '--calendarId', calendarId);
   pushArg(ingestArgs, '--gmail-json', gmailJson);
   pushArg(ingestArgs, '--calendar-json', calendarJson);
-  steps.push(runStep('crm_ingest', path.join('scripts', 'db', 'ingest-gmail-calendar-hybrid.mjs'), ingestArgs));
+  if (allowPartialSources) ingestArgs.push('--allow-partial-sources');
+  pushArg(ingestArgs, '--connector-retries', connectorRetries);
+  pushArg(ingestArgs, '--connector-backoff-ms', connectorBackoffMs);
+  pushArg(ingestArgs, '--connector-backoff-factor', connectorBackoffFactor);
+
+  if (pipelineStatus !== 'failed') {
+    const ingestStep = runStep(
+      'crm_ingest',
+      path.join('scripts', 'db', 'ingest-gmail-calendar-hybrid.mjs'),
+      ingestArgs,
+    );
+    steps.push(ingestStep);
+    if (ingestStep.status === 'partial_failure') {
+      pipelineStatus = 'partial_failure';
+    } else if (ingestStep.status === 'failed') {
+      pipelineStatus = 'failed';
+      fatalError = ingestStep.error_message;
+    }
+  }
 
   const kbRequested = Boolean(kbFromFile || kbFiles.length || kbUrls.length);
   if (!skipKb && kbRequested) {
@@ -60,7 +89,14 @@ async function main() {
     if (kbEmbed) kbArgs.push('--embed');
     pushArg(kbArgs, '--embedding-model', kbEmbeddingModel);
 
-    steps.push(runStep('kb_ingest', path.join('scripts', 'db', 'ingest-kb-hybrid.mjs'), kbArgs));
+    if (pipelineStatus !== 'failed') {
+      const kbStep = runStep('kb_ingest', path.join('scripts', 'db', 'ingest-kb-hybrid.mjs'), kbArgs);
+      steps.push(kbStep);
+      if (kbStep.status === 'failed') {
+        pipelineStatus = 'failed';
+        fatalError = kbStep.error_message;
+      }
+    }
   }
 
   const prepArgs = [];
@@ -70,47 +106,97 @@ async function main() {
   for (const domain of internalDomains) {
     pushArg(prepArgs, '--internal-domain', domain);
   }
-  const prepOutput = runStep('meeting_prep', path.join('scripts', 'db', 'meeting-prep-hybrid.mjs'), prepArgs);
-  steps.push(prepOutput);
+  let prepOutput = null;
+  if (pipelineStatus !== 'failed') {
+    prepOutput = runStep('meeting_prep', path.join('scripts', 'db', 'meeting-prep-hybrid.mjs'), prepArgs);
+    steps.push(prepOutput);
+    if (prepOutput.status === 'failed') {
+      pipelineStatus = 'failed';
+      fatalError = prepOutput.error_message;
+    }
+  }
 
-  if (briefOut) {
+  if (briefOut && prepOutput?.status !== 'failed') {
     const outPath = path.resolve(briefOut);
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
     fs.writeFileSync(outPath, prepOutput.output, 'utf8');
   }
 
   const result = {
-    ok: true,
+    ok: pipelineStatus !== 'failed',
+    status: pipelineStatus,
     ran_at: new Date().toISOString(),
     brief_written_to: briefOut ? path.resolve(briefOut) : null,
     kb: {
       requested: kbRequested,
       skipped: skipKb,
     },
+    crm_ingest: {
+      allow_partial_sources: allowPartialSources,
+      connector_retries: connectorRetries !== null ? Number(connectorRetries) : null,
+      connector_backoff_ms: connectorBackoffMs !== null ? Number(connectorBackoffMs) : null,
+      connector_backoff_factor: connectorBackoffFactor !== null ? Number(connectorBackoffFactor) : null,
+    },
     steps: steps.map((step) => ({
       name: step.name,
+      status: step.status,
       script: step.script,
       args: step.args,
+      exit_code: step.exit_code,
       output_preview: previewOutput(step.output),
+      error_preview: previewOutput(step.error_output),
+      details: step.details || null,
+      error_message: step.error_message || null,
     })),
+    failure: fatalError
+      ? {
+          message: fatalError,
+        }
+      : null,
   };
 
   console.log(JSON.stringify(result, null, 2));
+  if (!result.ok) {
+    process.exitCode = 1;
+  }
 }
 
 function runStep(name, scriptPath, scriptArgs) {
   const absoluteScript = path.resolve(scriptPath);
-  const output = execFileSync(process.execPath, [absoluteScript, ...scriptArgs], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  try {
+    const output = execFileSync(process.execPath, [absoluteScript, ...scriptArgs], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const details = parseStepOutput(output);
+    const status = details?.status === 'partial_failure' ? 'partial_failure' : 'ok';
 
-  return {
-    name,
-    script: scriptPath,
-    args: scriptArgs,
-    output,
-  };
+    return {
+      name,
+      script: scriptPath,
+      args: scriptArgs,
+      status,
+      exit_code: 0,
+      output,
+      error_output: '',
+      details: sanitizeStepDetails(details),
+      error_message: null,
+    };
+  } catch (err) {
+    const output = err?.stdout ? String(err.stdout) : '';
+    const errorOutput = err?.stderr ? String(err.stderr) : '';
+    return {
+      name,
+      script: scriptPath,
+      args: scriptArgs,
+      status: 'failed',
+      exit_code: Number.isInteger(err?.status) ? err.status : 1,
+      output,
+      error_output: errorOutput,
+      details: sanitizeStepDetails(parseStepOutput(output)),
+      error_message: errorOutput.trim() || err?.message || `Step ${name} failed`,
+    };
+  }
 }
 
 function previewOutput(output) {
@@ -146,4 +232,27 @@ function pushArg(target, name, value) {
 
 function hasFlag(argv, name) {
   return argv.includes(name);
+}
+
+function parseStepOutput(output) {
+  const trimmed = String(output || '').trim();
+  if (!trimmed.startsWith('{')) return null;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+}
+
+function sanitizeStepDetails(details) {
+  if (!details || typeof details !== 'object') return null;
+
+  if (details.status === 'partial_failure' || details.status === 'failed') {
+    return {
+      status: details.status,
+      failures: Array.isArray(details.failures) ? details.failures : [],
+    };
+  }
+
+  return null;
 }

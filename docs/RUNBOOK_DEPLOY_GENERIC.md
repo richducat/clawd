@@ -169,13 +169,15 @@ Include:
     --brief-out memory/meeting-prep-2026-04-18.md
   ```
 - Behavior:
-  - Fails fast and exits non-zero if any step fails.
-  - Prints a JSON summary of executed steps and output previews.
+  - Always prints a JSON summary of executed steps with `ok` / `partial_failure` / `failed` status.
+  - Exits non-zero only if a step fails (`status=failed`).
   - Writes the meeting prep output to a file when `--brief-out` is provided.
 - Optional controls:
   - `--skip-kb` to disable KB ingest for a run
   - `--brief-json` to write JSON brief output instead of markdown
   - `--internal-domain <domain>` (repeatable) forwarded to meeting prep filtering
+  - `--allow-partial-sources` to allow CRM ingest to continue when one live connector source fails
+  - `--connector-retries <n>`, `--connector-backoff-ms <n>`, `--connector-backoff-factor <n>` for live connector retry/backoff tuning
 
 ## 15) Scheduled hybrid daily run (artifact retention)
 - Workflow: `.github/workflows/hybrid-daily-pipeline.yml`
