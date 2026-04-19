@@ -203,3 +203,29 @@ Ranking + output notes:
   - `external_ref`
   - `chunk_index`
   - `snippet`
+
+## Ops dashboard: ingestion health + cursor drift (roadmap tranche option #3)
+
+Health command:
+```bash
+npm run db:hybrid:health
+```
+
+JSON mode for automation:
+```bash
+npm run db:hybrid:health -- --json
+```
+
+Optional flags:
+- `--as-of <iso>`: evaluate lag/drift against a fixed timestamp (default `now`)
+- `--artifact-dir <path>`: scan pipeline summary artifacts for failure signals (default `artifacts`)
+- `--artifacts-max <n>`: max recent `pipeline-summary-*.json` files to inspect (default `8`)
+
+Output includes:
+- source health rows for `gmail`, `google_calendar`, `kb_ingest`:
+  - status (`healthy` / `stale` / `critical` / `missing`)
+  - `lag_hours` from `last_ingested_at`
+  - `seen_drift_hours` from `latest_seen_at` when available
+- entity/chunk coverage totals and counts grouped by `domain/type`
+- recent entity update snapshots
+- recent failure/error signals inferred from pipeline summary artifacts when present

@@ -6,6 +6,7 @@
     "db:hybrid:meeting-prep": "node scripts/db/meeting-prep-hybrid.mjs",
     "db:hybrid:daily": "node scripts/db/daily-hybrid-pipeline.mjs",
     "db:hybrid:query": "node scripts/db/query-hybrid.mjs",
+    "db:hybrid:health": "node scripts/db/hybrid-ingestion-health.mjs",
     "md:audit": "node scripts/maintenance/markdown-audit.mjs",
     "md:audit:strict": "node scripts/maintenance/markdown-audit.mjs --strict"
   },
