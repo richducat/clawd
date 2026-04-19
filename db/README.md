@@ -206,6 +206,8 @@ Artifacts:
 - `pipeline-summary-YYYY-MM-DD.json`
 - `ingestion-health-YYYY-MM-DD.md`
 - `ingestion-health-YYYY-MM-DD.json`
+- `ingestion-trends-<UTCSTAMP>.md`
+- `ingestion-trends-<UTCSTAMP>.json`
 - live lane only:
   - `live-incident-ledger-YYYY-MM-DD-run-<run_id>-attempt-<run_attempt>.json`
   - `live-incident-ledger-YYYY-MM-DD-run-<run_id>-attempt-<run_attempt>.md`
@@ -237,6 +239,9 @@ Runtime notes:
 - The workflow runs `db:hybrid:health` after the daily pipeline:
   - markdown report mode (artifact-only)
   - threshold-gated JSON mode with defaults:
+    - `--trend-artifact-dir artifacts`
+    - `--trend-artifact-prefix ingestion-trends`
+    - `--trend-retention-count 180`
     - `--max-lag-hours 24`
     - `--max-seen-drift-hours 48`
     - `--max-artifact-issues 0`
@@ -305,6 +310,11 @@ Optional flags:
   - `--baseline-sigma-multiplier <n>`: MAD-based band width multiplier for floor/ceiling detection (default `3`)
 - trend output controls:
   - `--trend-window-snapshots <n>`: number of persisted baseline snapshots to include per source in trend summaries (default `14`)
+- trend artifact export + retention controls:
+  - `--trend-artifact-dir <path>`: write deterministic trend audit artifacts (`.md` + `.json`) to this directory
+  - `--trend-artifact-prefix <stem>`: file prefix for exported trend artifacts (default `ingestion-trends`)
+  - `--trend-retention-days <n>`: prune exported trend artifact files older than `n` days (non-negative)
+  - `--trend-retention-count <n>`: keep only the newest `n` exported trend snapshots (markdown+json pair)
 - threshold guards (optional, non-zero exit when breached):
   - `--max-lag-hours <n>`
   - `--max-seen-drift-hours <n>`
@@ -318,6 +328,10 @@ Threshold-gated example (CI/alerts):
 ```bash
 npm run db:hybrid:health -- \
   --json \
+  --trend-artifact-dir artifacts/trend-audits \
+  --trend-artifact-prefix ingestion-trends \
+  --trend-retention-days 90 \
+  --trend-retention-count 120 \
   --max-lag-hours 24 \
   --max-seen-drift-hours 48 \
   --max-artifact-issues 0
@@ -348,3 +362,4 @@ Output includes:
   - anomaly count direction (`up`/`down`/`flat`) versus oldest snapshot in window
   - directional deltas for `records_scanned`, `entities_upserted`, `links_upserted`
 - threshold metadata (`thresholds`) and explicit breach records (`breaches`)
+- trend artifact export metadata (`trend_artifacts`) with written/pruned file paths when enabled
