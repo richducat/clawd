@@ -137,3 +137,42 @@ jobs:
           path: artifacts/
           if-no-files-found: error
           retention-days: 14
+
+      - name: Alert on health-gate breach
+        if: ${{ failure() && secrets.HYBRID_ALERT_WEBHOOK_URL != '' }}
+        env:
+          ALERT_WEBHOOK_URL: ${{ secrets.HYBRID_ALERT_WEBHOOK_URL }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPO: ${{ github.repository }}
+          BRANCH_REF: ${{ github.ref_name }}
+          RUN_DATE: ${{ steps.args.outputs.run_date }}
+          MAX_LAG_HOURS: ${{ env.MAX_LAG_HOURS_INPUT }}
+          MAX_SEEN_DRIFT_HOURS: ${{ env.MAX_SEEN_DRIFT_HOURS_INPUT }}
+          MAX_ARTIFACT_ISSUES: ${{ env.MAX_ARTIFACT_ISSUES_INPUT }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          payload="$(node -e '
+            const body = [
+              `:rotating_light: Hybrid daily pipeline health gate breached`,
+              `Repo: ${process.env.REPO}`,
+              `Branch: ${process.env.BRANCH_REF}`,
+              `Run date: ${process.env.RUN_DATE}`,
+              `Thresholds: lag<=${process.env.MAX_LAG_HOURS}h, drift<=${process.env.MAX_SEEN_DRIFT_HOURS}h, artifactIssues<=${process.env.MAX_ARTIFACT_ISSUES}`,
+              `Run: ${process.env.RUN_URL}`,
+              `Artifacts: hybrid-daily-${process.env.RUN_DATE} (see run page)`
+            ].join(`\n`);
+            process.stdout.write(JSON.stringify({ text: body }));
+          ')"
+          curl --fail --show-error --silent \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -d "$payload" \
+            "$ALERT_WEBHOOK_URL"
+
+      - name: Alert webhook not configured
+        if: ${{ failure() && secrets.HYBRID_ALERT_WEBHOOK_URL == '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Health gate breached but HYBRID_ALERT_WEBHOOK_URL is not configured. Add this repo secret to enable notifications."

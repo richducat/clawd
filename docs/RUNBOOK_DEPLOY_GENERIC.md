@@ -199,6 +199,13 @@ Include:
     - `max_seen_drift_hours=48`
     - `max_artifact_issues=0`
   - threshold breach exits `2` and fails the run (artifacts still upload because upload step uses `if: always()`)
+- Optional breach alert hook:
+  - set repo secret `HYBRID_ALERT_WEBHOOK_URL` to enable outbound notifications
+  - on health-gate failure, workflow posts a JSON payload (`text`) with:
+    - run URL
+    - run date + threshold values
+    - artifact label (`hybrid-daily-YYYY-MM-DD`)
+  - if the secret is not set, workflow logs a warning and skips notification
 
 ## 16) Hybrid retrieval query (entities + chunks)
 - Run ranked retrieval:

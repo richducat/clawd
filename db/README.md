@@ -203,6 +203,10 @@ Runtime notes:
     - `--max-seen-drift-hours 48`
     - `--max-artifact-issues 0`
 - Threshold breaches return exit code `2`, causing the workflow job to fail while still uploading artifacts via `if: always()`.
+- Optional breach alerting:
+  - configure repo secret `HYBRID_ALERT_WEBHOOK_URL`
+  - when set, a failing health gate posts a JSON payload (`text` field) containing run URL, run date, threshold settings, and artifact label
+  - when unset, the workflow logs a warning and skips outbound notification
 
 ## Retrieval/query layer (roadmap tranche option #2)
 
