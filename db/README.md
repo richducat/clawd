@@ -122,7 +122,10 @@ Output behavior:
 - Reads `calendar_event` + `contact` + `gmail_message` entities from `hybrid-core.sqlite`.
 - Includes only meetings on the target date with at least one external attendee.
 - Excludes internal-only attendees using account email + internal domain filters.
-- For each external attendee, includes latest ingested Gmail touchpoint when available.
+- For each external attendee, includes:
+  - latest ingested Gmail touchpoint when available
+  - relationship history snapshot (`touchpoints7d`, `touchpoints30d`, `touchpoints90d`, recent subjects)
+  - deterministic recommended next actions inferred from touchpoint recency and response status
 
 ## Follow-up: one-command daily hybrid pipeline
 

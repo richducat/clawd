@@ -50,7 +50,7 @@ async function main() {
       ORDER BY c.title COLLATE NOCASE ASC, c.id ASC
     `);
 
-    const lastTouchStmt = db.prepare(`
+    const recentTouchesStmt = db.prepare(`
       SELECT g.title, g.metadata_json
       FROM entity_links l
       JOIN entities g ON g.id = l.from_entity_id
@@ -59,7 +59,7 @@ async function main() {
         AND g.domain = 'crm'
         AND g.type = 'gmail_message'
       ORDER BY COALESCE(json_extract(g.metadata_json, '$.timestamp'), g.updated_at) DESC, g.updated_at DESC
-      LIMIT 1
+      LIMIT 25
     `);
 
     const briefs = [];
@@ -81,19 +81,21 @@ async function main() {
       if (!externalAttendees.length) continue;
 
       const attendeeBriefs = externalAttendees.map((attendee) => {
-        const touch = lastTouchStmt.get(attendee.entityId);
-        const touchMeta = safeJson(touch?.metadata_json);
-        const touchTs = toIsoOrNull(touchMeta?.timestamp);
+        const touchRows = recentTouchesStmt.all(attendee.entityId).map(normalizeTouchRow);
+        const relationshipSnapshot = buildRelationshipSnapshot(touchRows);
+        const recommendedNextActions = buildRecommendedNextActions({
+          attendee,
+          snapshot: relationshipSnapshot,
+          meetingStartIso: start.toISOString(),
+        });
 
         return {
           email: attendee.email,
           name: attendee.name,
           responseStatus: attendee.responseStatus,
-          lastTouch: touch ? {
-            date: touchTs ? touchTs.slice(0, 10) : null,
-            timestamp: touchTs,
-            subject: cleanLine(touch.title || '', 180) || '(no subject)',
-          } : null,
+          lastTouch: relationshipSnapshot.lastTouch,
+          relationshipSnapshot,
+          recommendedNextActions,
         };
       });
 
@@ -152,9 +154,103 @@ function printMarkdownBrief({ account, date, timezone, internalDomains, meetings
       } else {
         console.log(`- ${who}: no prior Gmail touchpoint found`);
       }
+      const snapshot = attendee.relationshipSnapshot || {};
+      console.log(
+        `  - Snapshot: 7d=${snapshot.touchpoints7d || 0}, 30d=${snapshot.touchpoints30d || 0}, 90d=${snapshot.touchpoints90d || 0}`
+      );
+      if (Array.isArray(snapshot.recentSubjects) && snapshot.recentSubjects.length) {
+        console.log(`  - Recent subjects: ${snapshot.recentSubjects.join(' | ')}`);
+      }
+      if (Array.isArray(attendee.recommendedNextActions) && attendee.recommendedNextActions.length) {
+        for (const action of attendee.recommendedNextActions) {
+          console.log(`  - Next action: ${action}`);
+        }
+      }
     }
     console.log('');
   }
+}
+
+function normalizeTouchRow(row) {
+  const metadata = safeJson(row?.metadata_json);
+  const ts = toIsoOrNull(metadata?.timestamp);
+  return {
+    timestamp: ts,
+    date: ts ? ts.slice(0, 10) : null,
+    subject: cleanLine(row?.title || '', 180) || '(no subject)',
+  };
+}
+
+function buildRelationshipSnapshot(touches) {
+  const now = Date.now();
+  const withTime = touches
+    .map((t) => ({
+      ...t,
+      ms: t.timestamp ? Date.parse(t.timestamp) : Number.NaN,
+    }))
+    .filter((t) => Number.isFinite(t.ms));
+
+  const inDays = (days) => {
+    const cutoff = now - days * 24 * 60 * 60 * 1000;
+    return withTime.filter((t) => t.ms >= cutoff).length;
+  };
+
+  return {
+    touchpoints7d: inDays(7),
+    touchpoints30d: inDays(30),
+    touchpoints90d: inDays(90),
+    recentSubjects: withTime.slice(0, 3).map((t) => `${t.date}: ${t.subject}`),
+    lastTouch: withTime.length ? {
+      date: withTime[0].date,
+      timestamp: withTime[0].timestamp,
+      subject: withTime[0].subject,
+    } : null,
+  };
+}
+
+function buildRecommendedNextActions({ attendee, snapshot, meetingStartIso }) {
+  const actions = [];
+  const lastTouch = snapshot?.lastTouch || null;
+  const response = (attendee?.responseStatus || '').toLowerCase();
+  const meetingStartMs = Date.parse(meetingStartIso);
+
+  if (!lastTouch) {
+    actions.push('Send a first-touch note with agenda and objective before the meeting.');
+  } else {
+    const lastTouchMs = Date.parse(lastTouch.timestamp);
+    const ageDays = Number.isFinite(lastTouchMs)
+      ? Math.floor((Date.now() - lastTouchMs) / (24 * 60 * 60 * 1000))
+      : null;
+
+    if (ageDays !== null && ageDays > 30) {
+      actions.push(`Re-open the ${lastTouch.date} thread ("${lastTouch.subject}") with refreshed context and explicit next step.`);
+    } else if (ageDays !== null && ageDays > 7) {
+      actions.push(`Send a short pre-meeting follow-up on "${lastTouch.subject}" to confirm priorities.`);
+    } else {
+      actions.push(`Continue in the existing "${lastTouch.subject}" thread and close with one clear decision ask.`);
+    }
+  }
+
+  if (response === 'needsaction' || response === 'tentative') {
+    actions.push('Request attendance confirmation before start time.');
+  }
+  if (response === 'declined') {
+    actions.push('Decide whether to proceed without this attendee or reschedule with an alternate slot.');
+  }
+
+  const touchpoints30d = Number(snapshot?.touchpoints30d || 0);
+  if (touchpoints30d >= 3) {
+    actions.push('Prepare a concise progress recap from recent touchpoints to avoid repeating context.');
+  }
+
+  if (Number.isFinite(meetingStartMs)) {
+    const hoursToMeeting = (meetingStartMs - Date.now()) / (60 * 60 * 1000);
+    if (hoursToMeeting >= 0 && hoursToMeeting <= 6) {
+      actions.push('Share a one-line agenda/check-in message now due to near-term meeting start.');
+    }
+  }
+
+  return dedupeArray(actions).slice(0, 4);
 }
 
 function normalizeAttendee(row) {
