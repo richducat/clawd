@@ -64,6 +64,8 @@ const thresholds = {
   min_quality_owner_assignment_coverage_pct: readOptionalNumberArg(args, '--min-quality-owner-assignment-coverage-pct'),
   min_quality_counterfactual_decision_drill_coverage_pct: readOptionalNumberArg(args, '--min-quality-counterfactual-decision-drill-coverage-pct'),
   min_quality_stakeholder_objection_handoff_coverage_pct: readOptionalNumberArg(args, '--min-quality-stakeholder-objection-handoff-coverage-pct'),
+  min_quality_risk_weighted_close_plan_sequencing_coverage_pct: readOptionalNumberArg(args, '--min-quality-risk-weighted-close-plan-sequencing-coverage-pct'),
+  min_quality_cross_owner_dependency_signoff_coverage_pct: readOptionalNumberArg(args, '--min-quality-cross-owner-dependency-signoff-coverage-pct'),
 };
 const hasThresholds = Object.values(thresholds).some((value) => value !== null);
 
@@ -475,9 +477,9 @@ function printMarkdown(result, artifactDirInput) {
   } else {
     console.log(`- scanned_artifacts=${result.meeting_prep_quality.scanned_artifacts}, snapshots=${result.meeting_prep_quality.snapshots}, meetings_scored=${result.meeting_prep_quality.meetings_scored}`);
     console.log(`- latest_avg_score=${formatNumber(result.meeting_prep_quality.latest?.avg_score)}, latest_avg_gap_count=${formatNumber(result.meeting_prep_quality.latest?.avg_gap_count)}, latest_severity_score=${formatNumber(result.meeting_prep_quality.latest?.severity_score)}`);
-    console.log(`- latest_readiness_score=${formatNumber(result.meeting_prep_quality.latest?.readiness_score)}, latest_narrative_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.narrative_coverage_pct)}, latest_dependency_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.dependency_coverage_pct)}, latest_decision_sequencing_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.decision_sequencing_coverage_pct)}, latest_close_scripts_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.close_scripts_coverage_pct)}, latest_failure_mode_rehearsal_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.failure_mode_rehearsal_coverage_pct)}, latest_stakeholder_proof_request_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.stakeholder_proof_request_coverage_pct)}, latest_confidence_calibration_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.confidence_calibration_coverage_pct)}, latest_confidence_calibration_avg_delta=${formatNumber(result.meeting_prep_quality.latest?.confidence_calibration_avg_delta)}, latest_owner_assignment_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.owner_assignment_coverage_pct)}, latest_counterfactual_decision_drill_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.counterfactual_decision_drill_coverage_pct)}, latest_stakeholder_objection_handoff_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.stakeholder_objection_handoff_coverage_pct)}`);
+    console.log(`- latest_readiness_score=${formatNumber(result.meeting_prep_quality.latest?.readiness_score)}, latest_narrative_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.narrative_coverage_pct)}, latest_dependency_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.dependency_coverage_pct)}, latest_decision_sequencing_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.decision_sequencing_coverage_pct)}, latest_close_scripts_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.close_scripts_coverage_pct)}, latest_failure_mode_rehearsal_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.failure_mode_rehearsal_coverage_pct)}, latest_stakeholder_proof_request_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.stakeholder_proof_request_coverage_pct)}, latest_confidence_calibration_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.confidence_calibration_coverage_pct)}, latest_confidence_calibration_avg_delta=${formatNumber(result.meeting_prep_quality.latest?.confidence_calibration_avg_delta)}, latest_owner_assignment_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.owner_assignment_coverage_pct)}, latest_counterfactual_decision_drill_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.counterfactual_decision_drill_coverage_pct)}, latest_stakeholder_objection_handoff_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.stakeholder_objection_handoff_coverage_pct)}, latest_risk_weighted_close_plan_sequencing_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.risk_weighted_close_plan_sequencing_coverage_pct)}, latest_cross_owner_dependency_signoff_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.cross_owner_dependency_signoff_coverage_pct)}`);
     console.log(`- oldest_avg_score=${formatNumber(result.meeting_prep_quality.oldest?.avg_score)}, oldest_avg_gap_count=${formatNumber(result.meeting_prep_quality.oldest?.avg_gap_count)}, oldest_severity_score=${formatNumber(result.meeting_prep_quality.oldest?.severity_score)}`);
-    console.log(`- oldest_readiness_score=${formatNumber(result.meeting_prep_quality.oldest?.readiness_score)}, oldest_narrative_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.narrative_coverage_pct)}, oldest_dependency_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.dependency_coverage_pct)}, oldest_decision_sequencing_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.decision_sequencing_coverage_pct)}, oldest_close_scripts_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.close_scripts_coverage_pct)}, oldest_failure_mode_rehearsal_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.failure_mode_rehearsal_coverage_pct)}, oldest_stakeholder_proof_request_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.stakeholder_proof_request_coverage_pct)}, oldest_confidence_calibration_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.confidence_calibration_coverage_pct)}, oldest_confidence_calibration_avg_delta=${formatNumber(result.meeting_prep_quality.oldest?.confidence_calibration_avg_delta)}, oldest_owner_assignment_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.owner_assignment_coverage_pct)}, oldest_counterfactual_decision_drill_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.counterfactual_decision_drill_coverage_pct)}, oldest_stakeholder_objection_handoff_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.stakeholder_objection_handoff_coverage_pct)}`);
+    console.log(`- oldest_readiness_score=${formatNumber(result.meeting_prep_quality.oldest?.readiness_score)}, oldest_narrative_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.narrative_coverage_pct)}, oldest_dependency_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.dependency_coverage_pct)}, oldest_decision_sequencing_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.decision_sequencing_coverage_pct)}, oldest_close_scripts_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.close_scripts_coverage_pct)}, oldest_failure_mode_rehearsal_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.failure_mode_rehearsal_coverage_pct)}, oldest_stakeholder_proof_request_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.stakeholder_proof_request_coverage_pct)}, oldest_confidence_calibration_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.confidence_calibration_coverage_pct)}, oldest_confidence_calibration_avg_delta=${formatNumber(result.meeting_prep_quality.oldest?.confidence_calibration_avg_delta)}, oldest_owner_assignment_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.owner_assignment_coverage_pct)}, oldest_counterfactual_decision_drill_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.counterfactual_decision_drill_coverage_pct)}, oldest_stakeholder_objection_handoff_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.stakeholder_objection_handoff_coverage_pct)}, oldest_risk_weighted_close_plan_sequencing_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.risk_weighted_close_plan_sequencing_coverage_pct)}, oldest_cross_owner_dependency_signoff_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.cross_owner_dependency_signoff_coverage_pct)}`);
 
     const driftSignals = Array.isArray(result.meeting_prep_quality.drift_signals) ? result.meeting_prep_quality.drift_signals : [];
     if (!driftSignals.length) {
@@ -603,6 +605,8 @@ function printMarkdown(result, artifactDirInput) {
   console.log(`- min_quality_owner_assignment_coverage_pct=${formatNumber(result.thresholds.min_quality_owner_assignment_coverage_pct)}`);
   console.log(`- min_quality_counterfactual_decision_drill_coverage_pct=${formatNumber(result.thresholds.min_quality_counterfactual_decision_drill_coverage_pct)}`);
   console.log(`- min_quality_stakeholder_objection_handoff_coverage_pct=${formatNumber(result.thresholds.min_quality_stakeholder_objection_handoff_coverage_pct)}`);
+  console.log(`- min_quality_risk_weighted_close_plan_sequencing_coverage_pct=${formatNumber(result.thresholds.min_quality_risk_weighted_close_plan_sequencing_coverage_pct)}`);
+  console.log(`- min_quality_cross_owner_dependency_signoff_coverage_pct=${formatNumber(result.thresholds.min_quality_cross_owner_dependency_signoff_coverage_pct)}`);
   console.log(`- breaches=${result.breaches.length}`);
 
   if (!result.breaches.length) {
@@ -685,6 +689,14 @@ function printMarkdown(result, artifactDirInput) {
     }
     if (breach.kind === 'quality_stakeholder_objection_handoff_coverage_pct') {
       console.log(`- [breach] quality stakeholder objection-handoff coverage: actual=${breach.actual} < minimum=${breach.limit}`);
+      continue;
+    }
+    if (breach.kind === 'quality_risk_weighted_close_plan_sequencing_coverage_pct') {
+      console.log(`- [breach] quality risk-weighted close-plan sequencing coverage: actual=${breach.actual} < minimum=${breach.limit}`);
+      continue;
+    }
+    if (breach.kind === 'quality_cross_owner_dependency_signoff_coverage_pct') {
+      console.log(`- [breach] quality cross-owner dependency signoff coverage: actual=${breach.actual} < minimum=${breach.limit}`);
       continue;
     }
     console.log(`- [breach] ${breach.source} ${breach.kind}: actual=${breach.actual} > limit=${breach.limit}`);
@@ -1414,6 +1426,8 @@ function readMeetingPrepQualityTrends({ artifactDirInput }) {
     let confidenceCalibrationCovered = 0;
     let counterfactualDecisionDrillCovered = 0;
     let stakeholderObjectionHandoffCovered = 0;
+    let riskWeightedClosePlanSequencingCovered = 0;
+    let crossOwnerDependencySignoffCovered = 0;
     const confidenceCalibrationDeltas = [];
     const ownerAssignmentCoveragePcts = [];
     const readinessScores = [];
@@ -1431,6 +1445,8 @@ function readMeetingPrepQualityTrends({ artifactDirInput }) {
       const confidenceCalibrationComplete = hasConfidenceCalibrationTrend(meeting?.confidenceCalibrationTrend);
       const counterfactualDecisionDrillComplete = hasCounterfactualDecisionDrillPrompts(meeting?.counterfactualDecisionDrillPrompts);
       const stakeholderObjectionHandoffComplete = hasStakeholderObjectionResponseHandoffMap(meeting?.stakeholderObjectionResponseHandoffMap);
+      const riskWeightedClosePlanSequencingComplete = hasRiskWeightedClosePlanSequencing(meeting?.riskWeightedClosePlanSequencing);
+      const crossOwnerDependencySignoffComplete = hasCrossOwnerDependencySignoffPack(meeting?.crossOwnerDependencySignoffPack);
       const ownerAssignmentCoveragePct = computeOwnerAssignmentCoveragePct({
         balancing: meeting?.actionOwnerLoadBalancing,
         meetingRecommendations: meeting?.meetingRecommendations,
@@ -1444,6 +1460,8 @@ function readMeetingPrepQualityTrends({ artifactDirInput }) {
       if (stakeholderProofRequestComplete) stakeholderProofRequestCovered += 1;
       if (counterfactualDecisionDrillComplete) counterfactualDecisionDrillCovered += 1;
       if (stakeholderObjectionHandoffComplete) stakeholderObjectionHandoffCovered += 1;
+      if (riskWeightedClosePlanSequencingComplete) riskWeightedClosePlanSequencingCovered += 1;
+      if (crossOwnerDependencySignoffComplete) crossOwnerDependencySignoffCovered += 1;
       if (confidenceCalibrationComplete) {
         confidenceCalibrationCovered += 1;
         confidenceCalibrationDeltas.push(Number(meeting?.confidenceCalibrationTrend?.averageDelta || 0));
@@ -1470,6 +1488,8 @@ function readMeetingPrepQualityTrends({ artifactDirInput }) {
     const confidenceCalibrationCoveragePct = Number(((confidenceCalibrationCovered / scored.length) * 100).toFixed(3));
     const counterfactualDecisionDrillCoveragePct = Number(((counterfactualDecisionDrillCovered / scored.length) * 100).toFixed(3));
     const stakeholderObjectionHandoffCoveragePct = Number(((stakeholderObjectionHandoffCovered / scored.length) * 100).toFixed(3));
+    const riskWeightedClosePlanSequencingCoveragePct = Number(((riskWeightedClosePlanSequencingCovered / scored.length) * 100).toFixed(3));
+    const crossOwnerDependencySignoffCoveragePct = Number(((crossOwnerDependencySignoffCovered / scored.length) * 100).toFixed(3));
     const confidenceCalibrationAvgDelta = confidenceCalibrationDeltas.length
       ? Number((confidenceCalibrationDeltas.reduce((sum, value) => sum + value, 0) / confidenceCalibrationDeltas.length).toFixed(3))
       : null;
@@ -1506,6 +1526,8 @@ function readMeetingPrepQualityTrends({ artifactDirInput }) {
       owner_assignment_coverage_pct: ownerAssignmentCoveragePct,
       counterfactual_decision_drill_coverage_pct: counterfactualDecisionDrillCoveragePct,
       stakeholder_objection_handoff_coverage_pct: stakeholderObjectionHandoffCoveragePct,
+      risk_weighted_close_plan_sequencing_coverage_pct: riskWeightedClosePlanSequencingCoveragePct,
+      cross_owner_dependency_signoff_coverage_pct: crossOwnerDependencySignoffCoveragePct,
       narrative_covered_count: narrativeCovered,
       dependency_covered_count: dependencyCovered,
       sequencing_covered_count: sequencingCovered,
@@ -1515,6 +1537,8 @@ function readMeetingPrepQualityTrends({ artifactDirInput }) {
       confidence_calibration_covered_count: confidenceCalibrationCovered,
       counterfactual_decision_drill_covered_count: counterfactualDecisionDrillCovered,
       stakeholder_objection_handoff_covered_count: stakeholderObjectionHandoffCovered,
+      risk_weighted_close_plan_sequencing_covered_count: riskWeightedClosePlanSequencingCovered,
+      cross_owner_dependency_signoff_covered_count: crossOwnerDependencySignoffCovered,
       severity_score: severityScore,
       levels: levelCounts,
       failing_check_severity: severityCounts,
@@ -1571,6 +1595,8 @@ function buildMeetingPrepQualityDriftSignals({ oldest, latest }) {
   const ownerAssignmentCoverageDelta = Number((Number(latest.owner_assignment_coverage_pct || 0) - Number(oldest.owner_assignment_coverage_pct || 0)).toFixed(3));
   const counterfactualDecisionDrillCoverageDelta = Number((Number(latest.counterfactual_decision_drill_coverage_pct || 0) - Number(oldest.counterfactual_decision_drill_coverage_pct || 0)).toFixed(3));
   const stakeholderObjectionHandoffCoverageDelta = Number((Number(latest.stakeholder_objection_handoff_coverage_pct || 0) - Number(oldest.stakeholder_objection_handoff_coverage_pct || 0)).toFixed(3));
+  const riskWeightedClosePlanSequencingCoverageDelta = Number((Number(latest.risk_weighted_close_plan_sequencing_coverage_pct || 0) - Number(oldest.risk_weighted_close_plan_sequencing_coverage_pct || 0)).toFixed(3));
+  const crossOwnerDependencySignoffCoverageDelta = Number((Number(latest.cross_owner_dependency_signoff_coverage_pct || 0) - Number(oldest.cross_owner_dependency_signoff_coverage_pct || 0)).toFixed(3));
   const severityDelta = Number((Number(latest.severity_score || 0) - Number(oldest.severity_score || 0)).toFixed(3));
   const highDelta = Number((Number(latest.failing_check_severity?.high || 0) - Number(oldest.failing_check_severity?.high || 0)).toFixed(3));
 
@@ -1718,6 +1744,22 @@ function buildMeetingPrepQualityDriftSignals({ oldest, latest }) {
       message: `Stakeholder objection-handoff coverage dropped by ${Math.abs(stakeholderObjectionHandoffCoverageDelta)} pct vs oldest snapshot.`,
     });
   }
+  if (riskWeightedClosePlanSequencingCoverageDelta <= -5) {
+    signals.push({
+      code: 'risk_weighted_close_plan_sequencing_coverage_drop',
+      severity: riskWeightedClosePlanSequencingCoverageDelta <= -30 ? 'high' : riskWeightedClosePlanSequencingCoverageDelta <= -15 ? 'medium' : 'low',
+      delta: riskWeightedClosePlanSequencingCoverageDelta,
+      message: `Risk-weighted close-plan sequencing coverage dropped by ${Math.abs(riskWeightedClosePlanSequencingCoverageDelta)} pct vs oldest snapshot.`,
+    });
+  }
+  if (crossOwnerDependencySignoffCoverageDelta <= -5) {
+    signals.push({
+      code: 'cross_owner_dependency_signoff_coverage_drop',
+      severity: crossOwnerDependencySignoffCoverageDelta <= -30 ? 'high' : crossOwnerDependencySignoffCoverageDelta <= -15 ? 'medium' : 'low',
+      delta: crossOwnerDependencySignoffCoverageDelta,
+      message: `Cross-owner dependency signoff coverage dropped by ${Math.abs(crossOwnerDependencySignoffCoverageDelta)} pct vs oldest snapshot.`,
+    });
+  }
 
   return signals;
 }
@@ -1765,6 +1807,8 @@ function buildMeetingPrepQualityEscalationLanes(latestSnapshot) {
   const ownerAssignmentCoverage = Number(latestSnapshot.owner_assignment_coverage_pct || 0);
   const counterfactualDecisionDrillCoverage = Number(latestSnapshot.counterfactual_decision_drill_coverage_pct || 0);
   const stakeholderObjectionHandoffCoverage = Number(latestSnapshot.stakeholder_objection_handoff_coverage_pct || 0);
+  const riskWeightedClosePlanSequencingCoverage = Number(latestSnapshot.risk_weighted_close_plan_sequencing_coverage_pct || 0);
+  const crossOwnerDependencySignoffCoverage = Number(latestSnapshot.cross_owner_dependency_signoff_coverage_pct || 0);
   if (narrativeCoverage < 80) {
     lanes.push({
       lane: 'stakeholder_narrative_pack_remediation',
@@ -1843,6 +1887,22 @@ function buildMeetingPrepQualityEscalationLanes(latestSnapshot) {
       severity: stakeholderObjectionHandoffCoverage < 60 ? 'high' : 'medium',
       trigger_count: Number(latestSnapshot.scored_meetings || 0) - Number(latestSnapshot.stakeholder_objection_handoff_covered_count || 0),
       message: 'Stakeholder objection-handoff coverage is below target; require explicit objection owner/scripts before closeout.',
+    });
+  }
+  if (riskWeightedClosePlanSequencingCoverage < 80) {
+    lanes.push({
+      lane: 'risk_weighted_close_plan_sequencing_remediation',
+      severity: riskWeightedClosePlanSequencingCoverage < 60 ? 'high' : 'medium',
+      trigger_count: Number(latestSnapshot.scored_meetings || 0) - Number(latestSnapshot.risk_weighted_close_plan_sequencing_covered_count || 0),
+      message: 'Risk-weighted close-plan sequencing coverage is below target; require deterministic close-order sequencing before handoff.',
+    });
+  }
+  if (crossOwnerDependencySignoffCoverage < 80) {
+    lanes.push({
+      lane: 'cross_owner_dependency_signoff_remediation',
+      severity: crossOwnerDependencySignoffCoverage < 60 ? 'high' : 'medium',
+      trigger_count: Number(latestSnapshot.scored_meetings || 0) - Number(latestSnapshot.cross_owner_dependency_signoff_covered_count || 0),
+      message: 'Cross-owner dependency signoff coverage is below target; require explicit primary/backup owner confirmation before closeout.',
     });
   }
 
@@ -1937,6 +1997,27 @@ function hasStakeholderObjectionResponseHandoffMap(rows) {
     const responseOwner = String(row?.responseOwner || '').trim();
     const responseScript = String(row?.responseScript || '').trim();
     return attendee.length > 0 && objectionTheme.length > 0 && responseOwner.length > 0 && responseScript.length > 0;
+  });
+}
+
+function hasRiskWeightedClosePlanSequencing(sequencing) {
+  if (!sequencing || typeof sequencing !== 'object') return false;
+  const summary = String(sequencing.summary || '').trim();
+  const steps = Array.isArray(sequencing.steps)
+    ? sequencing.steps.filter((step) => String(step?.step || '').trim().length > 0 && Number.isFinite(Number(step?.riskWeight)))
+    : [];
+  return summary.length > 0 && steps.length > 0;
+}
+
+function hasCrossOwnerDependencySignoffPack(pack) {
+  if (!Array.isArray(pack) || !pack.length) return false;
+  return pack.some((row) => {
+    const dependency = String(row?.dependency || '').trim();
+    const primaryOwner = String(row?.primaryOwner || '').trim();
+    const backupOwner = String(row?.backupOwner || '').trim();
+    const signoffQuestion = String(row?.signoffQuestion || '').trim();
+    const dueWindow = String(row?.dueWindow || '').trim();
+    return dependency.length > 0 && primaryOwner.length > 0 && backupOwner.length > 0 && signoffQuestion.length > 0 && dueWindow.length > 0;
   });
 }
 
@@ -2268,6 +2349,8 @@ function evaluateThresholdBreaches({ sources, failures, reconciliation, baseline
     || thresholds.min_quality_owner_assignment_coverage_pct !== null
     || thresholds.min_quality_counterfactual_decision_drill_coverage_pct !== null
     || thresholds.min_quality_stakeholder_objection_handoff_coverage_pct !== null
+    || thresholds.min_quality_risk_weighted_close_plan_sequencing_coverage_pct !== null
+    || thresholds.min_quality_cross_owner_dependency_signoff_coverage_pct !== null
   ) {
     if (!meetingPrepQuality?.available) {
       breaches.push({
@@ -2425,6 +2508,26 @@ function evaluateThresholdBreaches({ sources, failures, reconciliation, baseline
             kind: 'quality_stakeholder_objection_handoff_coverage_pct',
             actual: latestStakeholderObjectionHandoffCoverage,
             limit: thresholds.min_quality_stakeholder_objection_handoff_coverage_pct,
+          });
+        }
+      }
+      if (thresholds.min_quality_risk_weighted_close_plan_sequencing_coverage_pct !== null) {
+        const latestRiskWeightedClosePlanSequencingCoverage = Number(meetingPrepQuality?.latest?.risk_weighted_close_plan_sequencing_coverage_pct || 0);
+        if (latestRiskWeightedClosePlanSequencingCoverage < thresholds.min_quality_risk_weighted_close_plan_sequencing_coverage_pct) {
+          breaches.push({
+            kind: 'quality_risk_weighted_close_plan_sequencing_coverage_pct',
+            actual: latestRiskWeightedClosePlanSequencingCoverage,
+            limit: thresholds.min_quality_risk_weighted_close_plan_sequencing_coverage_pct,
+          });
+        }
+      }
+      if (thresholds.min_quality_cross_owner_dependency_signoff_coverage_pct !== null) {
+        const latestCrossOwnerDependencySignoffCoverage = Number(meetingPrepQuality?.latest?.cross_owner_dependency_signoff_coverage_pct || 0);
+        if (latestCrossOwnerDependencySignoffCoverage < thresholds.min_quality_cross_owner_dependency_signoff_coverage_pct) {
+          breaches.push({
+            kind: 'quality_cross_owner_dependency_signoff_coverage_pct',
+            actual: latestCrossOwnerDependencySignoffCoverage,
+            limit: thresholds.min_quality_cross_owner_dependency_signoff_coverage_pct,
           });
         }
       }
@@ -2712,7 +2815,7 @@ function severityForBreachKind(kind) {
   if (['lag_hours', 'seen_drift_hours', 'baseline_anomalies_count', 'reconciliation_unavailable', 'slo_budget_unavailable', 'slo_budget_burn_pct', 'meeting_prep_quality_unavailable', 'quality_severity_score', 'quality_readiness_drop', 'quality_confidence_calibration_drop'].includes(k)) {
     return 'high';
   }
-  if (['entity_delta_pct', 'chunk_ratio_delta', 'link_delta_pct', 'artifact_issues_count', 'quality_drift_signals_count', 'quality_narrative_coverage_pct', 'quality_dependency_coverage_pct', 'quality_decision_sequencing_coverage_pct', 'quality_close_scripts_coverage_pct', 'quality_failure_mode_rehearsal_coverage_pct', 'quality_stakeholder_proof_request_coverage_pct', 'quality_owner_assignment_coverage_pct', 'quality_counterfactual_decision_drill_coverage_pct', 'quality_stakeholder_objection_handoff_coverage_pct'].includes(k)) {
+  if (['entity_delta_pct', 'chunk_ratio_delta', 'link_delta_pct', 'artifact_issues_count', 'quality_drift_signals_count', 'quality_narrative_coverage_pct', 'quality_dependency_coverage_pct', 'quality_decision_sequencing_coverage_pct', 'quality_close_scripts_coverage_pct', 'quality_failure_mode_rehearsal_coverage_pct', 'quality_stakeholder_proof_request_coverage_pct', 'quality_owner_assignment_coverage_pct', 'quality_counterfactual_decision_drill_coverage_pct', 'quality_stakeholder_objection_handoff_coverage_pct', 'quality_risk_weighted_close_plan_sequencing_coverage_pct', 'quality_cross_owner_dependency_signoff_coverage_pct'].includes(k)) {
     return 'medium';
   }
   return 'low';
@@ -2889,7 +2992,7 @@ function buildTrendArtifactMarkdown(payload) {
   } else {
     lines.push(`- scanned_artifacts=${prep.scanned_artifacts ?? 0}, snapshots=${prep.snapshots ?? 0}, meetings_scored=${prep.meetings_scored ?? 0}`);
     lines.push(`- latest_avg_score=${formatNumber(prep.latest?.avg_score)}, latest_avg_gap_count=${formatNumber(prep.latest?.avg_gap_count)}, latest_severity_score=${formatNumber(prep.latest?.severity_score)}`);
-    lines.push(`- latest_readiness_score=${formatNumber(prep.latest?.readiness_score)}, latest_narrative_coverage_pct=${formatNumber(prep.latest?.narrative_coverage_pct)}, latest_dependency_coverage_pct=${formatNumber(prep.latest?.dependency_coverage_pct)}, latest_decision_sequencing_coverage_pct=${formatNumber(prep.latest?.decision_sequencing_coverage_pct)}, latest_close_scripts_coverage_pct=${formatNumber(prep.latest?.close_scripts_coverage_pct)}, latest_failure_mode_rehearsal_coverage_pct=${formatNumber(prep.latest?.failure_mode_rehearsal_coverage_pct)}, latest_stakeholder_proof_request_coverage_pct=${formatNumber(prep.latest?.stakeholder_proof_request_coverage_pct)}, latest_confidence_calibration_coverage_pct=${formatNumber(prep.latest?.confidence_calibration_coverage_pct)}, latest_confidence_calibration_avg_delta=${formatNumber(prep.latest?.confidence_calibration_avg_delta)}, latest_owner_assignment_coverage_pct=${formatNumber(prep.latest?.owner_assignment_coverage_pct)}, latest_counterfactual_decision_drill_coverage_pct=${formatNumber(prep.latest?.counterfactual_decision_drill_coverage_pct)}, latest_stakeholder_objection_handoff_coverage_pct=${formatNumber(prep.latest?.stakeholder_objection_handoff_coverage_pct)}`);
+    lines.push(`- latest_readiness_score=${formatNumber(prep.latest?.readiness_score)}, latest_narrative_coverage_pct=${formatNumber(prep.latest?.narrative_coverage_pct)}, latest_dependency_coverage_pct=${formatNumber(prep.latest?.dependency_coverage_pct)}, latest_decision_sequencing_coverage_pct=${formatNumber(prep.latest?.decision_sequencing_coverage_pct)}, latest_close_scripts_coverage_pct=${formatNumber(prep.latest?.close_scripts_coverage_pct)}, latest_failure_mode_rehearsal_coverage_pct=${formatNumber(prep.latest?.failure_mode_rehearsal_coverage_pct)}, latest_stakeholder_proof_request_coverage_pct=${formatNumber(prep.latest?.stakeholder_proof_request_coverage_pct)}, latest_confidence_calibration_coverage_pct=${formatNumber(prep.latest?.confidence_calibration_coverage_pct)}, latest_confidence_calibration_avg_delta=${formatNumber(prep.latest?.confidence_calibration_avg_delta)}, latest_owner_assignment_coverage_pct=${formatNumber(prep.latest?.owner_assignment_coverage_pct)}, latest_counterfactual_decision_drill_coverage_pct=${formatNumber(prep.latest?.counterfactual_decision_drill_coverage_pct)}, latest_stakeholder_objection_handoff_coverage_pct=${formatNumber(prep.latest?.stakeholder_objection_handoff_coverage_pct)}, latest_risk_weighted_close_plan_sequencing_coverage_pct=${formatNumber(prep.latest?.risk_weighted_close_plan_sequencing_coverage_pct)}, latest_cross_owner_dependency_signoff_coverage_pct=${formatNumber(prep.latest?.cross_owner_dependency_signoff_coverage_pct)}`);
     const driftSignals = Array.isArray(prep.drift_signals) ? prep.drift_signals : [];
     if (!driftSignals.length) {
       lines.push('- drift_signals=none');
