@@ -14,6 +14,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 const ROOT = process.cwd();
+const strictMode = process.argv.includes('--strict') || process.env.MARKDOWN_AUDIT_STRICT === '1';
 const mustExist = [
   'workspace.md',
   'MEMORY.md',
@@ -46,10 +47,14 @@ function has(text, needle) {
     if (!(await exists(f))) missing.push(f);
   }
 
+  let errorCount = 0;
+  let warningCount = 0;
   const lines = [];
   lines.push(`Markdown audit — ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })}`);
+  lines.push(`Mode: ${strictMode ? 'strict' : 'report-only'}`);
 
   if (missing.length) {
+    errorCount += missing.length;
     lines.push('Missing files:');
     for (const f of missing) lines.push(`- ${f}`);
   } else {
@@ -66,13 +71,15 @@ function has(text, needle) {
   const mentionsAutoSend = has(mem, 'auto-send') || has(daily, 'auto-send');
 
   if (!wantsDraftFirst) {
+    warningCount += 1;
     lines.push('Email policy: WARNING — draft-first not found in MEMORY/daily.');
   } else {
     lines.push('Email policy: draft-first mode is recorded.');
   }
 
   if (wantsDraftFirst && mentionsAutoSend) {
-    lines.push('Email policy: NOTE — both "auto-send" and "draft-first" appear in memory; ensure draft-first is the active rule.');
+    errorCount += 1;
+    lines.push('Email policy: ERROR — both "auto-send" and "draft-first" appear in memory; ensure draft-first is the active rule.');
   }
 
   // RingCentral known issue reminder
@@ -80,8 +87,13 @@ function has(text, needle) {
 
   // Backup reminder
   lines.push('Backups: hourly git sync + nightly Drive bundle should be green (check if any repo branch lacks upstream).');
+  lines.push(`Summary: ${errorCount} error(s), ${warningCount} warning(s).`);
 
   process.stdout.write(lines.join('\n') + '\n');
+
+  if (strictMode && errorCount > 0) {
+    process.exit(1);
+  }
 })().catch((err) => {
   console.error(err?.stack || String(err));
   process.exit(1);

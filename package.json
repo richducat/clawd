@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "md:audit": "node scripts/maintenance/markdown-audit.mjs",
+    "md:audit:strict": "node scripts/maintenance/markdown-audit.mjs --strict"
+  },
   "dependencies": {
     "better-sqlite3": "^11.10.0",
     "docx": "^8.5.0",
