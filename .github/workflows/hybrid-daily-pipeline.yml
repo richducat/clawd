@@ -193,16 +193,22 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.live_mode }}
     runs-on:
       - self-hosted
+    environment:
+      name: hybrid-live
     timeout-minutes: 30
     env:
       TZ: America/New_York
       OPENCLAW_DB_ROOT: ${{ github.workspace }}/.tmp/openclaw-db
       ACCOUNT_INPUT: ${{ inputs.account || 'richducat@gmail.com' }}
       DATE_INPUT: ${{ inputs.date || '' }}
+      USE_FIXTURES_INPUT: ${{ inputs.use_fixtures }}
       SKIP_KB_INPUT: ${{ inputs.skip_kb }}
       MAX_LAG_HOURS_INPUT: ${{ inputs.max_lag_hours || '24' }}
       MAX_SEEN_DRIFT_HOURS_INPUT: ${{ inputs.max_seen_drift_hours || '48' }}
       MAX_ARTIFACT_ISSUES_INPUT: ${{ inputs.max_artifact_issues || '0' }}
+      LIVE_ALLOWED_ACTORS_INPUT: ${{ vars.HYBRID_LIVE_ALLOWED_ACTORS || 'richducat' }}
+      TRIGGER_ACTOR: ${{ github.triggering_actor || github.actor }}
+      BRANCH_NAME: ${{ github.ref_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -215,6 +221,35 @@ jobs:
 
       - name: Install deps
         run: npm ci
+
+      - name: Enforce live governance policy
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$BRANCH_NAME" != "main" ]]; then
+            echo "live_mode is restricted to main branch dispatches (current branch: $BRANCH_NAME)"
+            exit 1
+          fi
+
+          if [[ "${USE_FIXTURES_INPUT:-false}" == "true" ]]; then
+            echo "live_mode requires use_fixtures=false."
+            exit 1
+          fi
+
+          allowed_csv="${LIVE_ALLOWED_ACTORS_INPUT}"
+          actor="$TRIGGER_ACTOR"
+
+          normalized="$(printf '%s' "$allowed_csv" | tr ',' '\n' | tr -d ' ' | sed '/^$/d')"
+          if [[ -z "$normalized" ]]; then
+            echo "HYBRID_LIVE_ALLOWED_ACTORS resolved to empty. Configure at least one allowed actor."
+            exit 1
+          fi
+
+          if ! printf '%s\n' "$normalized" | grep -Fxq "$actor"; then
+            echo "actor $actor is not authorized for live_mode. Allowed actors: $normalized"
+            exit 1
+          fi
 
       - name: Preflight live connector checks
         shell: bash
