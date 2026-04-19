@@ -175,6 +175,8 @@ Include:
   - owner escalation prompt pack for deterministic ownership follow-through (`trigger`, `prompt`, `desiredOutcome`, `priority`, `ownerHint`)
   - stakeholder-ready narrative pack for concise executive-ready meeting storytelling (`headline`, `opening`, `middle`, `close`, `proofPoints`, `topDependencies`)
   - dependency-aware follow-through prompts for deterministic dependency closure (`trigger`, `prompt`, `desiredOutcome`, `priority`, `ownerHint`, `dependsOn`)
+  - decision-commitment sequencing model for deterministic decision-order and owner/date lock sequencing (`summary`, `steps`)
+  - stakeholder-specific close scripts for deterministic stakeholder closeout messaging (`attendee`, `trigger`, `script`, `desiredOutcome`, `priority`)
   - meeting-prep quality scoring + coverage checks for output completeness (`score`, `level`, `gapCount`, `summary`, `coverageChecks`)
   - meeting-level recommendations with confidence metadata
   - cross-attendee relationship risk signals for escalation-aware prep

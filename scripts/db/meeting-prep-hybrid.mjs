@@ -272,6 +272,23 @@ async function main() {
         commitmentRiskAging,
         ownerEscalationPrompts,
       });
+      const decisionCommitmentSequencing = buildDecisionCommitmentSequencing({
+        title: event.title || '',
+        attendees: attendeeBriefs,
+        relationshipRiskSignals,
+        commitmentCloseChecklist,
+        commitmentRiskAging,
+        ownerEscalationPrompts,
+        dependencyFollowThroughPrompts,
+      });
+      const stakeholderCloseScripts = buildStakeholderCloseScripts({
+        title: event.title || '',
+        attendees: attendeeBriefs,
+        relationshipRiskSignals,
+        stakeholderIntentSummaries,
+        decisionCommitmentSequencing,
+        commitmentCloseChecklist,
+      });
       const prepQuality = buildMeetingPrepQuality({
         attendees: attendeeBriefs,
         relationshipRiskSignals,
@@ -287,6 +304,8 @@ async function main() {
         ownerEscalationPrompts,
         stakeholderNarrativePack,
         dependencyFollowThroughPrompts,
+        decisionCommitmentSequencing,
+        stakeholderCloseScripts,
       });
 
       if (insertSnapshotStmt) {
@@ -338,6 +357,8 @@ async function main() {
         ownerEscalationPrompts,
         stakeholderNarrativePack,
         dependencyFollowThroughPrompts,
+        decisionCommitmentSequencing,
+        stakeholderCloseScripts,
         prepQuality,
       });
     }
@@ -552,6 +573,35 @@ function printMarkdownBrief({ account, date, timezone, internalDomains, meetings
         }
         if (prompt.ownerHint) {
           console.log(`    - Owner hint: ${prompt.ownerHint}`);
+        }
+      }
+    }
+    if (meeting.decisionCommitmentSequencing) {
+      console.log('- Decision-commitment sequencing:');
+      const sequencing = meeting.decisionCommitmentSequencing;
+      if (sequencing.summary) {
+        console.log(`  - Summary: ${sequencing.summary}`);
+      }
+      if (Array.isArray(sequencing.steps) && sequencing.steps.length) {
+        for (const step of sequencing.steps) {
+          const dependsOn = Array.isArray(step.dependsOn) && step.dependsOn.length
+            ? ` [depends_on=${step.dependsOn.join(', ')}]`
+            : '';
+          console.log(`  - (${step.order}) [${step.priority}] ${step.step} -> ${step.ownerHint}${dependsOn}`);
+          if (step.outcome) {
+            console.log(`    - Outcome: ${step.outcome}`);
+          }
+        }
+      }
+    }
+    if (Array.isArray(meeting.stakeholderCloseScripts) && meeting.stakeholderCloseScripts.length) {
+      console.log('- Stakeholder-specific close scripts:');
+      for (const script of meeting.stakeholderCloseScripts) {
+        const who = script.attendeeName ? `${script.attendeeName} <${script.attendeeEmail}>` : script.attendeeEmail;
+        console.log(`  - [${script.priority}] ${who}: ${script.trigger}`);
+        console.log(`    - Close script: ${script.script}`);
+        if (script.desiredOutcome) {
+          console.log(`    - Desired outcome: ${script.desiredOutcome}`);
         }
       }
     }
@@ -2043,6 +2093,212 @@ function buildDependencyFollowThroughPrompts({
   return prompts.slice(0, 6);
 }
 
+function buildDecisionCommitmentSequencing({
+  title,
+  attendees,
+  relationshipRiskSignals,
+  commitmentCloseChecklist,
+  commitmentRiskAging,
+  ownerEscalationPrompts,
+  dependencyFollowThroughPrompts,
+}) {
+  const steps = [];
+  const signalByCode = new Map((relationshipRiskSignals || []).map((signal) => [signal.code, signal]));
+  const attendeeCount = Number(attendees?.length || 0);
+  const highRiskSignals = (relationshipRiskSignals || []).filter((signal) => signal.severity === 'high');
+  const hasOwnerCloseout = (commitmentCloseChecklist || []).some((item) => item.code === 'closeout_owner_date');
+  const hasDecisionLock = (commitmentCloseChecklist || []).some((item) => item.code === 'decision_lock');
+  const hasHighAging = (commitmentRiskAging?.windows || []).some((window) => window.priority === 'high');
+  const hasDependencyPrompts = Array.isArray(dependencyFollowThroughPrompts) && dependencyFollowThroughPrompts.length > 0;
+  const hasOwnerEscalation = Array.isArray(ownerEscalationPrompts) && ownerEscalationPrompts.length > 0;
+
+  const push = (code, order, priority, step, ownerHint, outcome, dependsOn = []) => {
+    if (steps.some((item) => item.code === code)) return;
+    steps.push({
+      code,
+      order,
+      priority,
+      step: cleanLine(step, 200),
+      ownerHint: cleanLine(ownerHint, 120),
+      outcome: cleanLine(outcome, 220),
+      dependsOn: dedupeArray(dependsOn).slice(0, 4),
+    });
+  };
+
+  push(
+    'sequence_decision_boundary',
+    1,
+    'high',
+    hasDecisionLock || hasKeyword(title, ['decision', 'approval', 'review'])
+      ? 'State explicit decision boundary (approved now vs deferred) before discussing timelines.'
+      : 'State meeting close objective and decision boundary before discussing owners.',
+    'Decision partner',
+    'Everyone leaves with one shared decision state.',
+    ['decision_lock']
+  );
+
+  if (signalByCode.has('rsvp_declined') || signalByCode.has('rsvp_unconfirmed')) {
+    push(
+      'sequence_participation_path',
+      2,
+      'high',
+      'Confirm live attendee or delegate/async path for any unstable RSVP stakeholder.',
+      'Attendee manager',
+      'No decision lane is blocked by attendance uncertainty.',
+      ['attendance_fallback', 'aging_72h_rsvp_backfill']
+    );
+  }
+
+  push(
+    'sequence_owner_date_lock',
+    3,
+    hasOwnerCloseout || hasHighAging ? 'high' : 'medium',
+    'Lock owner + due date for each open commitment in a single pass.',
+    'Meeting owner',
+    'Every open item has explicit owner/date accountability.',
+    ['closeout_owner_date', 'aging_24h_owner_confirmation']
+  );
+
+  if (highRiskSignals.length > 0 || hasDependencyPrompts) {
+    push(
+      'sequence_mitigation_proof',
+      4,
+      'high',
+      'Convert risk/dependency blockers into mitigation plan with proof-of-completion check.',
+      'Risk owner',
+      'High-risk blockers have named mitigation path and verification criteria.',
+      ['risk_mitigation_commitment', 'followthrough_mitigation_dependency']
+    );
+  }
+
+  if (hasOwnerEscalation || attendeeCount >= 3 || hasKeyword(title, ['roadmap', 'planning', 'sync'])) {
+    push(
+      'sequence_checkpoint_publish',
+      5,
+      'medium',
+      'Publish weekly checkpoint channel, owner, and timestamp before meeting close.',
+      'Program owner',
+      'Cross-functional execution cadence is preserved through next checkpoint.',
+      ['owner_checkpoint_escalation', 'aging_7d_checkpoint']
+    );
+  }
+
+  if (!steps.length) {
+    push(
+      'sequence_default',
+      1,
+      'low',
+      'Confirm one owner/date commitment and the next checkpoint before closeout.',
+      'Meeting owner',
+      'Deterministic closeout exists for low-risk meeting context.',
+      ['default']
+    );
+  }
+
+  const ordered = steps
+    .sort((a, b) => a.order - b.order || riskLevelRank(a.priority) - riskLevelRank(b.priority))
+    .slice(0, 6)
+    .map((item, index) => ({
+      ...item,
+      order: index + 1,
+    }));
+
+  let summary = 'Decision-to-commitment sequencing is stable for current meeting context.';
+  if (highRiskSignals.length > 0 || hasHighAging) {
+    summary = 'Elevated risk context: enforce strict decision boundary, owner/date lock, and mitigation proof sequence.';
+  } else if (signalByCode.has('rsvp_declined') || signalByCode.has('rsvp_unconfirmed')) {
+    summary = 'Attendance instability detected: prioritize delegate/async path before final commitment lock.';
+  }
+
+  return {
+    summary,
+    steps: ordered,
+  };
+}
+
+function buildStakeholderCloseScripts({
+  title,
+  attendees,
+  relationshipRiskSignals,
+  stakeholderIntentSummaries,
+  decisionCommitmentSequencing,
+  commitmentCloseChecklist,
+}) {
+  const scripts = [];
+  const signalByCode = new Map((relationshipRiskSignals || []).map((signal) => [signal.code, signal]));
+  const intentsByEmail = new Map((stakeholderIntentSummaries || []).map((summary) => [summary.attendeeEmail, summary]));
+  const sequencingTopStep = (decisionCommitmentSequencing?.steps || [])[0] || null;
+  const hasMitigationChecklist = (commitmentCloseChecklist || []).some((item) => item.code === 'risk_mitigation_commitment');
+  const hasDecisionChecklist = (commitmentCloseChecklist || []).some((item) => item.code === 'decision_lock');
+  const maxScripts = 6;
+
+  const push = (item) => {
+    if (!item?.attendeeEmail) return;
+    if (scripts.some((entry) => entry.attendeeEmail === item.attendeeEmail)) return;
+    scripts.push(item);
+  };
+
+  for (const attendee of attendees || []) {
+    if (scripts.length >= maxScripts) break;
+    const email = attendee?.email;
+    if (!email) continue;
+    const name = cleanLine(attendee?.name || '', 100) || null;
+    const intent = intentsByEmail.get(email);
+    const role = attendee?.roleProfile?.role || '';
+    const response = String(attendee?.responseStatus || '').toLowerCase();
+    const riskLevel = attendee?.relationshipRisk?.level || 'low';
+    const priority = riskLevel === 'high' ? 'high' : riskLevel === 'medium' ? 'medium' : 'low';
+
+    let trigger = 'Standard closeout confirmation.';
+    let script = 'Can we confirm your owner/date commitment and preferred checkpoint channel before we close?';
+    let desiredOutcome = 'Stakeholder confirms owner/date and checkpoint expectation.';
+
+    if (response === 'declined' || response === 'tentative' || response === 'needsaction' || signalByCode.has('rsvp_unconfirmed')) {
+      trigger = 'Attendance certainty is unstable at closeout.';
+      script = 'If you cannot attend live, who is your delegate and when will async decision input land so we do not block closeout?';
+      desiredOutcome = 'Delegate/async path is locked with timestamp.';
+    } else if (priority === 'high' || hasMitigationChecklist || intent?.intent === 'constraint mitigation' || role === 'at-risk stakeholder' || role === 'blocked stakeholder') {
+      trigger = 'High-risk mitigation commitment is required before close.';
+      script = 'Before we close, can you confirm the mitigation owner, due date, and proof check you will sign off on?';
+      desiredOutcome = 'Mitigation path is explicit, owned, and verifiable.';
+    } else if (intent?.intent === 'decision closure' || hasDecisionChecklist || hasKeyword(title, ['decision', 'approval', 'review'])) {
+      trigger = 'Decision boundary needs explicit stakeholder acknowledgement.';
+      script = 'Please confirm what is approved now, what is deferred, and the checkpoint owner/date for deferred items.';
+      desiredOutcome = 'Decision state is explicit and prevents follow-through ambiguity.';
+    } else if (intent?.intent === 'scope clarity' || intent?.intent === 'context validation') {
+      trigger = 'Scope/context alignment needs explicit close.';
+      script = 'Can you confirm the exact scope boundary and one owner/date commitment that proves alignment this cycle?';
+      desiredOutcome = 'Scope alignment is converted into one measurable commitment.';
+    }
+
+    if (sequencingTopStep && priority !== 'high') {
+      desiredOutcome = `${desiredOutcome} Sequencing anchor: ${sequencingTopStep.step}`;
+    }
+
+    push({
+      attendeeEmail: email,
+      attendeeName: name,
+      priority,
+      trigger: cleanLine(trigger, 180),
+      script: cleanLine(script, 260),
+      desiredOutcome: cleanLine(desiredOutcome, 260),
+    });
+  }
+
+  if (!scripts.length) {
+    push({
+      attendeeEmail: 'external-stakeholder',
+      attendeeName: null,
+      priority: 'low',
+      trigger: 'Fallback closeout script for unresolved stakeholder context.',
+      script: 'Before we close, who owns the next step, what is the due date, and where will status be posted?',
+      desiredOutcome: 'Default owner/date/checkpoint closeout is explicit.',
+    });
+  }
+
+  return scripts.slice(0, maxScripts);
+}
+
 function buildMeetingPrepQuality({
   attendees,
   relationshipRiskSignals,
@@ -2058,6 +2314,8 @@ function buildMeetingPrepQuality({
   ownerEscalationPrompts,
   stakeholderNarrativePack,
   dependencyFollowThroughPrompts,
+  decisionCommitmentSequencing,
+  stakeholderCloseScripts,
 }) {
   const checks = [];
   const push = (code, severity, status, message) => {
@@ -2140,6 +2398,31 @@ function buildMeetingPrepQuality({
     );
   } else {
     push('dependency_followthrough_coverage', 'high', 'fail', 'Missing dependency-aware follow-through prompts.');
+  }
+
+  const sequencingHasSteps = has(decisionCommitmentSequencing?.steps);
+  if (decisionCommitmentSequencing && sequencingHasSteps) {
+    push(
+      'decision_commitment_sequencing_coverage',
+      'low',
+      'pass',
+      `Decision-commitment sequencing present (${decisionCommitmentSequencing.steps.length} steps).`
+    );
+  } else if (decisionCommitmentSequencing) {
+    push('decision_commitment_sequencing_coverage', 'medium', 'warn', 'Decision-commitment sequencing is present but has no steps.');
+  } else {
+    push('decision_commitment_sequencing_coverage', 'high', 'fail', 'Missing decision-commitment sequencing section.');
+  }
+
+  if (has(stakeholderCloseScripts)) {
+    push(
+      'stakeholder_close_scripts_coverage',
+      'low',
+      'pass',
+      `Stakeholder-specific close scripts present (${stakeholderCloseScripts.length}).`
+    );
+  } else {
+    push('stakeholder_close_scripts_coverage', 'high', 'fail', 'Missing stakeholder-specific close scripts section.');
   }
 
   if (highRiskSignals.length > 0 && !has(objectionRebuttalPacks)) {
