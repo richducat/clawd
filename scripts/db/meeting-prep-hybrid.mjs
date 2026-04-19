@@ -241,6 +241,21 @@ async function main() {
         meetingRecommendations,
         commitmentCloseChecklist,
       });
+      const commitmentRiskAging = buildCommitmentRiskAging({
+        title: event.title || '',
+        startIso: start.toISOString(),
+        attendees: attendeeBriefs,
+        relationshipRiskSignals,
+        commitmentCloseChecklist,
+        followUpDraftPack,
+      });
+      const ownerEscalationPrompts = buildOwnerEscalationPrompts({
+        title: event.title || '',
+        attendees: attendeeBriefs,
+        relationshipRiskSignals,
+        commitmentRiskAging,
+        commitmentCloseChecklist,
+      });
       const prepQuality = buildMeetingPrepQuality({
         attendees: attendeeBriefs,
         relationshipRiskSignals,
@@ -252,6 +267,8 @@ async function main() {
         negotiationFallbackPrompts,
         commitmentCloseChecklist,
         followUpDraftPack,
+        commitmentRiskAging,
+        ownerEscalationPrompts,
       });
 
       if (insertSnapshotStmt) {
@@ -299,6 +316,8 @@ async function main() {
         meetingRecommendations,
         commitmentCloseChecklist,
         followUpDraftPack,
+        commitmentRiskAging,
+        ownerEscalationPrompts,
         prepQuality,
       });
     }
@@ -445,6 +464,33 @@ function printMarkdownBrief({ account, date, timezone, internalDomains, meetings
       if (Array.isArray(meeting.prepQuality.coverageChecks) && meeting.prepQuality.coverageChecks.length) {
         for (const check of meeting.prepQuality.coverageChecks) {
           console.log(`  - [${check.severity}] ${check.status}: ${check.message}`);
+        }
+      }
+    }
+    if (meeting.commitmentRiskAging) {
+      console.log('- Commitment risk aging model:');
+      const model = meeting.commitmentRiskAging;
+      if (model.summary) {
+        console.log(`  - Summary: ${model.summary}`);
+      }
+      if (Array.isArray(model.windows) && model.windows.length) {
+        for (const window of model.windows) {
+          console.log(`  - [${window.priority}] ${window.window}: ${window.trigger} -> ${window.action}`);
+          if (window.ownerHint) {
+            console.log(`    - Owner hint: ${window.ownerHint}`);
+          }
+        }
+      }
+    }
+    if (Array.isArray(meeting.ownerEscalationPrompts) && meeting.ownerEscalationPrompts.length) {
+      console.log('- Owner escalation prompts:');
+      for (const prompt of meeting.ownerEscalationPrompts) {
+        console.log(`  - [${prompt.priority}] ${prompt.trigger} -> ${prompt.prompt}`);
+        if (prompt.ownerHint) {
+          console.log(`    - Owner hint: ${prompt.ownerHint}`);
+        }
+        if (prompt.desiredOutcome) {
+          console.log(`    - Desired outcome: ${prompt.desiredOutcome}`);
         }
       }
     }
@@ -1517,6 +1563,192 @@ function buildFollowUpDraftPack({
   };
 }
 
+function buildCommitmentRiskAging({
+  title,
+  startIso,
+  attendees,
+  relationshipRiskSignals,
+  commitmentCloseChecklist,
+  followUpDraftPack,
+}) {
+  const windows = [];
+  const attendeeCount = Number(attendees?.length || 0);
+  const highRiskCount = (relationshipRiskSignals || [])
+    .filter((signal) => signal.severity === 'high')
+    .reduce((sum, signal) => sum + Number(signal.count || 0), 0);
+  const unstableRsvpCount = (relationshipRiskSignals || [])
+    .filter((signal) => signal.code === 'rsvp_unconfirmed' || signal.code === 'rsvp_declined')
+    .reduce((sum, signal) => sum + Number(signal.count || 0), 0);
+  const highChecklistCount = (commitmentCloseChecklist || [])
+    .filter((item) => item.priority === 'high')
+    .length;
+  const mediumChecklistCount = (commitmentCloseChecklist || [])
+    .filter((item) => item.priority === 'medium')
+    .length;
+
+  const push = (code, priority, window, trigger, action, ownerHint) => {
+    if (windows.some((entry) => entry.code === code)) return;
+    windows.push({ code, priority, window, trigger, action, ownerHint });
+  };
+
+  push(
+    'aging_24h_owner_confirmation',
+    'high',
+    'within 24h',
+    'Any open commitment still missing explicit owner + due date.',
+    'Post owner-request follow-up in the active thread and require owner/date confirmation.',
+    'Meeting owner'
+  );
+
+  if (highRiskCount > 0 || highChecklistCount > 0) {
+    push(
+      'aging_72h_risk_mitigation',
+      'high',
+      'within 72h',
+      'High-risk objections remain unresolved after initial follow-up.',
+      'Escalate to risk owner + sponsor with one mitigation path and deadline.',
+      'Risk owner'
+    );
+  }
+
+  if (unstableRsvpCount > 0) {
+    push(
+      'aging_72h_rsvp_backfill',
+      'medium',
+      'within 72h',
+      'Delegate/async fallback still missing for unstable RSVP stakeholders.',
+      'Request delegate assignment or async decision input deadline.',
+      'Attendee manager'
+    );
+  }
+
+  if (mediumChecklistCount > 0 || attendeeCount >= 3 || hasKeyword(title, ['review', 'decision', 'roadmap', 'sync'])) {
+    push(
+      'aging_7d_checkpoint',
+      'medium',
+      'within 7d',
+      'Medium-priority commitments remain open through the week.',
+      'Run a checkpoint recap with open/closed status and next checkpoint date.',
+      'Program owner'
+    );
+  }
+
+  if (followUpDraftPack?.sendBy === 'within 2 hours after meeting') {
+    push(
+      'aging_fast_followup_enforcement',
+      'high',
+      'same day',
+      'Rapid follow-up SLA missed for elevated-risk meeting.',
+      'Trigger immediate ownership escalation and post a corrected send timestamp.',
+      'Meeting owner'
+    );
+  }
+
+  if (!windows.length) {
+    push(
+      'aging_default',
+      'low',
+      'within 3d',
+      'Standard commitment cadence for low-risk meeting context.',
+      'Send a concise owner/date recap and close any completed items.',
+      'Meeting owner'
+    );
+  }
+
+  let summary = 'Commitment aging coverage is healthy for current meeting risk profile.';
+  if (highRiskCount > 0 || highChecklistCount > 0) {
+    summary = 'Elevated commitment aging risk detected; enforce 24h owner confirmation and 72h mitigation escalation.';
+  } else if (unstableRsvpCount > 0) {
+    summary = 'RSVP instability detected; prioritize delegate/async fallback aging checks.';
+  }
+
+  return {
+    summary,
+    windows: windows.slice(0, 6),
+  };
+}
+
+function buildOwnerEscalationPrompts({
+  title,
+  attendees,
+  relationshipRiskSignals,
+  commitmentRiskAging,
+  commitmentCloseChecklist,
+}) {
+  const prompts = [];
+  const attendeeCount = Number(attendees?.length || 0);
+  const highRiskCount = (relationshipRiskSignals || [])
+    .filter((signal) => signal.severity === 'high')
+    .reduce((sum, signal) => sum + Number(signal.count || 0), 0);
+  const unstableRsvpCount = (relationshipRiskSignals || [])
+    .filter((signal) => signal.code === 'rsvp_unconfirmed' || signal.code === 'rsvp_declined')
+    .reduce((sum, signal) => sum + Number(signal.count || 0), 0);
+  const hasAgingHigh = (commitmentRiskAging?.windows || []).some((window) => window.priority === 'high');
+  const hasOwnerDateChecklist = (commitmentCloseChecklist || []).some((item) => item.code === 'closeout_owner_date');
+
+  const push = (code, priority, trigger, prompt, desiredOutcome, ownerHint) => {
+    if (prompts.some((item) => item.code === code)) return;
+    prompts.push({ code, priority, trigger, prompt, desiredOutcome, ownerHint });
+  };
+
+  if (hasOwnerDateChecklist || hasAgingHigh) {
+    push(
+      'owner_missing_confirmation',
+      'high',
+      'Owner/date confirmation is still missing after first follow-up.',
+      'Please confirm final owner and due date for each open item by end of day, or escalate the blocker now.',
+      'Lock explicit owner/date for every open commitment.',
+      'Meeting owner'
+    );
+  }
+
+  if (highRiskCount > 0) {
+    push(
+      'owner_risk_mitigation',
+      'high',
+      'High-risk objection remains open past 72h.',
+      'Which mitigation path are we committing to, who owns it, and what is the exact completion date?',
+      'Convert high-risk objection into a named mitigation plan.',
+      'Risk owner'
+    );
+  }
+
+  if (unstableRsvpCount > 0) {
+    push(
+      'owner_delegate_backfill',
+      'medium',
+      'Unstable RSVP stakeholders have not provided delegate/async input.',
+      'Please assign a delegate or provide async decision input by the next checkpoint.',
+      'Preserve decision flow when attendance is unstable.',
+      'Attendee manager'
+    );
+  }
+
+  if (attendeeCount >= 3 || hasKeyword(title, ['roadmap', 'review', 'sync', 'planning'])) {
+    push(
+      'owner_checkpoint_escalation',
+      'medium',
+      'Cross-functional commitments are drifting into the next cycle.',
+      'Which open items must close this week, and who is accountable for each closure update?',
+      'Protect weekly execution cadence with explicit accountability.',
+      'Program owner'
+    );
+  }
+
+  if (!prompts.length) {
+    push(
+      'owner_default',
+      'low',
+      'General post-meeting ownership drift risk.',
+      'Can we confirm one owner and one due date before we close this thread?',
+      'Ensure deterministic owner/date closeout.',
+      'Meeting owner'
+    );
+  }
+
+  return prompts.slice(0, 6);
+}
+
 function buildMeetingPrepQuality({
   attendees,
   relationshipRiskSignals,
@@ -1528,6 +1760,8 @@ function buildMeetingPrepQuality({
   negotiationFallbackPrompts,
   commitmentCloseChecklist,
   followUpDraftPack,
+  commitmentRiskAging,
+  ownerEscalationPrompts,
 }) {
   const checks = [];
   const push = (code, severity, status, message) => {
@@ -1574,6 +1808,21 @@ function buildMeetingPrepQuality({
     push('followup_pack_quality', 'medium', 'warn', 'Follow-up draft pack is present but missing asks or draft lines.');
   } else {
     push('followup_pack_quality', 'high', 'fail', 'Missing follow-up draft pack.');
+  }
+
+  const agingHasWindows = has(commitmentRiskAging?.windows);
+  if (commitmentRiskAging && agingHasWindows) {
+    push('commitment_aging_coverage', 'low', 'pass', 'Commitment risk aging windows are present.');
+  } else if (commitmentRiskAging) {
+    push('commitment_aging_coverage', 'medium', 'warn', 'Commitment aging model is present but has no windows.');
+  } else {
+    push('commitment_aging_coverage', 'high', 'fail', 'Missing commitment risk aging model.');
+  }
+
+  if (has(ownerEscalationPrompts)) {
+    push('owner_escalation_coverage', 'low', 'pass', `Owner escalation prompts present (${ownerEscalationPrompts.length}).`);
+  } else {
+    push('owner_escalation_coverage', 'high', 'fail', 'Missing owner escalation prompts.');
   }
 
   if (highRiskSignals.length > 0 && !has(objectionRebuttalPacks)) {
