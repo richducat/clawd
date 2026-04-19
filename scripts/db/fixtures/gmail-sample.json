@@ -1,0 +1,26 @@
+{
+  "messages": [
+    {
+      "id": "msg_demo_001",
+      "threadId": "thr_demo_001",
+      "date": "2026-04-18T15:00:00Z",
+      "subject": "Kickoff for onboarding plan",
+      "snippet": "Great connecting. Here are the next steps we discussed.",
+      "from": "Alex Partner <alex.partner@example.com>",
+      "to": "richducat@gmail.com",
+      "cc": "",
+      "labels": ["INBOX"]
+    },
+    {
+      "id": "msg_demo_002",
+      "threadId": "thr_demo_002",
+      "date": "2026-04-18T18:30:00Z",
+      "subject": "Follow-up with legal",
+      "snippet": "Can you confirm the updated timeline by Monday?",
+      "from": "richducat@gmail.com",
+      "to": "Morgan Counsel <morgan.counsel@example.com>",
+      "cc": "ops@example.com",
+      "labels": ["SENT"]
+    }
+  ]
+}
