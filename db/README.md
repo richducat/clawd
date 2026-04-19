@@ -299,6 +299,8 @@ Runtime notes:
       - `--min-quality-cross-owner-dependency-signoff-coverage-pct <n>`
       - `--min-quality-close-readiness-gate-matrix-coverage-pct <n>`
       - `--min-quality-stakeholder-signoff-escalation-ladder-coverage-pct <n>`
+      - `--min-quality-readiness-cadence-contract-pack-coverage-pct <n>`
+      - `--min-quality-readiness-cadence-high-priority-coverage-pct <n>`
 - Threshold breaches return exit code `2`, causing the workflow job to fail while still uploading artifacts via `if: always()`.
 - Live lane also runs canary-vs-live drift comparison after health report generation:
   - resolves latest same-date canary artifact (`hybrid-daily-canary-YYYY-MM-DD`) via GitHub Actions artifact API
@@ -566,6 +568,8 @@ Optional flags:
   - `--min-quality-cross-owner-dependency-signoff-coverage-pct <n>`
   - `--min-quality-close-readiness-gate-matrix-coverage-pct <n>`
   - `--min-quality-stakeholder-signoff-escalation-ladder-coverage-pct <n>`
+  - `--min-quality-readiness-cadence-contract-pack-coverage-pct <n>`
+  - `--min-quality-readiness-cadence-high-priority-coverage-pct <n>`
 
 Threshold-gated example (CI/alerts):
 ```bash
@@ -607,7 +611,9 @@ npm run db:hybrid:health -- \
   --min-quality-risk-weighted-close-plan-sequencing-coverage-pct 0 \
   --min-quality-cross-owner-dependency-signoff-coverage-pct 0 \
   --min-quality-close-readiness-gate-matrix-coverage-pct 0 \
-  --min-quality-stakeholder-signoff-escalation-ladder-coverage-pct 0
+  --min-quality-stakeholder-signoff-escalation-ladder-coverage-pct 0 \
+  --min-quality-readiness-cadence-contract-pack-coverage-pct 0 \
+  --min-quality-readiness-cadence-high-priority-coverage-pct 0
 ```
 
 Exit behavior:

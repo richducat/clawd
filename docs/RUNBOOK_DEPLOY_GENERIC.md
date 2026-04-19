@@ -480,6 +480,8 @@ Include:
     - `--min-quality-cross-owner-dependency-signoff-coverage-pct <n>`
     - `--min-quality-close-readiness-gate-matrix-coverage-pct <n>`
     - `--min-quality-stakeholder-signoff-escalation-ladder-coverage-pct <n>`
+    - `--min-quality-readiness-cadence-contract-pack-coverage-pct <n>`
+    - `--min-quality-readiness-cadence-high-priority-coverage-pct <n>`
 - Report fields include:
   - source cursor lag/drift for `gmail`, `google_calendar`, and `kb_ingest`
   - entity/chunk coverage totals and grouped `domain/type` counts
@@ -557,7 +559,9 @@ npm run db:hybrid:health -- \
   --min-quality-risk-weighted-close-plan-sequencing-coverage-pct 0 \
   --min-quality-cross-owner-dependency-signoff-coverage-pct 0 \
   --min-quality-close-readiness-gate-matrix-coverage-pct 0 \
-  --min-quality-stakeholder-signoff-escalation-ladder-coverage-pct 0
+  --min-quality-stakeholder-signoff-escalation-ladder-coverage-pct 0 \
+  --min-quality-readiness-cadence-contract-pack-coverage-pct 0 \
+  --min-quality-readiness-cadence-high-priority-coverage-pct 0
 ```
 
 Exit behavior:

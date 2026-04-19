@@ -68,6 +68,8 @@ const thresholds = {
   min_quality_cross_owner_dependency_signoff_coverage_pct: readOptionalNumberArg(args, '--min-quality-cross-owner-dependency-signoff-coverage-pct'),
   min_quality_close_readiness_gate_matrix_coverage_pct: readOptionalNumberArg(args, '--min-quality-close-readiness-gate-matrix-coverage-pct'),
   min_quality_stakeholder_signoff_escalation_ladder_coverage_pct: readOptionalNumberArg(args, '--min-quality-stakeholder-signoff-escalation-ladder-coverage-pct'),
+  min_quality_readiness_cadence_contract_pack_coverage_pct: readOptionalNumberArg(args, '--min-quality-readiness-cadence-contract-pack-coverage-pct'),
+  min_quality_readiness_cadence_high_priority_coverage_pct: readOptionalNumberArg(args, '--min-quality-readiness-cadence-high-priority-coverage-pct'),
 };
 const hasThresholds = Object.values(thresholds).some((value) => value !== null);
 
@@ -479,9 +481,9 @@ function printMarkdown(result, artifactDirInput) {
   } else {
     console.log(`- scanned_artifacts=${result.meeting_prep_quality.scanned_artifacts}, snapshots=${result.meeting_prep_quality.snapshots}, meetings_scored=${result.meeting_prep_quality.meetings_scored}`);
     console.log(`- latest_avg_score=${formatNumber(result.meeting_prep_quality.latest?.avg_score)}, latest_avg_gap_count=${formatNumber(result.meeting_prep_quality.latest?.avg_gap_count)}, latest_severity_score=${formatNumber(result.meeting_prep_quality.latest?.severity_score)}`);
-    console.log(`- latest_readiness_score=${formatNumber(result.meeting_prep_quality.latest?.readiness_score)}, latest_narrative_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.narrative_coverage_pct)}, latest_dependency_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.dependency_coverage_pct)}, latest_decision_sequencing_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.decision_sequencing_coverage_pct)}, latest_close_scripts_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.close_scripts_coverage_pct)}, latest_failure_mode_rehearsal_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.failure_mode_rehearsal_coverage_pct)}, latest_stakeholder_proof_request_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.stakeholder_proof_request_coverage_pct)}, latest_confidence_calibration_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.confidence_calibration_coverage_pct)}, latest_confidence_calibration_avg_delta=${formatNumber(result.meeting_prep_quality.latest?.confidence_calibration_avg_delta)}, latest_owner_assignment_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.owner_assignment_coverage_pct)}, latest_counterfactual_decision_drill_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.counterfactual_decision_drill_coverage_pct)}, latest_stakeholder_objection_handoff_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.stakeholder_objection_handoff_coverage_pct)}, latest_risk_weighted_close_plan_sequencing_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.risk_weighted_close_plan_sequencing_coverage_pct)}, latest_cross_owner_dependency_signoff_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.cross_owner_dependency_signoff_coverage_pct)}, latest_close_readiness_gate_matrix_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.close_readiness_gate_matrix_coverage_pct)}, latest_stakeholder_signoff_escalation_ladder_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.stakeholder_signoff_escalation_ladder_coverage_pct)}`);
+    console.log(`- latest_readiness_score=${formatNumber(result.meeting_prep_quality.latest?.readiness_score)}, latest_narrative_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.narrative_coverage_pct)}, latest_dependency_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.dependency_coverage_pct)}, latest_decision_sequencing_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.decision_sequencing_coverage_pct)}, latest_close_scripts_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.close_scripts_coverage_pct)}, latest_failure_mode_rehearsal_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.failure_mode_rehearsal_coverage_pct)}, latest_stakeholder_proof_request_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.stakeholder_proof_request_coverage_pct)}, latest_confidence_calibration_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.confidence_calibration_coverage_pct)}, latest_confidence_calibration_avg_delta=${formatNumber(result.meeting_prep_quality.latest?.confidence_calibration_avg_delta)}, latest_owner_assignment_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.owner_assignment_coverage_pct)}, latest_counterfactual_decision_drill_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.counterfactual_decision_drill_coverage_pct)}, latest_stakeholder_objection_handoff_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.stakeholder_objection_handoff_coverage_pct)}, latest_risk_weighted_close_plan_sequencing_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.risk_weighted_close_plan_sequencing_coverage_pct)}, latest_cross_owner_dependency_signoff_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.cross_owner_dependency_signoff_coverage_pct)}, latest_close_readiness_gate_matrix_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.close_readiness_gate_matrix_coverage_pct)}, latest_stakeholder_signoff_escalation_ladder_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.stakeholder_signoff_escalation_ladder_coverage_pct)}, latest_readiness_cadence_contract_pack_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.readiness_cadence_contract_pack_coverage_pct)}, latest_readiness_cadence_high_priority_coverage_pct=${formatNumber(result.meeting_prep_quality.latest?.readiness_cadence_high_priority_coverage_pct)}`);
     console.log(`- oldest_avg_score=${formatNumber(result.meeting_prep_quality.oldest?.avg_score)}, oldest_avg_gap_count=${formatNumber(result.meeting_prep_quality.oldest?.avg_gap_count)}, oldest_severity_score=${formatNumber(result.meeting_prep_quality.oldest?.severity_score)}`);
-    console.log(`- oldest_readiness_score=${formatNumber(result.meeting_prep_quality.oldest?.readiness_score)}, oldest_narrative_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.narrative_coverage_pct)}, oldest_dependency_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.dependency_coverage_pct)}, oldest_decision_sequencing_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.decision_sequencing_coverage_pct)}, oldest_close_scripts_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.close_scripts_coverage_pct)}, oldest_failure_mode_rehearsal_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.failure_mode_rehearsal_coverage_pct)}, oldest_stakeholder_proof_request_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.stakeholder_proof_request_coverage_pct)}, oldest_confidence_calibration_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.confidence_calibration_coverage_pct)}, oldest_confidence_calibration_avg_delta=${formatNumber(result.meeting_prep_quality.oldest?.confidence_calibration_avg_delta)}, oldest_owner_assignment_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.owner_assignment_coverage_pct)}, oldest_counterfactual_decision_drill_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.counterfactual_decision_drill_coverage_pct)}, oldest_stakeholder_objection_handoff_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.stakeholder_objection_handoff_coverage_pct)}, oldest_risk_weighted_close_plan_sequencing_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.risk_weighted_close_plan_sequencing_coverage_pct)}, oldest_cross_owner_dependency_signoff_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.cross_owner_dependency_signoff_coverage_pct)}, oldest_close_readiness_gate_matrix_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.close_readiness_gate_matrix_coverage_pct)}, oldest_stakeholder_signoff_escalation_ladder_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.stakeholder_signoff_escalation_ladder_coverage_pct)}`);
+    console.log(`- oldest_readiness_score=${formatNumber(result.meeting_prep_quality.oldest?.readiness_score)}, oldest_narrative_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.narrative_coverage_pct)}, oldest_dependency_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.dependency_coverage_pct)}, oldest_decision_sequencing_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.decision_sequencing_coverage_pct)}, oldest_close_scripts_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.close_scripts_coverage_pct)}, oldest_failure_mode_rehearsal_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.failure_mode_rehearsal_coverage_pct)}, oldest_stakeholder_proof_request_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.stakeholder_proof_request_coverage_pct)}, oldest_confidence_calibration_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.confidence_calibration_coverage_pct)}, oldest_confidence_calibration_avg_delta=${formatNumber(result.meeting_prep_quality.oldest?.confidence_calibration_avg_delta)}, oldest_owner_assignment_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.owner_assignment_coverage_pct)}, oldest_counterfactual_decision_drill_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.counterfactual_decision_drill_coverage_pct)}, oldest_stakeholder_objection_handoff_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.stakeholder_objection_handoff_coverage_pct)}, oldest_risk_weighted_close_plan_sequencing_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.risk_weighted_close_plan_sequencing_coverage_pct)}, oldest_cross_owner_dependency_signoff_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.cross_owner_dependency_signoff_coverage_pct)}, oldest_close_readiness_gate_matrix_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.close_readiness_gate_matrix_coverage_pct)}, oldest_stakeholder_signoff_escalation_ladder_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.stakeholder_signoff_escalation_ladder_coverage_pct)}, oldest_readiness_cadence_contract_pack_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.readiness_cadence_contract_pack_coverage_pct)}, oldest_readiness_cadence_high_priority_coverage_pct=${formatNumber(result.meeting_prep_quality.oldest?.readiness_cadence_high_priority_coverage_pct)}`);
 
     const driftSignals = Array.isArray(result.meeting_prep_quality.drift_signals) ? result.meeting_prep_quality.drift_signals : [];
     if (!driftSignals.length) {
@@ -611,6 +613,8 @@ function printMarkdown(result, artifactDirInput) {
   console.log(`- min_quality_cross_owner_dependency_signoff_coverage_pct=${formatNumber(result.thresholds.min_quality_cross_owner_dependency_signoff_coverage_pct)}`);
   console.log(`- min_quality_close_readiness_gate_matrix_coverage_pct=${formatNumber(result.thresholds.min_quality_close_readiness_gate_matrix_coverage_pct)}`);
   console.log(`- min_quality_stakeholder_signoff_escalation_ladder_coverage_pct=${formatNumber(result.thresholds.min_quality_stakeholder_signoff_escalation_ladder_coverage_pct)}`);
+  console.log(`- min_quality_readiness_cadence_contract_pack_coverage_pct=${formatNumber(result.thresholds.min_quality_readiness_cadence_contract_pack_coverage_pct)}`);
+  console.log(`- min_quality_readiness_cadence_high_priority_coverage_pct=${formatNumber(result.thresholds.min_quality_readiness_cadence_high_priority_coverage_pct)}`);
   console.log(`- breaches=${result.breaches.length}`);
 
   if (!result.breaches.length) {
@@ -709,6 +713,14 @@ function printMarkdown(result, artifactDirInput) {
     }
     if (breach.kind === 'quality_stakeholder_signoff_escalation_ladder_coverage_pct') {
       console.log(`- [breach] quality stakeholder signoff escalation-ladder coverage: actual=${breach.actual} < minimum=${breach.limit}`);
+      continue;
+    }
+    if (breach.kind === 'quality_readiness_cadence_contract_pack_coverage_pct') {
+      console.log(`- [breach] quality readiness-cadence contract-pack coverage: actual=${breach.actual} < minimum=${breach.limit}`);
+      continue;
+    }
+    if (breach.kind === 'quality_readiness_cadence_high_priority_coverage_pct') {
+      console.log(`- [breach] quality readiness-cadence high-priority coverage: actual=${breach.actual} < minimum=${breach.limit}`);
       continue;
     }
     console.log(`- [breach] ${breach.source} ${breach.kind}: actual=${breach.actual} > limit=${breach.limit}`);
@@ -1442,6 +1454,8 @@ function readMeetingPrepQualityTrends({ artifactDirInput }) {
     let crossOwnerDependencySignoffCovered = 0;
     let closeReadinessGateMatrixCovered = 0;
     let stakeholderSignoffEscalationLadderCovered = 0;
+    let readinessCadenceContractPackCovered = 0;
+    let readinessCadenceHighPriorityCovered = 0;
     const confidenceCalibrationDeltas = [];
     const ownerAssignmentCoveragePcts = [];
     const readinessScores = [];
@@ -1463,6 +1477,8 @@ function readMeetingPrepQualityTrends({ artifactDirInput }) {
       const crossOwnerDependencySignoffComplete = hasCrossOwnerDependencySignoffPack(meeting?.crossOwnerDependencySignoffPack);
       const closeReadinessGateMatrixComplete = hasCloseReadinessGateMatrix(meeting?.closeReadinessGateMatrix);
       const stakeholderSignoffEscalationLadderComplete = hasStakeholderSignoffEscalationLadder(meeting?.stakeholderSignoffEscalationLadder);
+      const readinessCadenceContractPackComplete = hasReadinessCadenceContractPack(meeting?.readinessCadenceContractPack);
+      const readinessCadenceHighPriorityComplete = hasReadinessCadenceHighPriorityLane(meeting?.readinessCadenceContractPack);
       const ownerAssignmentCoveragePct = computeOwnerAssignmentCoveragePct({
         balancing: meeting?.actionOwnerLoadBalancing,
         meetingRecommendations: meeting?.meetingRecommendations,
@@ -1480,6 +1496,8 @@ function readMeetingPrepQualityTrends({ artifactDirInput }) {
       if (crossOwnerDependencySignoffComplete) crossOwnerDependencySignoffCovered += 1;
       if (closeReadinessGateMatrixComplete) closeReadinessGateMatrixCovered += 1;
       if (stakeholderSignoffEscalationLadderComplete) stakeholderSignoffEscalationLadderCovered += 1;
+      if (readinessCadenceContractPackComplete) readinessCadenceContractPackCovered += 1;
+      if (readinessCadenceHighPriorityComplete) readinessCadenceHighPriorityCovered += 1;
       if (confidenceCalibrationComplete) {
         confidenceCalibrationCovered += 1;
         confidenceCalibrationDeltas.push(Number(meeting?.confidenceCalibrationTrend?.averageDelta || 0));
@@ -1510,6 +1528,8 @@ function readMeetingPrepQualityTrends({ artifactDirInput }) {
     const crossOwnerDependencySignoffCoveragePct = Number(((crossOwnerDependencySignoffCovered / scored.length) * 100).toFixed(3));
     const closeReadinessGateMatrixCoveragePct = Number(((closeReadinessGateMatrixCovered / scored.length) * 100).toFixed(3));
     const stakeholderSignoffEscalationLadderCoveragePct = Number(((stakeholderSignoffEscalationLadderCovered / scored.length) * 100).toFixed(3));
+    const readinessCadenceContractPackCoveragePct = Number(((readinessCadenceContractPackCovered / scored.length) * 100).toFixed(3));
+    const readinessCadenceHighPriorityCoveragePct = Number(((readinessCadenceHighPriorityCovered / scored.length) * 100).toFixed(3));
     const confidenceCalibrationAvgDelta = confidenceCalibrationDeltas.length
       ? Number((confidenceCalibrationDeltas.reduce((sum, value) => sum + value, 0) / confidenceCalibrationDeltas.length).toFixed(3))
       : null;
@@ -1550,6 +1570,8 @@ function readMeetingPrepQualityTrends({ artifactDirInput }) {
       cross_owner_dependency_signoff_coverage_pct: crossOwnerDependencySignoffCoveragePct,
       close_readiness_gate_matrix_coverage_pct: closeReadinessGateMatrixCoveragePct,
       stakeholder_signoff_escalation_ladder_coverage_pct: stakeholderSignoffEscalationLadderCoveragePct,
+      readiness_cadence_contract_pack_coverage_pct: readinessCadenceContractPackCoveragePct,
+      readiness_cadence_high_priority_coverage_pct: readinessCadenceHighPriorityCoveragePct,
       narrative_covered_count: narrativeCovered,
       dependency_covered_count: dependencyCovered,
       sequencing_covered_count: sequencingCovered,
@@ -1563,6 +1585,8 @@ function readMeetingPrepQualityTrends({ artifactDirInput }) {
       cross_owner_dependency_signoff_covered_count: crossOwnerDependencySignoffCovered,
       close_readiness_gate_matrix_covered_count: closeReadinessGateMatrixCovered,
       stakeholder_signoff_escalation_ladder_covered_count: stakeholderSignoffEscalationLadderCovered,
+      readiness_cadence_contract_pack_covered_count: readinessCadenceContractPackCovered,
+      readiness_cadence_high_priority_covered_count: readinessCadenceHighPriorityCovered,
       severity_score: severityScore,
       levels: levelCounts,
       failing_check_severity: severityCounts,
@@ -1623,6 +1647,8 @@ function buildMeetingPrepQualityDriftSignals({ oldest, latest }) {
   const crossOwnerDependencySignoffCoverageDelta = Number((Number(latest.cross_owner_dependency_signoff_coverage_pct || 0) - Number(oldest.cross_owner_dependency_signoff_coverage_pct || 0)).toFixed(3));
   const closeReadinessGateMatrixCoverageDelta = Number((Number(latest.close_readiness_gate_matrix_coverage_pct || 0) - Number(oldest.close_readiness_gate_matrix_coverage_pct || 0)).toFixed(3));
   const stakeholderSignoffEscalationLadderCoverageDelta = Number((Number(latest.stakeholder_signoff_escalation_ladder_coverage_pct || 0) - Number(oldest.stakeholder_signoff_escalation_ladder_coverage_pct || 0)).toFixed(3));
+  const readinessCadenceContractPackCoverageDelta = Number((Number(latest.readiness_cadence_contract_pack_coverage_pct || 0) - Number(oldest.readiness_cadence_contract_pack_coverage_pct || 0)).toFixed(3));
+  const readinessCadenceHighPriorityCoverageDelta = Number((Number(latest.readiness_cadence_high_priority_coverage_pct || 0) - Number(oldest.readiness_cadence_high_priority_coverage_pct || 0)).toFixed(3));
   const severityDelta = Number((Number(latest.severity_score || 0) - Number(oldest.severity_score || 0)).toFixed(3));
   const highDelta = Number((Number(latest.failing_check_severity?.high || 0) - Number(oldest.failing_check_severity?.high || 0)).toFixed(3));
 
@@ -1802,6 +1828,22 @@ function buildMeetingPrepQualityDriftSignals({ oldest, latest }) {
       message: `Stakeholder signoff escalation-ladder coverage dropped by ${Math.abs(stakeholderSignoffEscalationLadderCoverageDelta)} pct vs oldest snapshot.`,
     });
   }
+  if (readinessCadenceContractPackCoverageDelta <= -5) {
+    signals.push({
+      code: 'readiness_cadence_contract_pack_coverage_drop',
+      severity: readinessCadenceContractPackCoverageDelta <= -30 ? 'high' : readinessCadenceContractPackCoverageDelta <= -15 ? 'medium' : 'low',
+      delta: readinessCadenceContractPackCoverageDelta,
+      message: `Readiness-cadence contract-pack coverage dropped by ${Math.abs(readinessCadenceContractPackCoverageDelta)} pct vs oldest snapshot.`,
+    });
+  }
+  if (readinessCadenceHighPriorityCoverageDelta <= -5) {
+    signals.push({
+      code: 'readiness_cadence_high_priority_coverage_drop',
+      severity: readinessCadenceHighPriorityCoverageDelta <= -30 ? 'high' : readinessCadenceHighPriorityCoverageDelta <= -15 ? 'medium' : 'low',
+      delta: readinessCadenceHighPriorityCoverageDelta,
+      message: `Readiness-cadence high-priority lane coverage dropped by ${Math.abs(readinessCadenceHighPriorityCoverageDelta)} pct vs oldest snapshot.`,
+    });
+  }
 
   return signals;
 }
@@ -1853,6 +1895,8 @@ function buildMeetingPrepQualityEscalationLanes(latestSnapshot) {
   const crossOwnerDependencySignoffCoverage = Number(latestSnapshot.cross_owner_dependency_signoff_coverage_pct || 0);
   const closeReadinessGateMatrixCoverage = Number(latestSnapshot.close_readiness_gate_matrix_coverage_pct || 0);
   const stakeholderSignoffEscalationLadderCoverage = Number(latestSnapshot.stakeholder_signoff_escalation_ladder_coverage_pct || 0);
+  const readinessCadenceContractPackCoverage = Number(latestSnapshot.readiness_cadence_contract_pack_coverage_pct || 0);
+  const readinessCadenceHighPriorityCoverage = Number(latestSnapshot.readiness_cadence_high_priority_coverage_pct || 0);
   if (narrativeCoverage < 80) {
     lanes.push({
       lane: 'stakeholder_narrative_pack_remediation',
@@ -1963,6 +2007,22 @@ function buildMeetingPrepQualityEscalationLanes(latestSnapshot) {
       severity: stakeholderSignoffEscalationLadderCoverage < 60 ? 'high' : 'medium',
       trigger_count: Number(latestSnapshot.scored_meetings || 0) - Number(latestSnapshot.stakeholder_signoff_escalation_ladder_covered_count || 0),
       message: 'Stakeholder signoff escalation-ladder coverage is below target; require explicit escalation-owner/SLA routing before closeout.',
+    });
+  }
+  if (readinessCadenceContractPackCoverage < 80) {
+    lanes.push({
+      lane: 'readiness_cadence_contract_pack_remediation',
+      severity: readinessCadenceContractPackCoverage < 60 ? 'high' : 'medium',
+      trigger_count: Number(latestSnapshot.scored_meetings || 0) - Number(latestSnapshot.readiness_cadence_contract_pack_covered_count || 0),
+      message: 'Readiness-cadence contract-pack coverage is below target; require deterministic cadence lanes with owner contracts before closeout.',
+    });
+  }
+  if (readinessCadenceHighPriorityCoverage < 80) {
+    lanes.push({
+      lane: 'readiness_cadence_high_priority_remediation',
+      severity: readinessCadenceHighPriorityCoverage < 60 ? 'high' : 'medium',
+      trigger_count: Number(latestSnapshot.scored_meetings || 0) - Number(latestSnapshot.readiness_cadence_high_priority_covered_count || 0),
+      message: 'Readiness-cadence high-priority lane coverage is below target; require at least one high-priority checkpoint lane before closeout.',
     });
   }
 
@@ -2109,6 +2169,41 @@ function hasStakeholderSignoffEscalationLadder(rows) {
       && primaryOwner.length > 0
       && escalationOwner.length > 0
       && slaWindow.length > 0;
+  });
+}
+
+function hasReadinessCadenceContractPack(pack) {
+  if (!pack || typeof pack !== 'object') return false;
+  const summary = String(pack.summary || '').trim();
+  const lanes = Array.isArray(pack.lanes)
+    ? pack.lanes.filter((lane) => {
+      const cadence = String(lane?.cadence || '').trim();
+      const contractQuestion = String(lane?.contractQuestion || '').trim();
+      const evidenceRequirement = String(lane?.evidenceRequirement || '').trim();
+      const escalationTrigger = String(lane?.escalationTrigger || '').trim();
+      return cadence.length > 0
+        && contractQuestion.length > 0
+        && evidenceRequirement.length > 0
+        && escalationTrigger.length > 0;
+    })
+    : [];
+  return summary.length > 0 && lanes.length > 0;
+}
+
+function hasReadinessCadenceHighPriorityLane(pack) {
+  if (!pack || typeof pack !== 'object') return false;
+  if (!Array.isArray(pack.lanes) || !pack.lanes.length) return false;
+  return pack.lanes.some((lane) => {
+    const priority = String(lane?.priority || '').trim().toLowerCase();
+    if (priority !== 'high') return false;
+    const cadence = String(lane?.cadence || '').trim();
+    const contractQuestion = String(lane?.contractQuestion || '').trim();
+    const evidenceRequirement = String(lane?.evidenceRequirement || '').trim();
+    const escalationTrigger = String(lane?.escalationTrigger || '').trim();
+    return cadence.length > 0
+      && contractQuestion.length > 0
+      && evidenceRequirement.length > 0
+      && escalationTrigger.length > 0;
   });
 }
 
@@ -2444,6 +2539,8 @@ function evaluateThresholdBreaches({ sources, failures, reconciliation, baseline
     || thresholds.min_quality_cross_owner_dependency_signoff_coverage_pct !== null
     || thresholds.min_quality_close_readiness_gate_matrix_coverage_pct !== null
     || thresholds.min_quality_stakeholder_signoff_escalation_ladder_coverage_pct !== null
+    || thresholds.min_quality_readiness_cadence_contract_pack_coverage_pct !== null
+    || thresholds.min_quality_readiness_cadence_high_priority_coverage_pct !== null
   ) {
     if (!meetingPrepQuality?.available) {
       breaches.push({
@@ -2641,6 +2738,26 @@ function evaluateThresholdBreaches({ sources, failures, reconciliation, baseline
             kind: 'quality_stakeholder_signoff_escalation_ladder_coverage_pct',
             actual: latestStakeholderSignoffEscalationLadderCoverage,
             limit: thresholds.min_quality_stakeholder_signoff_escalation_ladder_coverage_pct,
+          });
+        }
+      }
+      if (thresholds.min_quality_readiness_cadence_contract_pack_coverage_pct !== null) {
+        const latestReadinessCadenceContractPackCoverage = Number(meetingPrepQuality?.latest?.readiness_cadence_contract_pack_coverage_pct || 0);
+        if (latestReadinessCadenceContractPackCoverage < thresholds.min_quality_readiness_cadence_contract_pack_coverage_pct) {
+          breaches.push({
+            kind: 'quality_readiness_cadence_contract_pack_coverage_pct',
+            actual: latestReadinessCadenceContractPackCoverage,
+            limit: thresholds.min_quality_readiness_cadence_contract_pack_coverage_pct,
+          });
+        }
+      }
+      if (thresholds.min_quality_readiness_cadence_high_priority_coverage_pct !== null) {
+        const latestReadinessCadenceHighPriorityCoverage = Number(meetingPrepQuality?.latest?.readiness_cadence_high_priority_coverage_pct || 0);
+        if (latestReadinessCadenceHighPriorityCoverage < thresholds.min_quality_readiness_cadence_high_priority_coverage_pct) {
+          breaches.push({
+            kind: 'quality_readiness_cadence_high_priority_coverage_pct',
+            actual: latestReadinessCadenceHighPriorityCoverage,
+            limit: thresholds.min_quality_readiness_cadence_high_priority_coverage_pct,
           });
         }
       }
@@ -2928,7 +3045,7 @@ function severityForBreachKind(kind) {
   if (['lag_hours', 'seen_drift_hours', 'baseline_anomalies_count', 'reconciliation_unavailable', 'slo_budget_unavailable', 'slo_budget_burn_pct', 'meeting_prep_quality_unavailable', 'quality_severity_score', 'quality_readiness_drop', 'quality_confidence_calibration_drop'].includes(k)) {
     return 'high';
   }
-  if (['entity_delta_pct', 'chunk_ratio_delta', 'link_delta_pct', 'artifact_issues_count', 'quality_drift_signals_count', 'quality_narrative_coverage_pct', 'quality_dependency_coverage_pct', 'quality_decision_sequencing_coverage_pct', 'quality_close_scripts_coverage_pct', 'quality_failure_mode_rehearsal_coverage_pct', 'quality_stakeholder_proof_request_coverage_pct', 'quality_owner_assignment_coverage_pct', 'quality_counterfactual_decision_drill_coverage_pct', 'quality_stakeholder_objection_handoff_coverage_pct', 'quality_risk_weighted_close_plan_sequencing_coverage_pct', 'quality_cross_owner_dependency_signoff_coverage_pct', 'quality_close_readiness_gate_matrix_coverage_pct', 'quality_stakeholder_signoff_escalation_ladder_coverage_pct'].includes(k)) {
+  if (['entity_delta_pct', 'chunk_ratio_delta', 'link_delta_pct', 'artifact_issues_count', 'quality_drift_signals_count', 'quality_narrative_coverage_pct', 'quality_dependency_coverage_pct', 'quality_decision_sequencing_coverage_pct', 'quality_close_scripts_coverage_pct', 'quality_failure_mode_rehearsal_coverage_pct', 'quality_stakeholder_proof_request_coverage_pct', 'quality_owner_assignment_coverage_pct', 'quality_counterfactual_decision_drill_coverage_pct', 'quality_stakeholder_objection_handoff_coverage_pct', 'quality_risk_weighted_close_plan_sequencing_coverage_pct', 'quality_cross_owner_dependency_signoff_coverage_pct', 'quality_close_readiness_gate_matrix_coverage_pct', 'quality_stakeholder_signoff_escalation_ladder_coverage_pct', 'quality_readiness_cadence_contract_pack_coverage_pct', 'quality_readiness_cadence_high_priority_coverage_pct'].includes(k)) {
     return 'medium';
   }
   return 'low';
