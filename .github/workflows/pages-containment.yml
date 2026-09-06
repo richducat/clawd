@@ -1,0 +1,47 @@
+name: Contain public Pages content
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: pages-containment
+  cancel-in-progress: false
+
+jobs:
+  contain:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      # Intentionally generate a fresh artifact without checking out repository files.
+      - name: Generate maintenance site
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p maintenance-site
+          cat > maintenance-site/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+          <meta name="robots" content="noindex,nofollow"><title>Site unavailable</title>
+          <main><h1>Site temporarily unavailable</h1><p>This site is undergoing maintenance.</p></main></html>
+          HTML
+          cp maintenance-site/index.html maintenance-site/404.html
+          printf 'User-agent: *\nDisallow: /\n' > maintenance-site/robots.txt
+      - name: Upload maintenance site only
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: maintenance-site
+          retention-days: 1
+      - name: Replace published site
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
