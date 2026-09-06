@@ -52,3 +52,15 @@ db/*.db
 kickcraft/
 labstudio-app-sandbox/
 labstudio-app.local/
+
+# Keep runtime diagnostics and private operational data out of git.
+**/.playwright-cli/
+**/.playwright-mcp/
+.env
+.env.*
+!.env*.example
+!.env*.sample
+!.env*.template
+memory/
+MEMORY.md
+zoho_exports/
