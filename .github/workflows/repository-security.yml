@@ -1,0 +1,22 @@
+name: Repository security
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-hygiene:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Test security guard
+        run: python3 scripts/test_repository_security.py
+      - name: Reject sensitive artifacts and recognizable secrets
+        run: python3 scripts/repository-security-check.py
