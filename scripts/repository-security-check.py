@@ -42,16 +42,27 @@ def findings(files):
     return result
 
 def main():
-    paths = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
+    entries = subprocess.check_output(['git', 'ls-files', '--stage', '-z']).decode().split('\0')
     files = []
-    for name in filter(None, paths):
+    gitlinks = 0
+    for entry in filter(None, entries):
+        metadata, name = entry.split('\t', 1)
+        mode, sha, stage = metadata.split()
+        if stage != '0':
+            print('Resolve unmerged index entries before scanning.')
+            return True
+        if mode == '160000':
+            gitlinks += 1
+            continue
         # Scan the index, not symlink targets or unrelated untracked files.
-        data = subprocess.check_output(['git', 'show', ':' + name])
+        data = subprocess.check_output(['git', 'cat-file', 'blob', sha])
         files.append((name, data))
     hits = findings(files)
     for name, rule in hits:
         print(f'{rule}: {name}')
     print(f'Checked {len(files)} tracked files; {len(hits)} finding(s). Values withheld.')
+    if gitlinks:
+        print(f'{gitlinks} submodule reference(s) require separate repository scans.')
     return bool(hits)
 
 if __name__ == '__main__':

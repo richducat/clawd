@@ -1,5 +1,8 @@
 import importlib.util
 import pathlib
+import subprocess
+import sys
+import tempfile
 import unittest
 
 spec = importlib.util.spec_from_file_location('guard', pathlib.Path(__file__).with_name('repository-security-check.py'))
@@ -32,6 +35,16 @@ class RepositorySecurityTests(unittest.TestCase):
     def test_private_runtime_exports_are_rejected(self):
         for name in ['memory/notes.md', 'zoho_exports/clients.csv', 'MEMORY.md']:
             self.assertTrue(guard.findings([(name, b'private runtime data')]))
+
+    def test_gitlink_does_not_crash_scan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            subprocess.run(['git', 'init', '-q', tmp], check=True)
+            subprocess.run(['git', 'update-index', '--add', '--cacheinfo',
+                '160000,' + 'a' * 40 + ',vendor'], cwd=tmp, check=True)
+            result = subprocess.run([sys.executable, str(pathlib.Path(guard.__file__).resolve())],
+                cwd=tmp, text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('submodule reference', result.stdout)
 
 if __name__ == '__main__':
     unittest.main()
